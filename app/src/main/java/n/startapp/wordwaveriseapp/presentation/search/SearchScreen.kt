@@ -25,9 +25,12 @@ import n.startapp.wordwaveriseapp.ui.theme.*
 @Composable
 fun SearchScreen(
     state: SearchState,
+    isSaved: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onClear: () -> Unit,
+    onSaveWord: () -> Unit,
+    onUnsaveWord: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -61,7 +64,12 @@ fun SearchScreen(
                     ErrorSection(error = state.error)
                 }
                 state.wordData != null -> {
-                    WordDataSection(wordData = state.wordData)
+                    WordDataSection(
+                        wordData = state.wordData,
+                        isSaved = isSaved,
+                        onSave = onSaveWord,
+                        onUnsave = onUnsaveWord
+                    )
                 }
                 !state.hasSearched -> {
                     EmptyStateSection()
@@ -283,12 +291,44 @@ private fun EmptyStateSection() {
 }
 
 @Composable
-private fun WordDataSection(wordData: WordDto) {
+private fun WordDataSection(
+    wordData: WordDto,
+    isSaved: Boolean,
+    onSave: () -> Unit,
+    onUnsave: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
+        // Save/Unsave Button
+        Button(
+            onClick = if (isSaved) onUnsave else onSave,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .shadow(2.dp, RoundedCornerShape(12.dp)),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isSaved) Error else Success
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isSaved) "❌ Удалить из сохранённых" else "💾 Сохранить слово",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Word Header Card
         Card(
             modifier = Modifier

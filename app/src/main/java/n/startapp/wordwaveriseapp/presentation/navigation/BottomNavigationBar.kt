@@ -22,6 +22,12 @@ fun BottomNavigationBar(
     modifier: Modifier = Modifier
 ) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val screens = listOf(
+        Screen.Search,
+        Screen.Saved,
+        Screen.Tasks,
+        Screen.Profile
+    )
 
     NavigationBar(
         modifier = modifier
@@ -34,7 +40,7 @@ fun BottomNavigationBar(
         containerColor = BackgroundSecondary,
         tonalElevation = 0.dp
     ) {
-        Screen.bottomNavigationScreens.forEach { screen ->
+        screens.forEach { screen ->
             val isSelected = currentRoute == screen.route
 
             NavigationBarItem(
