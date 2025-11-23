@@ -9,7 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -290,6 +290,7 @@ private fun EmptyStateSection() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WordDataSection(
     wordData: WordDto,
@@ -297,33 +298,107 @@ private fun WordDataSection(
     onSave: () -> Unit,
     onUnsave: () -> Unit
 ) {
+    var showSynonymsAntonymsSheet by remember { mutableStateOf(false) }
+
+    // Aggregate synonyms and antonyms from all definitions
+    val allSynonyms = wordData.definitions.flatMap { it.synonyms }.distinct()
+    val allAntonyms = wordData.definitions.flatMap { it.antonyms }.distinct()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // Save/Unsave Button
-        Button(
-            onClick = if (isSaved) onUnsave else onSave,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .shadow(2.dp, RoundedCornerShape(12.dp)),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isSaved) Error else Success
-            ),
-            shape = RoundedCornerShape(12.dp)
+        // Action Buttons Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            // Save/Unsave Button
+            Button(
+                onClick = if (isSaved) onUnsave else onSave,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .shadow(2.dp, RoundedCornerShape(12.dp)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isSaved) Error else Success
+                ),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text(
-                    text = if (isSaved) "❌ Удалить из сохранённых" else "💾 Сохранить слово",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isSaved) "❌ Удалить" else "💾 Сохранить",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // Synonyms & Antonyms Button
+            if (allSynonyms.isNotEmpty() || allAntonyms.isNotEmpty()) {
+                Button(
+                    onClick = { showSynonymsAntonymsSheet = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .shadow(2.dp, RoundedCornerShape(12.dp)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryCyan
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (allSynonyms.isNotEmpty()) {
+                            Text(
+                                text = "✓",
+                                color = Success,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${allSynonyms.size}",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        if (allSynonyms.isNotEmpty() && allAntonyms.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "•",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+
+                        if (allAntonyms.isNotEmpty()) {
+                            Text(
+                                text = "✕",
+                                color = Error,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${allAntonyms.size}",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -440,6 +515,21 @@ private fun WordDataSection(
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+
+    // Synonyms & Antonyms Modal Bottom Sheet
+    if (showSynonymsAntonymsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSynonymsAntonymsSheet = false },
+            containerColor = BackgroundPrimary,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            SynonymsAntonymsSheet(
+                synonyms = allSynonyms,
+                antonyms = allAntonyms,
+                onDismiss = { showSynonymsAntonymsSheet = false }
+            )
+        }
+    }
 }
 
 @Composable
@@ -532,60 +622,162 @@ private fun DefinitionCard(
                     }
                 }
             }
-
-            // Synonyms
-            if (definition.synonyms.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                TagSection(
-                    title = "Синонимы:",
-                    tags = definition.synonyms,
-                    color = Success
-                )
-            }
-
-            // Antonyms
-            if (definition.antonyms.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                TagSection(
-                    title = "Антонимы:",
-                    tags = definition.antonyms,
-                    color = Error
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun TagSection(
-    title: String,
-    tags: List<String>,
-    color: Color
+private fun SynonymsAntonymsSheet(
+    synonyms: List<String>,
+    antonyms: List<String>,
+    onDismiss: () -> Unit
 ) {
-    Column {
-        Text(
-            text = title,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = TextTertiary
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.85f)
+            .background(BackgroundPrimary)
+            .padding(horizontal = 16.dp)
+    ) {
+        // Header
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            tags.take(5).forEach { tag ->
+            Text(
+                text = "Синонимы и Антонимы",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Default.Clear,
+                    contentDescription = "Закрыть",
+                    tint = TextSecondary
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Scrollable Content
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // Synonyms Section
+            if (synonyms.isNotEmpty()) {
+                SynonymsAntonymsSection(
+                    title = "Синонимы",
+                    items = synonyms,
+                    color = Success,
+                    icon = "✓"
+                )
+            }
+
+            // Antonyms Section
+            if (antonyms.isNotEmpty()) {
+                SynonymsAntonymsSection(
+                    title = "Антонимы",
+                    items = antonyms,
+                    color = Error,
+                    icon = "✕"
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SynonymsAntonymsSection(
+    title: String,
+    items: List<String>,
+    color: Color,
+    icon: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(3.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(
+            containerColor = BackgroundSecondary
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            // Section Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = color.copy(alpha = 0.1f)
+                    shape = RoundedCornerShape(10.dp),
+                    color = color.copy(alpha = 0.2f),
+                    modifier = Modifier.size(40.dp)
                 ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Text(
+                            text = icon,
+                            fontSize = 20.sp,
+                            color = color
+                        )
+                    }
+                }
+
+                Column {
                     Text(
-                        text = tag,
-                        fontSize = 12.sp,
-                        color = color,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        text = title,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
                     )
+                    Text(
+                        text = "${items.size} слов",
+                        fontSize = 13.sp,
+                        color = TextTertiary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Tags
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items.forEach { item ->
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = color.copy(alpha = 0.15f),
+                        modifier = Modifier.shadow(1.dp, RoundedCornerShape(10.dp))
+                    ) {
+                        Text(
+                            text = item,
+                            fontSize = 15.sp,
+                            color = color,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        )
+                    }
                 }
             }
         }
