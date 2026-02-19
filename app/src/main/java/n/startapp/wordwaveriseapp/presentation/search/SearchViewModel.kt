@@ -14,7 +14,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
-    private val savedWordsRepository: n.startapp.wordwaveriseapp.data.repository.SavedWordsRepository
+    private val savedWordsRepository: n.startapp.wordwaveriseapp.data.repository.SavedWordsRepository,
+    private val flashcardRepository: n.startapp.wordwaveriseapp.data.repository.FlashcardRepository
 ) : ViewModel() {
 
     companion object {
@@ -95,13 +96,29 @@ class SearchViewModel @Inject constructor(
     }
 
     fun saveWord() {
-        val word = _state.value.wordData?.word ?: return
+        val wordData = _state.value.wordData ?: return
+        val word = wordData.word
         Log.d(TAG, "Saving word: $word")
         viewModelScope.launch {
             when (savedWordsRepository.saveWord(word)) {
                 is Resource.Success -> {
                     Log.d(TAG, "Word saved successfully")
                     _isSaved.value = true
+
+                    // Automatically create flashcard
+                    val firstDefinition = wordData.definitions.firstOrNull()
+                    if (firstDefinition != null) {
+                        Log.d(TAG, "Creating flashcard for word: $word")
+                        flashcardRepository.createFlashcard(
+                            word = word,
+                            definition = firstDefinition.definition,
+                            example = firstDefinition.example,
+                            translation = wordData.translation,
+                            phonetic = wordData.phonetic,
+                            partOfSpeech = firstDefinition.partOfSpeech
+                        )
+                        Log.d(TAG, "Flashcard created for word: $word")
+                    }
                 }
                 is Resource.Error -> {
                     Log.e(TAG, "Failed to save word")

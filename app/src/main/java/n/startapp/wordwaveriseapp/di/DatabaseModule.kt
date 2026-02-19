@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import n.startapp.wordwaveriseapp.data.local.AppDatabase
 import n.startapp.wordwaveriseapp.data.local.TokenDataStore
+import n.startapp.wordwaveriseapp.data.local.dao.FlashcardDao
 import n.startapp.wordwaveriseapp.data.local.dao.SavedWordDao
 import javax.inject.Singleton
 
@@ -23,13 +24,21 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "wordwaverise_database"
-        ).build()
+        )
+            .fallbackToDestructiveMigration() // Для разработки - удалить для production
+            .build()
     }
 
     @Provides
     @Singleton
     fun provideSavedWordDao(database: AppDatabase): SavedWordDao {
         return database.savedWordDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideFlashcardDao(database: AppDatabase): FlashcardDao {
+        return database.flashcardDao()
     }
 
     @Provides
