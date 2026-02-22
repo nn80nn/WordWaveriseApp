@@ -32,6 +32,14 @@ sealed class Screen(
         icon = R.drawable.ic_profile
     )
 
+    data object WordDetail : Screen(
+        route = "word_detail/{word}",
+        title = "Детали слова",
+        icon = R.drawable.ic_search
+    ) {
+        fun createRoute(word: String) = "word_detail/$word"
+    }
+
     companion object {
         val bottomNavigationScreens = listOf(Search, Saved, Tasks, Profile)
     }

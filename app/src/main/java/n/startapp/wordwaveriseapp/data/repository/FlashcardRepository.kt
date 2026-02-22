@@ -10,8 +10,6 @@ import n.startapp.wordwaveriseapp.data.remote.dto.flashcard.CreateFlashcardReque
 import n.startapp.wordwaveriseapp.data.remote.dto.flashcard.FlashcardDto
 import n.startapp.wordwaveriseapp.data.remote.dto.flashcard.UpdateFlashcardRequest
 import n.startapp.wordwaveriseapp.util.Resource
-import java.text.SimpleDateFormat
-import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
@@ -183,8 +181,18 @@ class FlashcardRepository @Inject constructor(
 
     suspend fun deleteFlashcard(word: String): Resource<Unit> {
         return try {
+            val entity = flashcardDao.getFlashcardByWord(word)
+            val token = authRepository.token.firstOrNull()
+            if (entity != null && entity.serverId != null && !token.isNullOrEmpty()) {
+                try {
+                    apiService.deleteFlashcard("Bearer $token", entity.serverId)
+                    Log.d(TAG, "Deleted flashcard from server: serverId=${entity.serverId}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to delete flashcard from server: ${e.message}")
+                }
+            }
             flashcardDao.deleteByWord(word)
-            Log.d(TAG, "Deleted flashcard: $word")
+            Log.d(TAG, "Deleted flashcard locally: $word")
             Resource.Success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Error deleting flashcard", e)
@@ -221,13 +229,9 @@ class FlashcardRepository @Inject constructor(
     }
 
     private fun dtoToEntity(dto: FlashcardDto): FlashcardEntity {
-        val nextReviewTimestamp = try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
-            sdf.timeZone = TimeZone.getTimeZone("UTC")
-            sdf.parse(dto.nextReview)?.time ?: System.currentTimeMillis()
-        } catch (e: Exception) {
-            System.currentTimeMillis() + dto.daysUntilReview * 24 * 60 * 60 * 1000L
-        }
+        val nextReviewTimestamp = runCatching {
+            java.time.Instant.parse(dto.nextReview).toEpochMilli()
+        }.getOrDefault(System.currentTimeMillis() + dto.daysUntilReview * 24 * 60 * 60 * 1000L)
         return FlashcardEntity(
             serverId = dto.id,
             word = dto.word,

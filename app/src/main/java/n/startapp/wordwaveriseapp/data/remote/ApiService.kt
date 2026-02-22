@@ -1,6 +1,8 @@
 package n.startapp.wordwaveriseapp.data.remote
 
+import n.startapp.wordwaveriseapp.data.remote.dto.DeleteResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.HealthResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.WordDetailApiResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.WordResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.AuthResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.LoginRequest
@@ -17,6 +19,9 @@ interface ApiService {
 
     @GET("api/words/search")
     suspend fun searchWord(@Query("query") query: String): WordResponse
+
+    @GET("api/words/details")
+    suspend fun getWordDetails(@Query("query") query: String): WordDetailApiResponse
 
     // Auth endpoints
     @POST("api/auth/register")
@@ -39,7 +44,7 @@ interface ApiService {
     suspend fun deleteSavedWord(
         @Header("Authorization") token: String,
         @Path("word") word: String
-    ): SaveWordResponse
+    ): DeleteResponse
 
     // Flashcard endpoints (require auth token)
     @GET("api/flashcards")
@@ -74,5 +79,5 @@ interface ApiService {
     suspend fun deleteFlashcard(
         @Header("Authorization") token: String,
         @Path("id") id: Int
-    ): FlashcardResponse
+    ): DeleteResponse
 }

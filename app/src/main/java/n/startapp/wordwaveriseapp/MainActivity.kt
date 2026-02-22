@@ -10,13 +10,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import dagger.hilt.android.AndroidEntryPoint
 import n.startapp.wordwaveriseapp.presentation.auth.AuthScreen
 import n.startapp.wordwaveriseapp.presentation.auth.AuthViewModel
+import n.startapp.wordwaveriseapp.presentation.detail.WordDetailScreen
+import n.startapp.wordwaveriseapp.presentation.detail.WordDetailViewModel
 import n.startapp.wordwaveriseapp.presentation.navigation.BottomNavigationBar
 import n.startapp.wordwaveriseapp.presentation.navigation.Screen
 import n.startapp.wordwaveriseapp.presentation.profile.ProfileScreen
@@ -39,7 +43,9 @@ class MainActivity : ComponentActivity() {
                 val authViewModel: AuthViewModel = hiltViewModel()
                 val authState by authViewModel.state
 
-                val showBottomBar = authState.isLoggedIn
+                val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+                val showBottomBar = authState.isLoggedIn &&
+                    currentRoute != Screen.WordDetail.route
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -73,7 +79,10 @@ class MainActivity : ComponentActivity() {
                                     onSearch = viewModel::searchWord,
                                     onClear = viewModel::clearSearch,
                                     onSaveWord = viewModel::saveWord,
-                                    onUnsaveWord = viewModel::unsaveWord
+                                    onUnsaveWord = viewModel::unsaveWord,
+                                    onWordClick = { word ->
+                                        navController.navigate(Screen.WordDetail.createRoute(word))
+                                    }
                                 )
                             }
 
@@ -83,8 +92,7 @@ class MainActivity : ComponentActivity() {
                                     state = viewModel.state.value,
                                     onDeleteWord = viewModel::deleteWord,
                                     onWordClick = { word ->
-                                        // Navigate to search screen with word
-                                        navController.navigate(Screen.Search.route)
+                                        navController.navigate(Screen.WordDetail.createRoute(word))
                                     }
                                 )
                             }
@@ -99,6 +107,24 @@ class MainActivity : ComponentActivity() {
                                     onLogout = {
                                         authViewModel.logout()
                                     }
+                                )
+                            }
+
+                            composable(
+                                route = Screen.WordDetail.route,
+                                arguments = listOf(
+                                    navArgument("word") { type = NavType.StringType }
+                                )
+                            ) {
+                                val viewModel: WordDetailViewModel = hiltViewModel()
+                                val state by viewModel.state.collectAsState()
+                                WordDetailScreen(
+                                    wordDetail = state.wordDetail,
+                                    isLoading = state.isLoading,
+                                    error = state.error,
+                                    isSaved = state.isSaved,
+                                    onSaveWord = viewModel::saveWord,
+                                    onUnsaveWord = viewModel::unsaveWord
                                 )
                             }
                         }

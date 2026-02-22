@@ -29,9 +29,7 @@ class WordDetailViewModel @Inject constructor(
     init {
         val word = savedStateHandle.get<String>("word")
         if (word != null) {
-            _state.update { currentState ->
-                currentState.copy(word = word)
-            }
+            _state.update { it.copy(word = word) }
             loadWordDetail(word)
             checkIfWordIsSaved(word)
         }
@@ -39,56 +37,16 @@ class WordDetailViewModel @Inject constructor(
 
     private fun loadWordDetail(word: String) {
         viewModelScope.launch {
-            _state.update { currentState ->
-                currentState.copy(isLoading = true, error = null)
-            }
-
+            _state.update { it.copy(isLoading = true, error = null) }
             try {
-                val response = apiService.searchWord(word)
-
-                // Transform WordDto to WordDetailResponse
-                // Note: You'll need to update the API to return WordDetailResponse
-                // For now, this is a placeholder transformation
-                val wordDto = response.data
-                if (wordDto != null) {
-                    // TODO: Update API to return the new format
-                    // For now, we'll create a mock WordDetailResponse
-                    val wordDetail = n.startapp.wordwaveriseapp.data.remote.dto.WordDetailResponse(
-                        word = wordDto.word,
-                        phonetic = wordDto.phonetic,
-                        definitions = wordDto.definitions.map { def ->
-                            n.startapp.wordwaveriseapp.data.remote.dto.Definition(
-                                partOfSpeech = def.partOfSpeech,
-                                definition = def.definition,
-                                example = def.example
-                            )
-                        },
-                        synonyms = wordDto.definitions.flatMap { it.synonyms }.distinct(),
-                        antonyms = wordDto.definitions.flatMap { it.antonyms }.distinct(),
-                        examples = wordDto.definitions.mapNotNull { it.example }
-                    )
-
-                    _state.update { currentState ->
-                        currentState.copy(
-                            wordDetail = wordDetail,
-                            isLoading = false
-                        )
-                    }
+                val response = apiService.getWordDetails(word)
+                if (response.status == "ok" && response.data != null) {
+                    _state.update { it.copy(wordDetail = response.data, isLoading = false) }
                 } else {
-                    _state.update { currentState ->
-                        currentState.copy(
-                            error = "Слово не найдено",
-                            isLoading = false
-                        )
-                    }
+                    _state.update { it.copy(error = response.message ?: "Слово не найдено", isLoading = false) }
                 }
             } catch (e: Exception) {
-                _state.update { currentState ->
-                    currentState.copy(
-                        error = NetworkError.getErrorMessage(e),
-                        isLoading = false
-                    )
-                }
+                _state.update { it.copy(error = NetworkError.getErrorMessage(e), isLoading = false) }
             }
         }
     }
@@ -99,13 +57,8 @@ class WordDetailViewModel @Inject constructor(
                 val token = authRepository.token.firstOrNull()
                 if (token != null) {
                     val savedWords = apiService.getSavedWords("Bearer $token")
-                    val wordsList = savedWords.data?.words ?: emptyList()
-                    val isSaved = wordsList.any { savedWord ->
-                        savedWord.word.equals(word, ignoreCase = true)
-                    }
-                    _state.update { currentState ->
-                        currentState.copy(isSaved = isSaved)
-                    }
+                    val isSaved = savedWords.data?.words?.any { it.word.equals(word, ignoreCase = true) } == true
+                    _state.update { it.copy(isSaved = isSaved) }
                 }
             } catch (_: Exception) {
                 // Silently fail - user might not be logged in
@@ -119,17 +72,18 @@ class WordDetailViewModel @Inject constructor(
                 val token = authRepository.token.firstOrNull()
                 if (token != null) {
                     val word = _state.value.word
+                    val detail = _state.value.wordDetail
                     apiService.saveWord(
                         token = "Bearer $token",
-                        request = SaveWordRequest(word = word)
+                        request = SaveWordRequest(
+                            word = word,
+                            translation = detail?.translation,
+                            definition = detail?.definitions?.firstOrNull()?.definition
+                        )
                     )
-                    _state.update { currentState ->
-                        currentState.copy(isSaved = true)
-                    }
+                    _state.update { it.copy(isSaved = true) }
                 }
-            } catch (_: Exception) {
-                // Handle error
-            }
+            } catch (_: Exception) { }
         }
     }
 
@@ -138,18 +92,10 @@ class WordDetailViewModel @Inject constructor(
             try {
                 val token = authRepository.token.firstOrNull()
                 if (token != null) {
-                    val word = _state.value.word
-                    apiService.deleteSavedWord(
-                        token = "Bearer $token",
-                        word = word
-                    )
-                    _state.update { currentState ->
-                        currentState.copy(isSaved = false)
-                    }
+                    apiService.deleteSavedWord(token = "Bearer $token", word = _state.value.word)
+                    _state.update { it.copy(isSaved = false) }
                 }
-            } catch (_: Exception) {
-                // Handle error
-            }
+            } catch (_: Exception) { }
         }
     }
 }

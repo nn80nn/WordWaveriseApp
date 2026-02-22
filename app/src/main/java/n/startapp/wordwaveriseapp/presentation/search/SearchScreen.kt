@@ -1,6 +1,7 @@
 package n.startapp.wordwaveriseapp.presentation.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +32,7 @@ fun SearchScreen(
     onClear: () -> Unit,
     onSaveWord: () -> Unit,
     onUnsaveWord: () -> Unit,
+    onWordClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -68,7 +70,8 @@ fun SearchScreen(
                         wordData = state.wordData,
                         isSaved = isSaved,
                         onSave = onSaveWord,
-                        onUnsave = onUnsaveWord
+                        onUnsave = onUnsaveWord,
+                        onWordClick = { onWordClick(state.wordData.word) }
                     )
                 }
                 !state.hasSearched -> {
@@ -296,7 +299,8 @@ private fun WordDataSection(
     wordData: WordDto,
     isSaved: Boolean,
     onSave: () -> Unit,
-    onUnsave: () -> Unit
+    onUnsave: () -> Unit,
+    onWordClick: () -> Unit = {}
 ) {
     var showSynonymsAntonymsSheet by remember { mutableStateOf(false) }
 
@@ -314,6 +318,26 @@ private fun WordDataSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Details Button
+            Button(
+                onClick = onWordClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .shadow(2.dp, RoundedCornerShape(12.dp)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryCyan
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "Подробнее",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
             // Save/Unsave Button
             Button(
                 onClick = if (isSaved) onUnsave else onSave,
