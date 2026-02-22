@@ -1,6 +1,7 @@
 package n.startapp.wordwaveriseapp.presentation.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -12,7 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -105,8 +106,7 @@ fun AuthScreen(
         // Auth Form Card
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .shadow(4.dp, RoundedCornerShape(16.dp)),
+                .fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = BackgroundSecondary
             ),
@@ -171,8 +171,7 @@ private fun AuthForm(
             value = email,
             onValueChange = onEmailChange,
             modifier = Modifier
-                .fillMaxWidth()
-                .shadow(1.dp, RoundedCornerShape(12.dp)),
+                .fillMaxWidth(),
             label = { Text("Email") },
             placeholder = { Text("example@email.com") },
             leadingIcon = {
@@ -208,8 +207,7 @@ private fun AuthForm(
             value = password,
             onValueChange = onPasswordChange,
             modifier = Modifier
-                .fillMaxWidth()
-                .shadow(1.dp, RoundedCornerShape(12.dp)),
+                .fillMaxWidth(),
             label = { Text("Пароль") },
             placeholder = { Text("Минимум 6 символов") },
             leadingIcon = {
@@ -265,44 +263,33 @@ private fun AuthForm(
         Spacer(modifier = Modifier.height(24.dp))
 
         // Submit Button
-        Button(
-            onClick = onSubmit,
+        val submitEnabled = !isLoading && email.isNotEmpty() && password.isNotEmpty()
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
-                .shadow(4.dp, RoundedCornerShape(12.dp)),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent
-            ),
-            contentPadding = PaddingValues(),
-            shape = RoundedCornerShape(12.dp),
-            enabled = !isLoading && email.isNotEmpty() && password.isNotEmpty()
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = if (submitEnabled) listOf(PrimaryBright, PrimaryCyan)
+                                 else listOf(PrimaryBright.copy(alpha = 0.5f), PrimaryCyan.copy(alpha = 0.5f))
+                    )
+                )
+                .clickable(enabled = submitEnabled) { onSubmit() },
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(PrimaryBright, PrimaryCyan)
-                        ),
-                        alpha = if (isLoading || email.isEmpty() || password.isEmpty()) 0.5f else 1f
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                } else {
-                    Text(
-                        text = if (isLogin) "Войти" else "Зарегистрироваться",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+            if (isLoading) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Text(
+                    text = if (isLogin) "Войти" else "Зарегистрироваться",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }

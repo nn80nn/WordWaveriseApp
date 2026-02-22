@@ -14,7 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -90,8 +90,7 @@ private fun TasksOverview(
         // Stats Card
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .shadow(4.dp, RoundedCornerShape(16.dp)),
+                .fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = BackgroundSecondary
             ),
@@ -117,46 +116,35 @@ private fun TasksOverview(
         }
 
         // Start Session Button
-        Button(
-            onClick = onStartSession,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .shadow(4.dp, RoundedCornerShape(12.dp)),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent
-            ),
-            contentPadding = PaddingValues(),
-            shape = RoundedCornerShape(12.dp),
-            enabled = dueCount > 0
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = if (dueCount > 0) listOf(PrimaryBright, PrimaryCyan)
+                                 else listOf(PrimaryBright.copy(alpha = 0.5f), PrimaryCyan.copy(alpha = 0.5f))
+                    )
+                )
+                .clickable(enabled = dueCount > 0) { onStartSession() },
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(PrimaryBright, PrimaryCyan)
-                        ),
-                        alpha = if (dueCount > 0) 1f else 0.5f
-                    ),
-                contentAlignment = Alignment.Center
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    Text(
-                        text = if (dueCount > 0) "Начать сессию" else "Нет карточек к повторению",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+                Text(
+                    text = if (dueCount > 0) "Начать сессию" else "Нет карточек к повторению",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
 
@@ -273,8 +261,7 @@ private fun FlashcardSession(
             progress = (currentIndex + 1).toFloat() / flashcards.size.toFloat(),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp)
-                .shadow(2.dp, RoundedCornerShape(4.dp)),
+                .height(8.dp),
             color = PrimaryCyan,
             trackColor = BackgroundLight
         )
@@ -395,8 +382,7 @@ private fun FlippableCard(
                 rotationY = rotation
                 cameraDistance = 12f * density
             }
-            .clickable { onFlip() }
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
+            .clickable { onFlip() },
         colors = CardDefaults.cardColors(
             containerColor = BackgroundSecondary
         ),
@@ -534,8 +520,7 @@ private fun SessionComplete(onExit: () -> Unit) {
             onClick = onExit,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .shadow(2.dp, RoundedCornerShape(12.dp)),
+                .height(48.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = PrimaryCyan
             ),

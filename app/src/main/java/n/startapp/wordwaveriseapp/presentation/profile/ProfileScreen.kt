@@ -7,7 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -51,8 +50,7 @@ fun ProfileScreen(
         // User Info Card
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .shadow(4.dp, RoundedCornerShape(16.dp)),
+                .fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = BackgroundSecondary
             ),
@@ -86,8 +84,7 @@ fun ProfileScreen(
             onClick = onLogout,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .shadow(4.dp, RoundedCornerShape(12.dp)),
+                .height(48.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Error
             ),

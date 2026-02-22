@@ -16,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
@@ -107,8 +106,7 @@ private fun LoadingSection() {
 private fun ErrorSection(error: String) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = BackgroundSecondary
         ),
@@ -251,24 +249,20 @@ private fun AnimatedSaveButton(
         onClick = if (isSaved) onUnsave else onSave,
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .shadow(2.dp, RoundedCornerShape(12.dp)),
+            .height(48.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = backgroundColor
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
     ) {
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = if (isSaved) "❌ Удалить из сохранённых" else "💾 Сохранить слово",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
+        Text(
+            text = if (isSaved) "❌ Удалить" else "💾 Сохранить",
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
+        )
     }
 }
 
@@ -290,8 +284,7 @@ private fun WordHeaderCard(wordDetail: WordDetailResponse) {
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .shadow(4.dp, RoundedCornerShape(16.dp)),
+                .fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = BackgroundSecondary
             ),
@@ -342,8 +335,7 @@ private fun CollapsibleSection(
 
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(12.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = BackgroundSecondary
         ),
@@ -419,8 +411,7 @@ private fun DefinitionItem(
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(8.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = BackgroundLight
         ),
@@ -504,7 +495,6 @@ private fun TagCloud(
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = color.copy(alpha = 0.15f),
-                modifier = Modifier.shadow(1.dp, RoundedCornerShape(8.dp))
             ) {
                 Text(
                     text = tag,
@@ -566,8 +556,7 @@ private fun ExamplesSection(examples: List<String>) {
 private fun ExampleItem(example: String, index: Int) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(8.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = BackgroundLight
         ),
@@ -616,12 +605,12 @@ private fun SynonymsAntonymsButton(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .shadow(2.dp, RoundedCornerShape(12.dp)),
+            .height(48.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = PrimaryCyan
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -758,8 +747,7 @@ private fun SynonymsAntonymsSection(
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(16.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = BackgroundSecondary
         ),
@@ -819,7 +807,6 @@ private fun SynonymsAntonymsSection(
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = color.copy(alpha = 0.15f),
-                        modifier = Modifier.shadow(1.dp, RoundedCornerShape(10.dp))
                     ) {
                         Text(
                             text = item,

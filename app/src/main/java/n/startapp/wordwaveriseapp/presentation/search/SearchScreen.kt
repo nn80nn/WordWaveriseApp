@@ -13,7 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -116,8 +116,7 @@ private fun SearchInputSection(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
             modifier = Modifier
-                .fillMaxWidth()
-                .shadow(2.dp, RoundedCornerShape(12.dp)),
+                .fillMaxWidth(),
             placeholder = {
                 Text(
                     text = "Например: hello",
@@ -162,38 +161,27 @@ private fun SearchInputSection(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Search Button
-        Button(
-            onClick = onSearch,
+        val searchEnabled = !isLoading && searchQuery.isNotEmpty()
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
-                .shadow(4.dp, RoundedCornerShape(12.dp)),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent
-            ),
-            contentPadding = PaddingValues(),
-            shape = RoundedCornerShape(12.dp),
-            enabled = !isLoading && searchQuery.isNotEmpty()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(PrimaryBright, PrimaryCyan)
-                        ),
-                        alpha = if (isLoading || searchQuery.isEmpty()) 0.5f else 1f
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (isLoading) "Поиск..." else "Найти слово",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = if (searchEnabled) listOf(PrimaryBright, PrimaryCyan)
+                                 else listOf(PrimaryBright.copy(alpha = 0.5f), PrimaryCyan.copy(alpha = 0.5f))
+                    )
                 )
-            }
+                .clickable(enabled = searchEnabled) { onSearch() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (isLoading) "Поиск..." else "Найти слово",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
@@ -226,8 +214,7 @@ private fun LoadingSection() {
 private fun ErrorSection(error: String) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = BackgroundSecondary
         ),
@@ -323,18 +310,19 @@ private fun WordDataSection(
                 onClick = onWordClick,
                 modifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
-                    .shadow(2.dp, RoundedCornerShape(12.dp)),
+                    .height(48.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PrimaryCyan
                 ),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
             ) {
                 Text(
                     text = "Подробнее",
                     color = Color.White,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
                 )
             }
 
@@ -343,24 +331,20 @@ private fun WordDataSection(
                 onClick = if (isSaved) onUnsave else onSave,
                 modifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
-                    .shadow(2.dp, RoundedCornerShape(12.dp)),
+                    .height(48.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isSaved) Error else Success
                 ),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isSaved) "❌ Удалить" else "💾 Сохранить",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Text(
+                    text = if (isSaved) "❌ Удалить" else "💾 Сохранить",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
             }
 
             // Synonyms & Antonyms Button
@@ -369,12 +353,12 @@ private fun WordDataSection(
                     onClick = { showSynonymsAntonymsSheet = true },
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp)
-                        .shadow(2.dp, RoundedCornerShape(12.dp)),
+                        .height(48.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryCyan
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.Center,
@@ -431,8 +415,7 @@ private fun WordDataSection(
         // Word Header Card
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .shadow(4.dp, RoundedCornerShape(16.dp)),
+                .fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = BackgroundSecondary
             ),
@@ -563,8 +546,7 @@ private fun DefinitionCard(
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(12.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = BackgroundSecondary
         ),
@@ -731,8 +713,7 @@ private fun SynonymsAntonymsSection(
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(16.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = BackgroundSecondary
         ),
@@ -792,7 +773,6 @@ private fun SynonymsAntonymsSection(
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = color.copy(alpha = 0.15f),
-                        modifier = Modifier.shadow(1.dp, RoundedCornerShape(10.dp))
                     ) {
                         Text(
                             text = item,
