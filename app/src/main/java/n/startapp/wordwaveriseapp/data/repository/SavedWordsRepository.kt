@@ -25,7 +25,11 @@ class SavedWordsRepository @Inject constructor(
 
     val savedWords: Flow<List<SavedWordEntity>> = savedWordDao.getAllSavedWords()
 
-    suspend fun saveWord(word: String): Resource<Boolean> {
+    suspend fun saveWord(
+        word: String,
+        translation: String? = null,
+        definition: String? = null
+    ): Resource<Boolean> {
         return try {
             Log.d(TAG, "Saving word: $word")
 
@@ -39,16 +43,18 @@ class SavedWordsRepository @Inject constructor(
             if (!token.isNullOrEmpty()) {
                 try {
                     Log.d(TAG, "Syncing word to server: $word")
-                    val response = apiService.saveWord("Bearer $token", SaveWordRequest(word))
+                    val response = apiService.saveWord(
+                        "Bearer $token",
+                        SaveWordRequest(word, translation, definition)
+                    )
 
-                    if (response.status == "ok" && response.data?.success == true) {
-                        val serverId = response.data.word?.id
+                    if (response.status == "ok" && response.data != null) {
+                        val serverId = response.data.id
                         savedWordDao.updateSyncStatus(word, true, serverId)
                         Log.d(TAG, "Word synced successfully: $word (serverId: $serverId)")
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to sync word to server: ${e.message}")
-                    // Word is saved locally, sync will happen later
                 }
             }
 
@@ -63,7 +69,6 @@ class SavedWordsRepository @Inject constructor(
         return try {
             Log.d(TAG, "Deleting word: $word")
 
-            // Delete from server first if synced
             val token = tokenDataStore.token.firstOrNull()
             if (!token.isNullOrEmpty()) {
                 try {
@@ -75,7 +80,6 @@ class SavedWordsRepository @Inject constructor(
                 }
             }
 
-            // Delete locally
             savedWordDao.deleteWordByName(word)
             Log.d(TAG, "Word deleted locally: $word")
 
@@ -96,12 +100,10 @@ class SavedWordsRepository @Inject constructor(
 
             Log.d(TAG, "Starting words synchronization")
 
-            // Get server words
             val response = apiService.getSavedWords("Bearer $token")
             if (response.status == "ok" && response.data != null) {
                 val serverWords = response.data.words
 
-                // Sync server words to local
                 serverWords.forEach { serverWord ->
                     val existingWord = savedWordDao.getSavedWord(serverWord.word)
                     if (existingWord == null) {
@@ -124,11 +126,11 @@ class SavedWordsRepository @Inject constructor(
                             "Bearer $token",
                             SaveWordRequest(localWord.word)
                         )
-                        if (saveResponse.status == "ok" && saveResponse.data?.success == true) {
+                        if (saveResponse.status == "ok" && saveResponse.data != null) {
                             savedWordDao.updateSyncStatus(
                                 localWord.word,
                                 true,
-                                saveResponse.data.word?.id
+                                saveResponse.data.id
                             )
                         }
                     } catch (e: Exception) {

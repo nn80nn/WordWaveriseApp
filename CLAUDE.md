@@ -4,22 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WordWaveriseApp is an Android application built with Kotlin and Jetpack Compose. The app follows modern Android development practices using Material Design 3, with support for dynamic theming on Android 12+.
+WordWaveriseApp is an Android vocabulary/dictionary app built with Kotlin and Jetpack Compose. Users search words, save them, and study via flashcards. The UI strings are in Russian.
 
 **Key Technologies:**
-- Language: Kotlin 2.0.21
-- UI Framework: Jetpack Compose (Material3)
-- Build System: Gradle with Kotlin DSL
-- Dependency Injection: Hilt 2.51
-- Networking: Retrofit 2.11.0 + OkHttp 4.12.0
-- Serialization: Kotlinx Serialization 1.6.3
-- Min SDK: 26 (Android 8.0)
-- Target SDK: 36
-- Java Version: 11
+- Language: Kotlin 2.0.21, Java 11
+- UI: Jetpack Compose + Material Design 3 (dynamic theming on Android 12+)
+- Build: Gradle with Kotlin DSL, version catalog (`gradle/libs.versions.toml`)
+- DI: Hilt 2.51
+- Networking: Retrofit 2.11.0 + OkHttp 4.12.0 + Kotlinx Serialization 1.6.3
+- Local storage: Room (v2 database), DataStore Preferences
+- Min SDK: 26, Target SDK: 36
 
 ## Build & Development Commands
 
-### Building the App
 ```bash
 # Build debug APK
 .\gradlew assembleDebug
@@ -27,141 +24,100 @@ WordWaveriseApp is an Android application built with Kotlin and Jetpack Compose.
 # Build release APK
 .\gradlew assembleRelease
 
-# Install debug build on connected device
+# Install on connected device
 .\gradlew installDebug
 
-# Clean build
-.\gradlew clean
-```
-
-### Running Tests
-```bash
-# Run all unit tests
-.\gradlew test
-
-# Run unit tests for debug variant
+# Run unit tests
 .\gradlew testDebugUnitTest
-
-# Run instrumented tests (requires connected device/emulator)
-.\gradlew connectedAndroidTest
 
 # Run specific test class
 .\gradlew test --tests n.startapp.wordwaveriseapp.ExampleUnitTest
 
-# Run specific test method
-.\gradlew test --tests n.startapp.wordwaveriseapp.ExampleUnitTest.addition_isCorrect
-```
+# Run instrumented tests (requires device/emulator)
+.\gradlew connectedAndroidTest
 
-### Code Quality
-```bash
-# Lint check
-.\gradlew lint
-
-# Generate lint report
+# Lint
 .\gradlew lintDebug
 ```
 
-## Architecture & Code Organization
+## Architecture
 
-### Clean Architecture with MVVM
-The app follows Clean Architecture principles with MVVM pattern:
+### Layer Structure (Clean Architecture + MVVM)
 
 ```
-app/src/main/java/n/startapp/wordwaveriseapp/
-├── data/
-│   ├── remote/
-│   │   ├── dto/           # Data Transfer Objects
-│   │   └── ApiService.kt  # Retrofit API interface
-│   └── repository/        # Repository implementations
-├── di/
-│   └── NetworkModule.kt   # Hilt dependency injection modules
-├── presentation/
-│   └── main/              # Main screen (feature-based organization)
-│       ├── MainScreen.kt  # Composable UI
-│       ├── MainState.kt   # UI State
-│       └── MainViewModel.kt # ViewModel
-├── ui/theme/              # App theming
-├── util/                  # Utilities (Resource wrapper, error handling)
-├── MainActivity.kt        # Main activity (annotated with @AndroidEntryPoint)
-└── WordWaveriseApplication.kt # Application class (annotated with @HiltAndroidApp)
+data/
+  remote/
+    dto/           # DTOs: auth/, saved/, flashcard/, WordDetailResponse, etc.
+    ApiService.kt  # Retrofit interface — all endpoints in one place
+  local/
+    entity/        # Room entities: SavedWordEntity, FlashcardEntity
+    dao/           # SavedWordDao, FlashcardDao
+    AppDatabase.kt # Room DB (version 2, fallbackToDestructiveMigration)
+    TokenDataStore.kt  # JWT + user email via DataStore Preferences
+  repository/      # AuthRepository, SearchRepository, SavedWordsRepository,
+                   # FlashcardRepository, HealthRepository
+di/
+  NetworkModule.kt  # Retrofit, OkHttp, ApiService (Singleton)
+  DatabaseModule.kt # AppDatabase, DAOs, TokenDataStore (Singleton)
+presentation/
+  auth/            # AuthScreen, AuthViewModel, AuthState
+  search/          # SearchScreen, SearchViewModel, SearchState
+  saved/           # SavedScreen, SavedWordsViewModel, SavedWordsState
+  tasks/           # TasksScreen, TasksViewModel, TasksState
+  profile/         # ProfileScreen (uses AuthViewModel for logout)
+  detail/          # WordDetailScreen, WordDetailViewModel, WordDetailState (NOT yet in nav)
+  navigation/      # Screen.kt (sealed class), BottomNavigationBar.kt
+  main/            # MainScreen, MainViewModel, MainState
+ui/theme/          # Theme.kt, Color.kt, Type.kt
+util/              # Resource<T> sealed class (Success/Error/Loading), NetworkError
 ```
 
-### Dependency Injection (Hilt)
-- **Application class**: `WordWaveriseApplication` is annotated with `@HiltAndroidApp`
-- **Activities**: Annotated with `@AndroidEntryPoint` to enable injection
-- **ViewModels**: Annotated with `@HiltViewModel` and use constructor injection
-- **Modules**: Located in `di/` package
-  - `NetworkModule`: Provides Retrofit, OkHttp, ApiService
+### Navigation & Auth Flow
+
+`MainActivity` hosts all navigation. `AuthViewModel` reads the persisted JWT token from `TokenDataStore` on startup — if `authState.isLoggedIn` is false, the `AuthScreen` is shown; otherwise a `NavHost` with a `BottomNavigationBar` is shown.
+
+The four bottom nav tabs are defined in `Screen.kt` as `Search`, `Saved`, `Tasks`, `Profile`.
+
+**Note:** `WordDetailScreen` with its `WordDetailViewModel` has been built (see `WORD_DETAIL_INTEGRATION.md`) but is not yet wired into the `NavHost` in `MainActivity`. Integration steps are documented there.
+
+### Dependency Injection
+
+- `WordWaveriseApplication` → `@HiltAndroidApp`
+- `MainActivity` → `@AndroidEntryPoint`
+- ViewModels → `@HiltViewModel` with constructor injection
+- Repositories → `@Singleton` with `@Inject constructor`
 
 ### Network Layer
-- **Base URL**: Configured in `BuildConfig.BASE_URL` (default: `http://10.0.2.2:3000/` for Android emulator)
-- **Retrofit**: JSON serialization using Kotlinx Serialization
-- **OkHttp**: Includes logging interceptor (only in debug builds)
-- **Error Handling**: Centralized in `NetworkError.getErrorMessage()` with localized error messages
-- **Resource Wrapper**: `Resource<T>` sealed class for Success/Error/Loading states
 
-### Presentation Layer
-- **State Management**: Each screen has a dedicated `State` data class
-- **ViewModels**: Use `viewModelScope` for coroutines
-- **Composables**: Pure functions receiving state and event callbacks
-- **MainActivity**: Single activity pattern with Compose
+- **Base URL**: `https://backend.wordwaverise.com/` (set in `app/build.gradle.kts` as `BuildConfig.BASE_URL`)
+- Auth tokens are passed **per-request** as `@Header("Authorization")` — there is no OkHttp auth interceptor
+- `Json { ignoreUnknownKeys = true; isLenient = true }` in `NetworkModule`
+- All API calls return `Resource<T>` using try-catch in the repository; use `NetworkError.getErrorMessage(e)` for errors
 
-### Theme System
-Located in `ui.theme/` package:
-- `Theme.kt`: Main theme composable with dark/light mode support and dynamic color (Android 12+)
-- `Color.kt`: Color definitions for Purple/Pink palette
-- `Type.kt`: Typography definitions
+### Local Database
 
-The app uses Material3's theming system with:
-- Dynamic color scheme support (Android 12+)
-- System theme detection via `isSystemInDarkTheme()`
-- Fallback color schemes for older Android versions
+Room database `wordwaverise_database` (v2) with two tables:
+- `SavedWordEntity` — local cache of saved words
+- `FlashcardEntity` — flashcard study data
 
-### Testing Structure
-- **Unit tests**: `app/src/test/java/` - JUnit tests that run on the JVM
-- **Instrumented tests**: `app/src/androidTest/java/` - Android-specific tests requiring device/emulator
+`DatabaseModule` uses `fallbackToDestructiveMigration()` — **replace with proper migrations before production release**.
 
-## Dependency Management
+### Dependency Management
 
-Dependencies are managed via Gradle version catalogs in `gradle/libs.versions.toml`. When adding new dependencies:
-1. Define the version in `[versions]`
-2. Add the library in `[libraries]` with group, name, and version reference
-3. Reference in `app/build.gradle.kts` using `libs.` prefix
+Add new dependencies via `gradle/libs.versions.toml`:
+1. Add version in `[versions]`
+2. Add library in `[libraries]` with group, name, and version reference
+3. Reference in `app/build.gradle.kts` as `libs.<name>`
 
-## Important Configuration Details
+### Adding New Features
 
-### Build Configuration
-- Namespace: `n.startapp.wordwaveriseapp`
-- Application ID: `n.startapp.wordwaveriseapp`
-- Compile SDK: 36
-- ProGuard is disabled for release builds (set `isMinifyEnabled = false`)
+**New API endpoint:**
+1. Add DTO in `data/remote/dto/`
+2. Add function to `ApiService.kt`
+3. Add/update repository in `data/repository/` — wrap in `Resource<T>` with try-catch
+4. Inject repository into ViewModel
 
-### Compose Configuration
-- Compose is enabled via `buildFeatures { compose = true }`
-- Uses Compose BOM (Bill of Materials) for version alignment
-- Kotlin Compose Compiler plugin is applied
-
-## Development Notes
-
-### API Integration
-- The app connects to a backend API at the URL specified in `BuildConfig.BASE_URL`
-- Default URL is `http://10.0.2.2:3000/` which points to localhost on the Android emulator
-- For testing on physical devices, update the base URL in `app/build.gradle.kts` to your machine's IP address
-- Currently implements `/api/health` endpoint for connection testing
-
-### Network Configuration
-- Internet permission is declared in `AndroidManifest.xml`
-- Network requests are made using Kotlin coroutines with `suspend` functions
-- All network calls should be wrapped in try-catch and return `Resource<T>` type
-
-### Adding New API Endpoints
-1. Define the response DTO in `data/remote/dto/`
-2. Add the endpoint function in `ApiService.kt`
-3. Create/update the repository in `data/repository/`
-4. Use the repository in ViewModels with proper error handling
-
-### Common Patterns
-- **ViewModels**: Always use `viewModelScope.launch` for coroutines
-- **State Updates**: Immutably update state using `copy()`
-- **Error Messages**: Use `NetworkError.getErrorMessage()` for consistent error handling
-- **Loading States**: Set `isLoading = true` before network calls, `false` after completion
+**New screen:**
+1. Create `presentation/<feature>/` with `Screen.kt`, `ViewModel.kt`, `State.kt`
+2. Add route to `Screen.kt` sealed class if it's a nav destination
+3. Add `composable()` block in `MainActivity` NavHost

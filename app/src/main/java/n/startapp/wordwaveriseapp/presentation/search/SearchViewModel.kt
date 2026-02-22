@@ -54,7 +54,6 @@ class SearchViewModel @Inject constructor(
                 wordData = null,
                 hasSearched = false
             )
-            Log.d(TAG, "State set to loading")
 
             when (val result = searchRepository.searchWord(query)) {
                 is Resource.Success -> {
@@ -65,8 +64,6 @@ class SearchViewModel @Inject constructor(
                         error = null,
                         hasSearched = true
                     )
-                    Log.d(TAG, "State updated with word data. Current state: ${_state.value}")
-                    // Check if word is already saved
                     result.data?.let { wordData ->
                         checkIfWordIsSaved(wordData.word)
                     }
@@ -79,10 +76,8 @@ class SearchViewModel @Inject constructor(
                         wordData = null,
                         hasSearched = true
                     )
-                    Log.d(TAG, "State updated with error. Current state: ${_state.value}")
                 }
                 is Resource.Loading -> {
-                    Log.d(TAG, "Resource loading state")
                     _state.value = _state.value.copy(isLoading = true)
                 }
             }
@@ -98,15 +93,19 @@ class SearchViewModel @Inject constructor(
     fun saveWord() {
         val wordData = _state.value.wordData ?: return
         val word = wordData.word
+        val firstDefinition = wordData.definitions.firstOrNull()
         Log.d(TAG, "Saving word: $word")
         viewModelScope.launch {
-            when (savedWordsRepository.saveWord(word)) {
+            when (savedWordsRepository.saveWord(
+                word = word,
+                translation = wordData.translation,
+                definition = firstDefinition?.definition
+            )) {
                 is Resource.Success -> {
                     Log.d(TAG, "Word saved successfully")
                     _isSaved.value = true
 
                     // Automatically create flashcard
-                    val firstDefinition = wordData.definitions.firstOrNull()
                     if (firstDefinition != null) {
                         Log.d(TAG, "Creating flashcard for word: $word")
                         flashcardRepository.createFlashcard(

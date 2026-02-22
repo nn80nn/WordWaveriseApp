@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class FlashcardEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val serverId: Int? = null,  // ID on the backend for syncing reviews
     val word: String,
     val definition: String,
     val example: String? = null,
@@ -14,8 +15,8 @@ data class FlashcardEntity(
     val phonetic: String? = null,
     val partOfSpeech: String? = null,
 
-    // Spaced repetition fields
-    val repetitionLevel: Int = 0, // 0-5 (0 = новая, 5 = освоена)
+    // Spaced repetition fields (local)
+    val repetitionLevel: Int = 0,
     val lastReviewed: Long? = null,
     val nextReviewDate: Long = System.currentTimeMillis(),
     val correctCount: Int = 0,

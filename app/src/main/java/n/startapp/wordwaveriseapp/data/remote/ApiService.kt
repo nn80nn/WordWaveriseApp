@@ -26,7 +26,7 @@ interface ApiService {
     suspend fun login(@Body request: LoginRequest): AuthResponse
 
     // Saved words endpoints (require auth token)
-    @POST("api/words/save")
+    @POST("api/words/saved")
     suspend fun saveWord(
         @Header("Authorization") token: String,
         @Body request: SaveWordRequest
@@ -43,10 +43,13 @@ interface ApiService {
 
     // Flashcard endpoints (require auth token)
     @GET("api/flashcards")
-    suspend fun getFlashcards(@Header("Authorization") token: String): FlashcardsResponse
+    suspend fun getFlashcards(@Header("Authorization") token: String): FlashcardsListResponse
 
     @GET("api/flashcards/due")
-    suspend fun getDueFlashcards(@Header("Authorization") token: String): FlashcardsResponse
+    suspend fun getDueFlashcards(@Header("Authorization") token: String): DueFlashcardsResponse
+
+    @GET("api/flashcards/statistics")
+    suspend fun getFlashcardStatistics(@Header("Authorization") token: String): FlashcardStatisticsResponse
 
     @POST("api/flashcards")
     suspend fun createFlashcard(
@@ -54,12 +57,18 @@ interface ApiService {
         @Body request: CreateFlashcardRequest
     ): FlashcardResponse
 
+    @POST("api/flashcards/create")
+    suspend fun createFlashcardFromSaved(
+        @Header("Authorization") token: String,
+        @Body request: CreateFlashcardFromSavedRequest
+    ): FlashcardResponse
+
     @PUT("api/flashcards/{id}")
     suspend fun updateFlashcard(
         @Header("Authorization") token: String,
         @Path("id") id: Int,
         @Body request: UpdateFlashcardRequest
-    ): FlashcardResponse
+    ): UpdateFlashcardResponse
 
     @DELETE("api/flashcards/{id}")
     suspend fun deleteFlashcard(

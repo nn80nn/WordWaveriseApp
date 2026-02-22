@@ -43,14 +43,12 @@ class FlashcardRepository @Inject constructor(
         partOfSpeech: String? = null
     ): Resource<Long> {
         return try {
-            // Проверяем, нет ли уже карточки для этого слова
             val existing = flashcardDao.getFlashcardByWord(word)
             if (existing != null) {
                 Log.d(TAG, "Flashcard already exists for word: $word")
                 return Resource.Success(existing.id)
             }
 
-            // Создаём локально
             val flashcard = FlashcardEntity(
                 word = word,
                 definition = definition,
@@ -62,8 +60,7 @@ class FlashcardRepository @Inject constructor(
             val localId = flashcardDao.insertFlashcard(flashcard)
             Log.d(TAG, "Created local flashcard: $localId")
 
-            // Синхронизируем с сервером
-            syncToServer(flashcard)
+            syncToServer(flashcard.copy(id = localId))
 
             Resource.Success(localId)
         } catch (e: Exception) {
@@ -75,27 +72,26 @@ class FlashcardRepository @Inject constructor(
     private suspend fun syncToServer(flashcard: FlashcardEntity) {
         try {
             val token = authRepository.token.firstOrNull()
-            if (token.isNullOrEmpty()) {
-                Log.d(TAG, "No token, skipping server sync")
-                return
-            }
+            if (token.isNullOrEmpty()) return
 
             val request = CreateFlashcardRequest(
                 word = flashcard.word,
-                definition = flashcard.definition,
-                example = flashcard.example,
                 translation = flashcard.translation,
-                phonetic = flashcard.phonetic,
-                partOfSpeech = flashcard.partOfSpeech
+                definition = flashcard.definition,
+                example = flashcard.example
             )
 
             val response = apiService.createFlashcard("Bearer $token", request)
             if (response.status == "ok" && response.data != null) {
-                Log.d(TAG, "Synced flashcard to server: ${response.data.id}")
+                val serverId = response.data.id
+                Log.d(TAG, "Synced flashcard to server: serverId=$serverId")
+                val updated = flashcardDao.getFlashcardByWord(flashcard.word)
+                if (updated != null && updated.serverId == null) {
+                    flashcardDao.updateFlashcard(updated.copy(serverId = serverId))
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to sync to server: ${e.message}")
-            // Не критичная ошибка, карточка сохранена локально
         }
     }
 
@@ -115,8 +111,7 @@ class FlashcardRepository @Inject constructor(
             flashcardDao.updateFlashcard(updated)
             Log.d(TAG, "Marked as correct: ${flashcard.word}, new level: $newLevel")
 
-            // Синхронизация с сервером
-            syncUpdateToServer(updated)
+            syncUpdateToServer(updated, "GOOD")
 
             Resource.Success(Unit)
         } catch (e: Exception) {
@@ -141,8 +136,7 @@ class FlashcardRepository @Inject constructor(
             flashcardDao.updateFlashcard(updated)
             Log.d(TAG, "Marked as incorrect: ${flashcard.word}, new level: $newLevel")
 
-            // Синхронизация с сервером
-            syncUpdateToServer(updated)
+            syncUpdateToServer(updated, "AGAIN")
 
             Resource.Success(Unit)
         } catch (e: Exception) {
@@ -151,22 +145,25 @@ class FlashcardRepository @Inject constructor(
         }
     }
 
-    private suspend fun syncUpdateToServer(flashcard: FlashcardEntity) {
+    private suspend fun syncUpdateToServer(flashcard: FlashcardEntity, difficulty: String) {
         try {
             val token = authRepository.token.firstOrNull()
             if (token.isNullOrEmpty()) return
 
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-            val request = UpdateFlashcardRequest(
-                repetitionLevel = flashcard.repetitionLevel,
-                lastReviewed = dateFormat.format(Date(flashcard.lastReviewed ?: 0)),
-                nextReviewDate = dateFormat.format(Date(flashcard.nextReviewDate)),
-                correctCount = flashcard.correctCount,
-                incorrectCount = flashcard.incorrectCount
-            )
+            val serverId = flashcard.serverId
+            if (serverId == null) {
+                Log.d(TAG, "No serverId for '${flashcard.word}', skipping server update")
+                return
+            }
 
-            // Note: нужен serverId для обновления на сервере
-            // Для полной реализации нужно добавить serverId в FlashcardEntity
+            val response = apiService.updateFlashcard(
+                "Bearer $token",
+                serverId,
+                UpdateFlashcardRequest(difficulty)
+            )
+            if (response.status == "ok") {
+                Log.d(TAG, "Updated flashcard on server: serverId=$serverId, difficulty=$difficulty")
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to sync update to server: ${e.message}")
         }
@@ -174,12 +171,12 @@ class FlashcardRepository @Inject constructor(
 
     private fun calculateNextReview(level: Int): Long {
         val delays = listOf(
-            1 * 60 * 1000L,           // Level 0: 1 минута
-            10 * 60 * 1000L,          // Level 1: 10 минут
-            24 * 60 * 60 * 1000L,     // Level 2: 1 день
-            3 * 24 * 60 * 60 * 1000L, // Level 3: 3 дня
-            7 * 24 * 60 * 60 * 1000L, // Level 4: 7 дней
-            30 * 24 * 60 * 60 * 1000L // Level 5: 30 дней
+            1 * 60 * 1000L,
+            10 * 60 * 1000L,
+            24 * 60 * 60 * 1000L,
+            3 * 24 * 60 * 60 * 1000L,
+            7 * 24 * 60 * 60 * 1000L,
+            30 * 24 * 60 * 60 * 1000L
         )
         return System.currentTimeMillis() + delays[level]
     }
@@ -204,12 +201,15 @@ class FlashcardRepository @Inject constructor(
 
             val response = apiService.getFlashcards("Bearer $token")
             if (response.status == "ok" && response.data != null) {
-                // Сохраняем карточки с сервера локально
-                response.data.flashcards.forEach { dto ->
-                    val entity = dtoToEntity(dto)
-                    flashcardDao.insertFlashcard(entity)
+                response.data.forEach { dto ->
+                    val existing = flashcardDao.getFlashcardByWord(dto.word)
+                    if (existing == null) {
+                        flashcardDao.insertFlashcard(dtoToEntity(dto))
+                    } else if (existing.serverId == null) {
+                        flashcardDao.updateFlashcard(existing.copy(serverId = dto.id))
+                    }
                 }
-                Log.d(TAG, "Synced ${response.data.flashcards.size} flashcards from server")
+                Log.d(TAG, "Synced ${response.data.size} flashcards from server")
                 Resource.Success(Unit)
             } else {
                 Resource.Error(response.message ?: "Ошибка синхронизации")
@@ -221,22 +221,20 @@ class FlashcardRepository @Inject constructor(
     }
 
     private fun dtoToEntity(dto: FlashcardDto): FlashcardEntity {
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        val nextReviewTimestamp = try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+            sdf.timeZone = TimeZone.getTimeZone("UTC")
+            sdf.parse(dto.nextReview)?.time ?: System.currentTimeMillis()
+        } catch (e: Exception) {
+            System.currentTimeMillis() + dto.daysUntilReview * 24 * 60 * 60 * 1000L
+        }
         return FlashcardEntity(
-            id = dto.id.toLong(),
+            serverId = dto.id,
             word = dto.word,
-            definition = dto.definition,
+            definition = dto.definition ?: "",
             example = dto.example,
             translation = dto.translation,
-            phonetic = dto.phonetic,
-            partOfSpeech = dto.partOfSpeech,
-            repetitionLevel = dto.repetitionLevel,
-            lastReviewed = dto.lastReviewed?.let { dateFormat.parse(it)?.time },
-            nextReviewDate = dateFormat.parse(dto.nextReviewDate)?.time ?: System.currentTimeMillis(),
-            correctCount = dto.correctCount,
-            incorrectCount = dto.incorrectCount,
-            createdAt = dateFormat.parse(dto.createdAt)?.time ?: System.currentTimeMillis(),
-            updatedAt = dateFormat.parse(dto.updatedAt)?.time ?: System.currentTimeMillis()
+            nextReviewDate = nextReviewTimestamp
         )
     }
 }

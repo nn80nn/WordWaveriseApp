@@ -17,7 +17,14 @@ class TasksViewModel @Inject constructor(
     val state: StateFlow<TasksState> = _state.asStateFlow()
 
     init {
+        syncFromServer()
         observeFlashcards()
+    }
+
+    private fun syncFromServer() {
+        viewModelScope.launch {
+            flashcardRepository.syncFromServer()
+        }
     }
 
     private fun observeFlashcards() {
