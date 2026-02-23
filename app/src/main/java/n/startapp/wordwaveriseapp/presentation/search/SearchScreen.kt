@@ -21,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -261,6 +260,13 @@ private fun WordHeader(
     onPlayAudio: (String) -> Unit,
     onStopAudio: () -> Unit
 ) {
+    val ukPron = wordData.pronunciations.firstOrNull { it.region == "uk" }
+    val usPron = wordData.pronunciations.firstOrNull { it.region == "us" }
+    // Audio URLs: prefer pronunciations, fall back to legacy audioUrl
+    val ukAudio = ukPron?.audioMp3Url
+        ?: wordData.audioUrl.takeIf { wordData.pronunciations.isEmpty() }
+    val usAudio = usPron?.audioMp3Url
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -271,7 +277,7 @@ private fun WordHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -282,9 +288,24 @@ private fun WordHeader(
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
-                wordData.phonetic?.let {
-                    Text(text = it, fontSize = 15.sp, color = TextSecondary)
+
+                // UK / US IPA row
+                val ukIpa = ukPron?.ipa
+                val usIpa = usPron?.ipa
+                if (ukIpa != null || usIpa != null) {
+                    Row(
+                        modifier = Modifier.padding(top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ukIpa?.let { Text("🇬🇧 $it", fontSize = 13.sp, color = TextSecondary) }
+                        usIpa?.let { Text("🇺🇸 $it", fontSize = 13.sp, color = TextSecondary) }
+                    }
+                } else {
+                    wordData.phonetic?.let {
+                        Text(text = it, fontSize = 13.sp, color = TextSecondary)
+                    }
                 }
+
                 wordData.translation?.let {
                     Text(
                         text = it,
@@ -295,25 +316,29 @@ private fun WordHeader(
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                wordData.audioUrl?.let { url ->
-                    val isThis = isPlayingAudio && playingAudioUrl == url
-                    IconButton(onClick = { if (isThis) onStopAudio() else onPlayAudio(url) }) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Brush.horizontalGradient(listOf(PrimaryBright, PrimaryCyan))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isThis) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // UK audio button
+                ukAudio?.let { url ->
+                    PronAudioButton(
+                        flag = if (usAudio != null) "🇬🇧" else null,
+                        url = url,
+                        isPlaying = isPlayingAudio && playingAudioUrl == url,
+                        onPlay = { onPlayAudio(url) },
+                        onStop = onStopAudio
+                    )
+                }
+                // US audio button
+                usAudio?.let { url ->
+                    PronAudioButton(
+                        flag = "🇺🇸",
+                        url = url,
+                        isPlaying = isPlayingAudio && playingAudioUrl == url,
+                        onPlay = { onPlayAudio(url) },
+                        onStop = onStopAudio
+                    )
                 }
 
                 IconButton(onClick = if (isSaved) onUnsave else onSave) {
@@ -324,6 +349,44 @@ private fun WordHeader(
                     )
                 }
             }
+        }
+    }
+}
+
+// ── Pronunciation audio button ────────────────────────────────────────────────
+
+@Composable
+private fun PronAudioButton(
+    flag: String?,
+    url: String,
+    isPlaying: Boolean,
+    onPlay: () -> Unit,
+    onStop: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (isPlaying) PrimaryCyan.copy(alpha = 0.2f)
+                else BackgroundLight
+            )
+            .clickable { if (isPlaying) onStop() else onPlay() }
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            if (flag != null) {
+                Text(text = flag, fontSize = 14.sp)
+            }
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = if (isPlaying) PrimaryCyan else TextSecondary,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }
@@ -516,22 +579,21 @@ private fun ChipGroup(label: String, items: List<String>, color: Color) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FlowChips(items: List<String>, color: Color) {
-    // Simple wrapping row using Column + Rows
-    val chunked = items.chunked(4)
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        chunked.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { item ->
-                    Box(
-                        modifier = Modifier
-                            .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(text = item, fontSize = 13.sp, color = color)
-                    }
-                }
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items.forEach { item ->
+            Box(
+                modifier = Modifier
+                    .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(text = item, fontSize = 13.sp, color = color)
             }
         }
     }
