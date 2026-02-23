@@ -5,6 +5,9 @@ import n.startapp.wordwaveriseapp.data.remote.dto.HealthResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.SuggestApiResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.WordDetailApiResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.WordResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.ai.AiExerciseApiResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.ai.AiTextApiResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.ai.AiWordRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.AuthResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.LoginRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.RegisterRequest
@@ -84,4 +87,23 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("id") id: Int
     ): DeleteResponse
+
+    // AI endpoints (require auth token)
+    @POST("api/ai/explain")
+    suspend fun getAiExplanation(
+        @Header("Authorization") token: String,
+        @Body request: AiWordRequest
+    ): AiTextApiResponse
+
+    @POST("api/ai/examples")
+    suspend fun getAiExamples(
+        @Header("Authorization") token: String,
+        @Body request: AiWordRequest
+    ): AiTextApiResponse
+
+    @POST("api/ai/exercise")
+    suspend fun getAiExercise(
+        @Header("Authorization") token: String,
+        @Body request: AiWordRequest
+    ): AiExerciseApiResponse
 }

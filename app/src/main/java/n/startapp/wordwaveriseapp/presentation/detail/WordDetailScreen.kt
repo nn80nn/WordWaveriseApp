@@ -36,7 +36,8 @@ private val DETAIL_TABS = listOf(
     DetailTab("Longman", "LDOCE"),
     DetailTab("Cambridge", "CAMBRIDGE"),
     DetailTab("Oxford", "OXFORD"),
-    DetailTab("Подробнее", "DETAILS")
+    DetailTab("Подробнее", "DETAILS"),
+    DetailTab("AI ✨", "AI")
 )
 
 /** Lightweight display model used inside the pager — avoids coupling to DTO type. */
@@ -61,6 +62,14 @@ fun WordDetailScreen(
     onPlayAudio: (String) -> Unit = {},
     onStopAudio: () -> Unit = {},
     onBack: (() -> Unit)? = null,
+    // AI
+    aiExplanation: String? = null,
+    isAiExplanationLoading: Boolean = false,
+    aiExamples: String? = null,
+    isAiExamplesLoading: Boolean = false,
+    aiError: String? = null,
+    onLoadAiExplanation: () -> Unit = {},
+    onLoadAiExamples: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val pagerState = rememberPagerState { DETAIL_TABS.size }
@@ -184,6 +193,17 @@ fun WordDetailScreen(
                 ) { page ->
                     val tab = DETAIL_TABS[page]
                     when {
+                        tab.sourceFilter == "AI" -> {
+                            AiPage(
+                                aiExplanation = aiExplanation,
+                                isAiExplanationLoading = isAiExplanationLoading,
+                                aiExamples = aiExamples,
+                                isAiExamplesLoading = isAiExamplesLoading,
+                                aiError = aiError,
+                                onLoadExplanation = onLoadAiExplanation,
+                                onLoadExamples = onLoadAiExamples
+                            )
+                        }
                         tab.sourceFilter == "DETAILS" -> {
                             DetailsPage(
                                 wordDetail = wordDetail,
@@ -593,6 +613,137 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
             )
             Spacer(modifier = Modifier.height(10.dp))
             content()
+        }
+    }
+}
+
+// ── AI page ────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AiPage(
+    aiExplanation: String?,
+    isAiExplanationLoading: Boolean,
+    aiExamples: String?,
+    isAiExamplesLoading: Boolean,
+    aiError: String?,
+    onLoadExplanation: () -> Unit,
+    onLoadExamples: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Explanation section
+        AiSection(
+            title = "Объяснение ИИ",
+            content = aiExplanation,
+            isLoading = isAiExplanationLoading,
+            buttonLabel = "Объяснить",
+            onLoad = onLoadExplanation
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Examples section
+        AiSection(
+            title = "Примеры от ИИ",
+            content = aiExamples,
+            isLoading = isAiExamplesLoading,
+            buttonLabel = "Генерировать примеры",
+            onLoad = onLoadExamples
+        )
+
+        aiError?.let { err ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = err,
+                fontSize = 13.sp,
+                color = Error,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun AiSection(
+    title: String,
+    content: String?,
+    isLoading: Boolean,
+    buttonLabel: String,
+    onLoad: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextTertiary
+                )
+                if (content == null && !isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(PrimaryCyan.copy(alpha = 0.12f))
+                            .clickable { onLoad() }
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = buttonLabel,
+                            fontSize = 12.sp,
+                            color = PrimaryCyan,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+            when {
+                isLoading -> {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = PrimaryCyan,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                content != null -> {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = content,
+                        fontSize = 14.sp,
+                        color = TextPrimary,
+                        lineHeight = 21.sp
+                    )
+                }
+                else -> {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Нажмите кнопку чтобы загрузить",
+                        fontSize = 13.sp,
+                        color = TextTertiary,
+                        fontStyle = FontStyle.Italic
+                    )
+                }
+            }
         }
     }
 }

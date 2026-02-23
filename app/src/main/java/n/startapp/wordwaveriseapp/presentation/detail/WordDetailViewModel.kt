@@ -12,16 +12,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import n.startapp.wordwaveriseapp.data.repository.AiRepository
 import n.startapp.wordwaveriseapp.data.repository.AuthRepository
 import n.startapp.wordwaveriseapp.data.remote.ApiService
 import n.startapp.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
 import n.startapp.wordwaveriseapp.util.NetworkError
+import n.startapp.wordwaveriseapp.util.Resource
 import javax.inject.Inject
 
 @HiltViewModel
 class WordDetailViewModel @Inject constructor(
     private val apiService: ApiService,
     private val authRepository: AuthRepository,
+    private val aiRepository: AiRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -149,6 +152,42 @@ class WordDetailViewModel @Inject constructor(
         mediaPlayer?.release()
         mediaPlayer = null
         _state.update { it.copy(isPlayingAudio = false, playingAudioUrl = null) }
+    }
+
+    // ── AI features ───────────────────────────────────────────────────────────
+
+    fun loadAiExplanation() {
+        val word = _state.value.word.ifBlank { return }
+        if (_state.value.isAiExplanationLoading || _state.value.aiExplanation != null) return
+        viewModelScope.launch {
+            _state.update { it.copy(isAiExplanationLoading = true, aiError = null) }
+            when (val result = aiRepository.explainWord(word)) {
+                is Resource.Success -> _state.update {
+                    it.copy(aiExplanation = result.data, isAiExplanationLoading = false)
+                }
+                is Resource.Error -> _state.update {
+                    it.copy(aiError = result.message, isAiExplanationLoading = false)
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun loadAiExamples() {
+        val word = _state.value.word.ifBlank { return }
+        if (_state.value.isAiExamplesLoading || _state.value.aiExamples != null) return
+        viewModelScope.launch {
+            _state.update { it.copy(isAiExamplesLoading = true, aiError = null) }
+            when (val result = aiRepository.getExamples(word)) {
+                is Resource.Success -> _state.update {
+                    it.copy(aiExamples = result.data, isAiExamplesLoading = false)
+                }
+                is Resource.Error -> _state.update {
+                    it.copy(aiError = result.message, isAiExamplesLoading = false)
+                }
+                else -> {}
+            }
+        }
     }
 
     override fun onCleared() {

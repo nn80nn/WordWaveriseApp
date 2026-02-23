@@ -135,7 +135,14 @@ class MainActivity : ComponentActivity() {
                                     playingAudioUrl = state.playingAudioUrl,
                                     onPlayAudio = viewModel::playAudio,
                                     onStopAudio = viewModel::stopAudio,
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navController.popBackStack() },
+                                    aiExplanation = state.aiExplanation,
+                                    isAiExplanationLoading = state.isAiExplanationLoading,
+                                    aiExamples = state.aiExamples,
+                                    isAiExamplesLoading = state.isAiExamplesLoading,
+                                    aiError = state.aiError,
+                                    onLoadAiExplanation = viewModel::loadAiExplanation,
+                                    onLoadAiExamples = viewModel::loadAiExamples
                                 )
                             }
                         }

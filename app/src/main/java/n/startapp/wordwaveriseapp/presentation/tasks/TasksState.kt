@@ -7,5 +7,14 @@ data class TasksState(
     val totalCount: Int = 0,
     val isSessionActive: Boolean = false,
     val sessionFlashcards: List<FlashcardEntity> = emptyList(),
-    val currentCardIndex: Int = 0
+    val currentCardIndex: Int = 0,
+    // AI Exercise mode
+    val isExerciseModeActive: Boolean = false,
+    val isExerciseLoading: Boolean = false,
+    val exerciseSentence: String? = null,
+    val exerciseAnswer: String? = null,
+    val userAnswer: String = "",
+    val exerciseChecked: Boolean = false,
+    val exerciseIsCorrect: Boolean = false,
+    val exerciseError: String? = null
 )

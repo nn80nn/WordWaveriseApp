@@ -5,12 +5,15 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import n.startapp.wordwaveriseapp.data.repository.AiRepository
 import n.startapp.wordwaveriseapp.data.repository.FlashcardRepository
+import n.startapp.wordwaveriseapp.util.Resource
 import javax.inject.Inject
 
 @HiltViewModel
 class TasksViewModel @Inject constructor(
-    private val flashcardRepository: FlashcardRepository
+    private val flashcardRepository: FlashcardRepository,
+    private val aiRepository: AiRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TasksState())
@@ -102,6 +105,72 @@ class TasksViewModel @Inject constructor(
                 sessionFlashcards = emptyList(),
                 currentCardIndex = 0
             )
+        }
+    }
+
+    // ── AI Exercise mode ──────────────────────────────────────────────────────
+
+    fun startExerciseMode() {
+        _state.update { it.copy(isExerciseModeActive = true) }
+        loadNextExercise()
+    }
+
+    fun exitExerciseMode() {
+        _state.update {
+            it.copy(
+                isExerciseModeActive = false,
+                exerciseSentence = null,
+                exerciseAnswer = null,
+                userAnswer = "",
+                exerciseChecked = false,
+                exerciseIsCorrect = false,
+                exerciseError = null
+            )
+        }
+    }
+
+    fun onUserAnswerChange(answer: String) {
+        _state.update { it.copy(userAnswer = answer) }
+    }
+
+    fun checkAnswer() {
+        val state = _state.value
+        val correct = state.userAnswer.trim().equals(state.exerciseAnswer?.trim(), ignoreCase = true)
+        _state.update { it.copy(exerciseChecked = true, exerciseIsCorrect = correct) }
+    }
+
+    fun loadNextExercise() {
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    isExerciseLoading = true,
+                    exerciseSentence = null,
+                    exerciseAnswer = null,
+                    userAnswer = "",
+                    exerciseChecked = false,
+                    exerciseIsCorrect = false,
+                    exerciseError = null
+                )
+            }
+            val allCards = flashcardRepository.allFlashcards.firstOrNull() ?: emptyList()
+            if (allCards.isEmpty()) {
+                _state.update { it.copy(isExerciseLoading = false, exerciseError = "Нет сохранённых слов") }
+                return@launch
+            }
+            val word = allCards.random().word
+            when (val result = aiRepository.getExercise(word)) {
+                is Resource.Success -> _state.update {
+                    it.copy(
+                        isExerciseLoading = false,
+                        exerciseSentence = result.data?.sentence,
+                        exerciseAnswer = result.data?.answer
+                    )
+                }
+                is Resource.Error -> _state.update {
+                    it.copy(isExerciseLoading = false, exerciseError = result.message)
+                }
+                else -> {}
+            }
         }
     }
 }

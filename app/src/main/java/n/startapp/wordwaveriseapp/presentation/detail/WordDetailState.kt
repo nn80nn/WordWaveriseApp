@@ -11,5 +11,11 @@ data class WordDetailState(
     val isSavedLoading: Boolean = true,
     val isPlayingAudio: Boolean = false,
     val playingAudioUrl: String? = null,
-    val audioError: String? = null
+    val audioError: String? = null,
+    // AI section
+    val aiExplanation: String? = null,
+    val isAiExplanationLoading: Boolean = false,
+    val aiExamples: String? = null,
+    val isAiExamplesLoading: Boolean = false,
+    val aiError: String? = null
 )

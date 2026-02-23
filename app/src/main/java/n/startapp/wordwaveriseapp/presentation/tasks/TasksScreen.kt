@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -18,9 +20,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -41,6 +47,21 @@ fun TasksScreen(
             .padding(16.dp)
     ) {
         when {
+            state.isExerciseModeActive -> {
+                ExerciseMode(
+                    isLoading = state.isExerciseLoading,
+                    sentence = state.exerciseSentence,
+                    userAnswer = state.userAnswer,
+                    checked = state.exerciseChecked,
+                    isCorrect = state.exerciseIsCorrect,
+                    correctAnswer = state.exerciseAnswer,
+                    error = state.exerciseError,
+                    onAnswerChange = viewModel::onUserAnswerChange,
+                    onCheck = { viewModel.checkAnswer() },
+                    onNext = { viewModel.loadNextExercise() },
+                    onExit = { viewModel.exitExerciseMode() }
+                )
+            }
             state.isSessionActive -> {
                 FlashcardSession(
                     flashcards = state.sessionFlashcards,
@@ -54,7 +75,9 @@ fun TasksScreen(
                 TasksOverview(
                     dueCount = state.dueCount,
                     totalCount = state.totalCount,
-                    onStartSession = { viewModel.startSession() }
+                    hasWords = state.totalCount > 0,
+                    onStartSession = { viewModel.startSession() },
+                    onStartExercise = { viewModel.startExerciseMode() }
                 )
             }
         }
@@ -65,7 +88,9 @@ fun TasksScreen(
 private fun TasksOverview(
     dueCount: Int,
     totalCount: Int,
-    onStartSession: () -> Unit
+    hasWords: Boolean,
+    onStartSession: () -> Unit,
+    onStartExercise: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -129,6 +154,36 @@ private fun TasksOverview(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
+            }
+        }
+
+        // AI Exercise Button
+        if (hasWords) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(PrimaryBlue.copy(alpha = 0.8f), PrimaryBright.copy(alpha = 0.8f))
+                        )
+                    )
+                    .clickable { onStartExercise() },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("✨", fontSize = 18.sp)
+                    Text(
+                        text = "AI Упражнения",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 
@@ -463,6 +518,192 @@ private fun FlippableCard(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── AI Exercise mode ──────────────────────────────────────────────────────────
+
+@Composable
+private fun ExerciseMode(
+    isLoading: Boolean,
+    sentence: String?,
+    userAnswer: String,
+    checked: Boolean,
+    isCorrect: Boolean,
+    correctAnswer: String?,
+    error: String?,
+    onAnswerChange: (String) -> Unit,
+    onCheck: () -> Unit,
+    onNext: () -> Unit,
+    onExit: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onExit) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Выход",
+                    tint = TextPrimary
+                )
+            }
+            Text(
+                text = "✨ AI Упражнения",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Box(modifier = Modifier.size(48.dp))
+        }
+
+        when {
+            isLoading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = PrimaryBlue)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Генерирую упражнение...", fontSize = 14.sp, color = TextTertiary)
+                    }
+                }
+            }
+
+            error != null -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("😔", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(error, fontSize = 14.sp, color = Error, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onNext,
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Попробовать снова")
+                        }
+                    }
+                }
+            }
+
+            sentence != null -> {
+                // Sentence card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = "Вставьте пропущенное слово:",
+                            fontSize = 12.sp,
+                            color = TextTertiary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        // Highlight the blank in the sentence
+                        val parts = sentence.split("_____")
+                        Text(
+                            text = buildAnnotatedString {
+                                parts.forEachIndexed { i, part ->
+                                    append(part)
+                                    if (i < parts.size - 1) {
+                                        withStyle(SpanStyle(color = PrimaryBlue, fontWeight = FontWeight.Bold)) {
+                                            append("_____")
+                                        }
+                                    }
+                                }
+                            },
+                            fontSize = 17.sp,
+                            color = TextPrimary,
+                            lineHeight = 25.sp
+                        )
+                    }
+                }
+
+                // Answer input
+                OutlinedTextField(
+                    value = userAnswer,
+                    onValueChange = { if (!checked) onAnswerChange(it) },
+                    label = { Text("Ваш ответ") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !checked,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { if (!checked) onCheck() }),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryBlue,
+                        focusedLabelColor = PrimaryBlue
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                // Feedback
+                if (checked) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isCorrect) Success.copy(alpha = 0.12f)
+                                            else Error.copy(alpha = 0.12f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(if (isCorrect) "✅" else "❌", fontSize = 24.sp)
+                            Column {
+                                Text(
+                                    text = if (isCorrect) "Правильно!" else "Неправильно",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isCorrect) Success else Error
+                                )
+                                if (!isCorrect && correctAnswer != null) {
+                                    Text(
+                                        text = "Ответ: $correctAnswer",
+                                        fontSize = 13.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Action button
+                if (!checked) {
+                    Button(
+                        onClick = onCheck,
+                        enabled = userAnswer.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Проверить", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    }
+                } else {
+                    Button(
+                        onClick = onNext,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Следующее слово →", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
