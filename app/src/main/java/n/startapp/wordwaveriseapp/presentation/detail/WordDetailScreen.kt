@@ -10,7 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
@@ -25,8 +25,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import n.startapp.wordwaveriseapp.data.remote.dto.Definition
 import n.startapp.wordwaveriseapp.data.remote.dto.WordDetailResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.WordEntry
 import n.startapp.wordwaveriseapp.ui.theme.*
 
 private data class DetailTab(val label: String, val sourceFilter: String?)
@@ -37,6 +37,14 @@ private val DETAIL_TABS = listOf(
     DetailTab("Cambridge", "CAMBRIDGE"),
     DetailTab("Oxford", "OXFORD"),
     DetailTab("Подробнее", "DETAILS")
+)
+
+/** Lightweight display model used inside the pager — avoids coupling to DTO type. */
+private data class DisplayDef(
+    val partOfSpeech: String,
+    val definition: String,
+    val example: String?,
+    val source: String?
 )
 
 @Composable
@@ -58,6 +66,12 @@ fun WordDetailScreen(
     val pagerState = rememberPagerState { DETAIL_TABS.size }
     val scope = rememberCoroutineScope()
 
+    // -1 = "All entries"; ≥0 = index into wordDetail.entries
+    var selectedEntryIdx by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(wordDetail?.word) { selectedEntryIdx = -1 }
+
+    val selectedEntry: WordEntry? = wordDetail?.entries?.getOrNull(selectedEntryIdx)
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -70,7 +84,7 @@ fun WordDetailScreen(
                 modifier = Modifier.padding(start = 4.dp, top = 4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Назад",
                     tint = TextPrimary
                 )
@@ -86,7 +100,9 @@ fun WordDetailScreen(
 
             error != null -> {
                 Box(
-                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -105,7 +121,16 @@ fun WordDetailScreen(
             }
 
             wordDetail != null -> {
-                // ── Tab pills ─────────────────────────────────────────────
+                // ── Entry chips (only when word has 2+ entries / POS groups) ──
+                if (wordDetail.entries.size > 1) {
+                    EntrySelector(
+                        entries = wordDetail.entries,
+                        selectedIdx = selectedEntryIdx,
+                        onSelect = { selectedEntryIdx = it }
+                    )
+                }
+
+                // ── Source tab pills ───────────────────────────────────────
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -138,9 +163,10 @@ fun WordDetailScreen(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // ── Word header ───────────────────────────────────────────
+                // ── Word header — uses selected entry's pronunciation ──────
                 WordHeaderCard(
                     wordDetail = wordDetail,
+                    selectedEntry = selectedEntry,
                     isSaved = isSaved,
                     isSavedLoading = isSavedLoading,
                     isPlayingAudio = isPlayingAudio,
@@ -159,12 +185,46 @@ fun WordDetailScreen(
                     val tab = DETAIL_TABS[page]
                     when {
                         tab.sourceFilter == "DETAILS" -> {
-                            DetailsPage(wordDetail = wordDetail)
+                            DetailsPage(
+                                wordDetail = wordDetail,
+                                selectedEntry = selectedEntry
+                            )
                         }
                         else -> {
-                            val defs = wordDetail.definitions.let { all ->
-                                if (tab.sourceFilter == null) all
-                                else all.filter { it.source?.uppercase() == tab.sourceFilter }
+                            val defs: List<DisplayDef> = if (selectedEntry != null) {
+                                // Entry selected: show only that entry's meanings
+                                selectedEntry.meanings
+                                    .let { all ->
+                                        if (tab.sourceFilter == null) all
+                                        else all.filter {
+                                            it.source?.uppercase() == tab.sourceFilter
+                                        }
+                                    }
+                                    .map { m ->
+                                        DisplayDef(
+                                            partOfSpeech = selectedEntry.partOfSpeech ?: "",
+                                            definition = m.definition,
+                                            example = m.example,
+                                            source = m.source
+                                        )
+                                    }
+                            } else {
+                                // All entries: use flat definitions list
+                                wordDetail.definitions
+                                    .let { all ->
+                                        if (tab.sourceFilter == null) all
+                                        else all.filter {
+                                            it.source?.uppercase() == tab.sourceFilter
+                                        }
+                                    }
+                                    .map { def ->
+                                        DisplayDef(
+                                            partOfSpeech = def.partOfSpeech,
+                                            definition = def.definition,
+                                            example = def.example,
+                                            source = def.source
+                                        )
+                                    }
                             }
 
                             if (defs.isEmpty()) {
@@ -202,11 +262,67 @@ fun WordDetailScreen(
     }
 }
 
+// ── Entry selector row ────────────────────────────────────────────────────────
+
+@Composable
+private fun EntrySelector(
+    entries: List<WordEntry>,
+    selectedIdx: Int,
+    onSelect: (Int) -> Unit   // -1 = All
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        EntryChip(label = "Все", selected = selectedIdx == -1, onClick = { onSelect(-1) })
+        entries.forEachIndexed { idx, entry ->
+            val label = buildString {
+                entry.partOfSpeech?.let { append(it) }
+                entry.phonetic?.let { ipa ->
+                    if (isNotEmpty()) append(" ")
+                    append(ipa)
+                }
+                if (isEmpty()) append("entry ${idx + 1}")
+            }
+            EntryChip(
+                label = label,
+                selected = selectedIdx == idx,
+                onClick = { onSelect(idx) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun EntryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (selected) PrimaryCyan.copy(alpha = 0.18f) else BackgroundSecondary
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) PrimaryCyan else TextSecondary
+        )
+    }
+}
+
 // ── Word header card ──────────────────────────────────────────────────────────
 
 @Composable
 private fun WordHeaderCard(
     wordDetail: WordDetailResponse,
+    selectedEntry: WordEntry?,
     isSaved: Boolean,
     isSavedLoading: Boolean,
     isPlayingAudio: Boolean,
@@ -216,10 +332,12 @@ private fun WordHeaderCard(
     onPlayAudio: (String) -> Unit,
     onStopAudio: () -> Unit
 ) {
-    val ukPron = wordDetail.pronunciations.firstOrNull { it.region == "uk" }
-    val usPron = wordDetail.pronunciations.firstOrNull { it.region == "us" }
+    val prons = selectedEntry?.pronunciations?.takeIf { it.isNotEmpty() }
+        ?: wordDetail.pronunciations
+    val ukPron = prons.firstOrNull { it.region == "uk" }
+    val usPron = prons.firstOrNull { it.region == "us" }
     val ukAudio = ukPron?.audioMp3Url
-        ?: wordDetail.audioUrl.takeIf { wordDetail.pronunciations.isEmpty() }
+        ?: wordDetail.audioUrl.takeIf { prons.isEmpty() }
     val usAudio = usPron?.audioMp3Url
 
     Card(
@@ -255,7 +373,8 @@ private fun WordHeaderCard(
                         usIpa?.let { Text("🇺🇸 $it", fontSize = 13.sp, color = TextSecondary) }
                     }
                 } else {
-                    wordDetail.phonetic?.let {
+                    val phonetic = selectedEntry?.phonetic ?: wordDetail.phonetic
+                    phonetic?.let {
                         Text(text = it, fontSize = 13.sp, color = TextSecondary)
                     }
                 }
@@ -351,7 +470,7 @@ private fun PronAudioButton(
 // ── Definition card ───────────────────────────────────────────────────────────
 
 @Composable
-private fun DefinitionCard(def: Definition) {
+private fun DefinitionCard(def: DisplayDef) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
@@ -398,10 +517,13 @@ private fun DefinitionCard(def: Definition) {
 // ── Details page ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun DetailsPage(wordDetail: WordDetailResponse) {
-    val synonyms = wordDetail.synonyms.filter { it.isNotBlank() }
-    val antonyms = wordDetail.antonyms.filter { it.isNotBlank() }
-    val examples = wordDetail.examples.filter { it.isNotBlank() }
+private fun DetailsPage(
+    wordDetail: WordDetailResponse,
+    selectedEntry: WordEntry?
+) {
+    val synonyms = (selectedEntry?.synonyms ?: wordDetail.synonyms).filter { it.isNotBlank() }
+    val antonyms = (selectedEntry?.antonyms ?: wordDetail.antonyms).filter { it.isNotBlank() }
+    val examples = (selectedEntry?.examples ?: wordDetail.examples).filter { it.isNotBlank() }
 
     Column(
         modifier = Modifier
@@ -412,16 +534,12 @@ private fun DetailsPage(wordDetail: WordDetailResponse) {
         Spacer(modifier = Modifier.height(8.dp))
 
         if (synonyms.isNotEmpty()) {
-            SectionCard(title = "Синонимы") {
-                FlowChips(items = synonyms, color = PrimaryBlue)
-            }
+            SectionCard(title = "Синонимы") { FlowChips(items = synonyms, color = PrimaryBlue) }
             Spacer(modifier = Modifier.height(8.dp))
         }
 
         if (antonyms.isNotEmpty()) {
-            SectionCard(title = "Антонимы") {
-                FlowChips(items = antonyms, color = Error)
-            }
+            SectionCard(title = "Антонимы") { FlowChips(items = antonyms, color = Error) }
             Spacer(modifier = Modifier.height(8.dp))
         }
 

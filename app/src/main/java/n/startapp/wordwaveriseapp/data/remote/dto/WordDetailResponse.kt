@@ -17,6 +17,28 @@ data class Definition(
     val source: String? = null
 )
 
+/** One definition within a WordEntry. */
+@Serializable
+data class EntryMeaning(
+    val definition: String = "",
+    val example: String? = null,
+    val source: String? = null
+)
+
+/** A single entry (homograph) grouped by part of speech. */
+@Serializable
+data class WordEntry(
+    val id: String = "",
+    val partOfSpeech: String? = null,
+    val phonetic: String? = null,
+    val audioUrl: String? = null,
+    val pronunciations: List<PronunciationEntry> = emptyList(),
+    val meanings: List<EntryMeaning> = emptyList(),
+    val synonyms: List<String> = emptyList(),
+    val antonyms: List<String> = emptyList(),
+    val examples: List<String> = emptyList()
+)
+
 @Serializable
 data class WordDetailResponse(
     val word: String,
@@ -25,6 +47,7 @@ data class WordDetailResponse(
     val pronunciations: List<PronunciationEntry> = emptyList(),
     val translation: String? = null,
     val definitions: List<Definition> = emptyList(),
+    val entries: List<WordEntry> = emptyList(),     // grouped by POS (homographs)
     val synonyms: List<String> = emptyList(),
     val antonyms: List<String> = emptyList(),
     val examples: List<String> = emptyList()
