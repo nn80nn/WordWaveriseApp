@@ -1,11 +1,13 @@
 package n.startapp.wordwaveriseapp.presentation.search
 
+import android.media.MediaPlayer
 import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import n.startapp.wordwaveriseapp.data.repository.SearchRepository
 import n.startapp.wordwaveriseapp.util.Resource
@@ -27,6 +29,8 @@ class SearchViewModel @Inject constructor(
 
     private val _isSaved = mutableStateOf(false)
     val isSaved: State<Boolean> = _isSaved
+
+    private var mediaPlayer: MediaPlayer? = null
 
     fun onSearchQueryChange(query: String) {
         Log.d(TAG, "Search query changed: $query")
@@ -86,8 +90,53 @@ class SearchViewModel @Inject constructor(
 
     fun clearSearch() {
         Log.d(TAG, "Clearing search")
+        stopAudio()
         _state.value = SearchState()
         _isSaved.value = false
+    }
+
+    fun playAudio(url: String) {
+        if (_state.value.playingAudioUrl == url && _state.value.isPlayingAudio) {
+            stopAudio()
+            return
+        }
+        viewModelScope.launch(Dispatchers.Main) {
+            try {
+                _state.value = _state.value.copy(isPlayingAudio = true, playingAudioUrl = url)
+                mediaPlayer?.release()
+                mediaPlayer = null
+                val mp = MediaPlayer()
+                mediaPlayer = mp
+                mp.setDataSource(url)
+                mp.setOnPreparedListener { it.start() }
+                mp.setOnCompletionListener {
+                    _state.value = _state.value.copy(isPlayingAudio = false, playingAudioUrl = null)
+                }
+                mp.setOnErrorListener { _, _, _ ->
+                    _state.value = _state.value.copy(isPlayingAudio = false, playingAudioUrl = null)
+                    true
+                }
+                mp.prepareAsync()
+            } catch (e: Exception) {
+                Log.e(TAG, "Audio playback error: ${e.message}")
+                _state.value = _state.value.copy(isPlayingAudio = false, playingAudioUrl = null)
+            }
+        }
+    }
+
+    fun stopAudio() {
+        try {
+            mediaPlayer?.let { if (it.isPlaying) it.stop() }
+        } catch (_: Exception) { }
+        mediaPlayer?.release()
+        mediaPlayer = null
+        _state.value = _state.value.copy(isPlayingAudio = false, playingAudioUrl = null)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        mediaPlayer?.release()
+        mediaPlayer = null
     }
 
     fun saveWord() {

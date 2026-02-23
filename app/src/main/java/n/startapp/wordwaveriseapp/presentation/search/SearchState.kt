@@ -7,5 +7,7 @@ data class SearchState(
     val isLoading: Boolean = false,
     val wordData: WordDto? = null,
     val error: String? = null,
-    val hasSearched: Boolean = false
+    val hasSearched: Boolean = false,
+    val isPlayingAudio: Boolean = false,
+    val playingAudioUrl: String? = null
 )

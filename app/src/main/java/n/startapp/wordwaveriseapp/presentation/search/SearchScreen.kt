@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +34,10 @@ fun SearchScreen(
     onClear: () -> Unit,
     onSaveWord: () -> Unit,
     onUnsaveWord: () -> Unit,
+    isPlayingAudio: Boolean = false,
+    playingAudioUrl: String? = null,
+    onPlayAudio: (String) -> Unit = {},
+    onStopAudio: () -> Unit = {},
     onWordClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -69,8 +75,12 @@ fun SearchScreen(
                     WordDataSection(
                         wordData = state.wordData,
                         isSaved = isSaved,
+                        isPlayingAudio = isPlayingAudio,
+                        playingAudioUrl = playingAudioUrl,
                         onSave = onSaveWord,
                         onUnsave = onUnsaveWord,
+                        onPlayAudio = onPlayAudio,
+                        onStopAudio = onStopAudio,
                         onWordClick = { onWordClick(state.wordData.word) }
                     )
                 }
@@ -280,13 +290,17 @@ private fun EmptyStateSection() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun WordDataSection(
     wordData: WordDto,
     isSaved: Boolean,
+    isPlayingAudio: Boolean = false,
+    playingAudioUrl: String? = null,
     onSave: () -> Unit,
     onUnsave: () -> Unit,
+    onPlayAudio: (String) -> Unit = {},
+    onStopAudio: () -> Unit = {},
     onWordClick: () -> Unit = {}
 ) {
     var showSynonymsAntonymsSheet by remember { mutableStateOf(false) }
@@ -445,51 +459,88 @@ private fun WordDataSection(
                     )
                 }
 
-                // Translation
+                // Translation variants
                 wordData.translation?.let { translation ->
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BackgroundLight, RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Перевод",
-                                fontSize = 12.sp,
-                                color = TextTertiary,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = translation,
-                                fontSize = 18.sp,
-                                color = PrimaryCyan,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                    val variants = translation
+                        .split(Regex("[,;]"))
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .distinct()
+                    if (variants.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BackgroundLight, RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Перевод",
+                                    fontSize = 12.sp,
+                                    color = TextTertiary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                if (variants.size == 1) {
+                                    Text(
+                                        text = variants[0],
+                                        fontSize = 18.sp,
+                                        color = PrimaryCyan,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                } else {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        variants.forEach { variant ->
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = PrimaryCyan.copy(alpha = 0.15f)
+                                            ) {
+                                                Text(
+                                                    text = variant,
+                                                    fontSize = 15.sp,
+                                                    color = PrimaryCyan,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
-                // Audio URL indicator (if exists)
-                wordData.audioUrl?.let {
+                // Audio playback button
+                wordData.audioUrl?.let { url ->
                     Spacer(modifier = Modifier.height(12.dp))
+                    val isPlaying = isPlayingAudio && playingAudioUrl == url
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "🔊",
-                            fontSize = 16.sp
-                        )
+                        Text(text = "🔊", fontSize = 16.sp)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Произношение доступно",
+                            text = "Произношение",
                             fontSize = 12.sp,
-                            color = TextTertiary
+                            color = TextTertiary,
+                            modifier = Modifier.weight(1f)
                         )
+                        IconButton(
+                            onClick = { if (isPlaying) onStopAudio() else onPlayAudio(url) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "Стоп" else "Воспроизвести",
+                                tint = if (isPlaying) PrimaryCyan else TextSecondary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
             }

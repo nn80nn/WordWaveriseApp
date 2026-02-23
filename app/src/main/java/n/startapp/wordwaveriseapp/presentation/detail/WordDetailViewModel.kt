@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import n.startapp.wordwaveriseapp.data.repository.AuthRepository
 import n.startapp.wordwaveriseapp.data.remote.ApiService
 import n.startapp.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
@@ -63,10 +62,12 @@ class WordDetailViewModel @Inject constructor(
                 if (token != null) {
                     val savedWords = apiService.getSavedWords("Bearer $token")
                     val isSaved = savedWords.data?.words?.any { it.word.equals(word, ignoreCase = true) } == true
-                    _state.update { it.copy(isSaved = isSaved) }
+                    _state.update { it.copy(isSaved = isSaved, isSavedLoading = false) }
+                } else {
+                    _state.update { it.copy(isSavedLoading = false) }
                 }
             } catch (_: Exception) {
-                // Silently fail - user might not be logged in
+                _state.update { it.copy(isSavedLoading = false) }
             }
         }
     }
@@ -112,27 +113,26 @@ class WordDetailViewModel @Inject constructor(
             stopAudio()
             return
         }
-        viewModelScope.launch {
-            _state.update { it.copy(isPlayingAudio = true, playingAudioUrl = url, audioError = null) }
+        viewModelScope.launch(Dispatchers.Main) {
             try {
-                withContext(Dispatchers.IO) {
-                    mediaPlayer?.release()
-                    mediaPlayer = MediaPlayer().apply {
-                        setDataSource(url)
-                        prepare()   // blocking, OK on IO thread
-                        start()
-                        setOnCompletionListener {
-                            _state.update { it.copy(isPlayingAudio = false, playingAudioUrl = null) }
-                        }
-                        setOnErrorListener { _, _, _ ->
-                            _state.update {
-                                it.copy(isPlayingAudio = false, playingAudioUrl = null,
-                                    audioError = "Ошибка воспроизведения")
-                            }
-                            true
-                        }
-                    }
+                _state.update { it.copy(isPlayingAudio = true, playingAudioUrl = url, audioError = null) }
+                mediaPlayer?.release()
+                mediaPlayer = null
+                val mp = MediaPlayer()
+                mediaPlayer = mp
+                mp.setDataSource(url)
+                mp.setOnPreparedListener { it.start() }
+                mp.setOnCompletionListener {
+                    _state.update { it.copy(isPlayingAudio = false, playingAudioUrl = null) }
                 }
+                mp.setOnErrorListener { _, _, _ ->
+                    _state.update {
+                        it.copy(isPlayingAudio = false, playingAudioUrl = null,
+                            audioError = "Ошибка воспроизведения")
+                    }
+                    true
+                }
+                mp.prepareAsync()
             } catch (e: Exception) {
                 _state.update {
                     it.copy(isPlayingAudio = false, playingAudioUrl = null,

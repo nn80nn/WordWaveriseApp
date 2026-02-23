@@ -80,6 +80,10 @@ class MainActivity : ComponentActivity() {
                                     onClear = viewModel::clearSearch,
                                     onSaveWord = viewModel::saveWord,
                                     onUnsaveWord = viewModel::unsaveWord,
+                                    isPlayingAudio = viewModel.state.value.isPlayingAudio,
+                                    playingAudioUrl = viewModel.state.value.playingAudioUrl,
+                                    onPlayAudio = viewModel::playAudio,
+                                    onStopAudio = viewModel::stopAudio,
                                     onWordClick = { word ->
                                         navController.navigate(Screen.WordDetail.createRoute(word))
                                     }
@@ -123,6 +127,7 @@ class MainActivity : ComponentActivity() {
                                     isLoading = state.isLoading,
                                     error = state.error,
                                     isSaved = state.isSaved,
+                                    isSavedLoading = state.isSavedLoading,
                                     onSaveWord = viewModel::saveWord,
                                     onUnsaveWord = viewModel::unsaveWord,
                                     isPlayingAudio = state.isPlayingAudio,

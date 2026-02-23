@@ -35,6 +35,7 @@ fun WordDetailScreen(
     isLoading: Boolean,
     error: String?,
     isSaved: Boolean,
+    isSavedLoading: Boolean = false,
     onSaveWord: () -> Unit,
     onUnsaveWord: () -> Unit,
     isPlayingAudio: Boolean = false,
@@ -60,6 +61,7 @@ fun WordDetailScreen(
                 WordDetailContent(
                     wordDetail = wordDetail,
                     isSaved = isSaved,
+                    isSavedLoading = isSavedLoading,
                     onSave = onSaveWord,
                     onUnsave = onUnsaveWord,
                     isPlayingAudio = isPlayingAudio,
@@ -156,6 +158,7 @@ private fun ErrorSection(error: String) {
 private fun WordDetailContent(
     wordDetail: WordDetailResponse,
     isSaved: Boolean,
+    isSavedLoading: Boolean = false,
     onSave: () -> Unit,
     onUnsave: () -> Unit,
     isPlayingAudio: Boolean = false,
@@ -179,6 +182,7 @@ private fun WordDetailContent(
             Box(modifier = Modifier.weight(1f)) {
                 AnimatedSaveButton(
                     isSaved = isSaved,
+                    isSavedLoading = isSavedLoading,
                     onSave = onSave,
                     onUnsave = onUnsave
                 )
@@ -257,36 +261,52 @@ private fun WordDetailContent(
 @Composable
 private fun AnimatedSaveButton(
     isSaved: Boolean,
+    isSavedLoading: Boolean = false,
     onSave: () -> Unit,
     onUnsave: () -> Unit
 ) {
     val backgroundColor by animateColorAsState(
-        targetValue = if (isSaved) Error else Success,
+        targetValue = when {
+            isSavedLoading -> BorderLight
+            isSaved -> Error
+            else -> Success
+        },
         animationSpec = tween(300),
         label = "backgroundColor"
     )
 
     Button(
         onClick = if (isSaved) onUnsave else onSave,
+        enabled = !isSavedLoading,
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = backgroundColor
+            containerColor = backgroundColor,
+            disabledContainerColor = BorderLight
         ),
         shape = RoundedCornerShape(12.dp),
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
     ) {
-        Text(
-            text = if (isSaved) "❌ Удалить" else "💾 Сохранить",
-            color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1
-        )
+        if (isSavedLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = TextSecondary,
+                strokeWidth = 2.dp
+            )
+        } else {
+            Text(
+                text = if (isSaved) "❌ Удалить" else "💾 Сохранить",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+        }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WordHeaderCard(
     wordDetail: WordDetailResponse,
@@ -324,10 +344,9 @@ private fun WordHeaderCard(
 
                 // Pronunciation rows (UK / US from scraper or fallback to legacy fields)
                 val pronunciations = wordDetail.pronunciations.ifEmpty {
-                    // Backward-compat: build a single entry from legacy fields
                     listOfNotNull(
                         if (wordDetail.phonetic != null || wordDetail.audioUrl != null)
-                            n.startapp.wordwaveriseapp.data.remote.dto.PronunciationEntry(
+                            PronunciationEntry(
                                 region = null,
                                 ipa = wordDetail.phonetic,
                                 audioMp3Url = wordDetail.audioUrl
@@ -343,6 +362,44 @@ private fun WordHeaderCard(
                         onPlay = { url -> onPlayAudio(url) },
                         onStop = onStopAudio
                     )
+                }
+
+                // Translation variants
+                wordDetail.translation?.let { translation ->
+                    val variants = translation
+                        .split(Regex("[,;]"))
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .distinct()
+                    if (variants.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Перевод",
+                            fontSize = 12.sp,
+                            color = TextTertiary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            variants.forEach { variant ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = PrimaryCyan.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = variant,
+                                        fontSize = 15.sp,
+                                        color = PrimaryCyan,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
