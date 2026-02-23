@@ -2,6 +2,7 @@ package n.startapp.wordwaveriseapp.presentation.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -33,13 +34,15 @@ import n.startapp.wordwaveriseapp.data.remote.dto.DefinitionDto
 import n.startapp.wordwaveriseapp.data.remote.dto.WordDto
 import n.startapp.wordwaveriseapp.ui.theme.*
 
+// sourceFilter == null → all defs; "DETAILS" → synonyms/antonyms page
 private data class DictTab(val label: String, val sourceFilter: String?)
 
 private val DICT_TABS = listOf(
     DictTab("All", null),
     DictTab("Longman", "LDOCE"),
     DictTab("Cambridge", "CAMBRIDGE"),
-    DictTab("Oxford", "OXFORD")
+    DictTab("Oxford", "OXFORD"),
+    DictTab("Подробнее", "DETAILS")
 )
 
 @Composable
@@ -106,12 +109,13 @@ fun SearchScreen(
             )
         )
 
-        // ── Small dictionary tabs ─────────────────────────────────────────
+        // ── Small dictionary tabs (horizontally scrollable) ───────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             DICT_TABS.forEachIndexed { idx, tab ->
                 val selected = pagerState.currentPage == idx
@@ -158,26 +162,16 @@ fun SearchScreen(
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val tab = DICT_TABS[page]
-            val defs = state.wordData?.definitions.orEmpty().let { all ->
-                if (tab.sourceFilter == null) all
-                else all.filter { it.source?.uppercase() == tab.sourceFilter }
-            }
 
             when {
                 state.isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = PrimaryCyan)
                     }
                 }
 
                 !state.hasSearched -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -194,10 +188,7 @@ fun SearchScreen(
                 }
 
                 state.error != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(32.dp),
@@ -214,33 +205,42 @@ fun SearchScreen(
                     }
                 }
 
-                defs.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "Нет данных от ${tab.label}",
-                            fontSize = 14.sp,
-                            color = TextTertiary,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                tab.sourceFilter == "DETAILS" -> {
+                    DetailsPage(wordData = state.wordData)
                 }
 
                 else -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        defs.forEach { def ->
-                            DefinitionCard(def = def)
-                            Spacer(modifier = Modifier.height(8.dp))
+                    val defs = state.wordData?.definitions.orEmpty().let { all ->
+                        if (tab.sourceFilter == null) all
+                        else all.filter { it.source?.uppercase() == tab.sourceFilter }
+                    }
+
+                    if (defs.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Нет данных от ${tab.label}",
+                                fontSize = 14.sp,
+                                color = TextTertiary,
+                                textAlign = TextAlign.Center
+                            )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            defs.forEach { def ->
+                                DefinitionCard(def = def)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
                     }
                 }
             }
@@ -268,72 +268,60 @@ private fun WordHeader(
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = wordData.word,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                wordData.phonetic?.let {
+                    Text(text = it, fontSize = 15.sp, color = TextSecondary)
+                }
+                wordData.translation?.let {
                     Text(
-                        text = wordData.word,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        text = it,
+                        fontSize = 14.sp,
+                        color = PrimaryCyan,
+                        fontWeight = FontWeight.Medium
                     )
-                    wordData.phonetic?.let {
-                        Text(
-                            text = it,
-                            fontSize = 15.sp,
-                            color = TextSecondary
-                        )
-                    }
-                    wordData.translation?.let {
-                        Text(
-                            text = it,
-                            fontSize = 14.sp,
-                            color = PrimaryCyan,
-                            fontWeight = FontWeight.Medium
-                        )
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                wordData.audioUrl?.let { url ->
+                    val isThis = isPlayingAudio && playingAudioUrl == url
+                    IconButton(onClick = { if (isThis) onStopAudio() else onPlayAudio(url) }) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Brush.horizontalGradient(listOf(PrimaryBright, PrimaryCyan))),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isThis) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    // Audio button
-                    wordData.audioUrl?.let { url ->
-                        val isThis = isPlayingAudio && playingAudioUrl == url
-                        IconButton(onClick = {
-                            if (isThis) onStopAudio() else onPlayAudio(url)
-                        }) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(PrimaryBright, PrimaryCyan)
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (isThis) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Save button
-                    IconButton(onClick = if (isSaved) onUnsave else onSave) {
-                        Text(
-                            text = if (isSaved) "★" else "☆",
-                            fontSize = 24.sp,
-                            color = if (isSaved) Warning else TextTertiary
-                        )
-                    }
+                IconButton(onClick = if (isSaved) onUnsave else onSave) {
+                    Text(
+                        text = if (isSaved) "★" else "☆",
+                        fontSize = 24.sp,
+                        color = if (isSaved) Warning else TextTertiary
+                    )
                 }
             }
         }
@@ -353,10 +341,7 @@ private fun DefinitionCard(def: DefinitionDto) {
             if (def.partOfSpeech.isNotBlank()) {
                 Box(
                     modifier = Modifier
-                        .background(
-                            PrimaryCyan.copy(alpha = 0.12f),
-                            RoundedCornerShape(6.dp)
-                        )
+                        .background(PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
@@ -389,11 +374,164 @@ private fun DefinitionCard(def: DefinitionDto) {
 
             if (def.synonyms.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
+                ChipGroup(label = "Синонимы", items = def.synonyms, color = PrimaryBlue)
+            }
+
+            if (def.antonyms.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                ChipGroup(label = "Антонимы", items = def.antonyms, color = Error)
+            }
+        }
+    }
+}
+
+// ── Details page (synonyms / antonyms / all examples) ────────────────────────
+
+@Composable
+private fun DetailsPage(wordData: WordDto?) {
+    if (wordData == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Нет данных", fontSize = 14.sp, color = TextTertiary)
+        }
+        return
+    }
+
+    val allSynonyms = wordData.definitions
+        .flatMap { it.synonyms }
+        .distinct()
+        .filter { it.isNotBlank() }
+
+    val allAntonyms = wordData.definitions
+        .flatMap { it.antonyms }
+        .distinct()
+        .filter { it.isNotBlank() }
+
+    val allExamples = wordData.definitions
+        .mapNotNull { it.example }
+        .distinct()
+        .filter { it.isNotBlank() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (allSynonyms.isNotEmpty()) {
+            SectionCard(title = "Синонимы") {
+                FlowChips(items = allSynonyms, color = PrimaryBlue)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        if (allAntonyms.isNotEmpty()) {
+            SectionCard(title = "Антонимы") {
+                FlowChips(items = allAntonyms, color = Error)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        if (allExamples.isNotEmpty()) {
+            SectionCard(title = "Примеры использования") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    allExamples.forEach { ex ->
+                        Text(
+                            text = "• $ex",
+                            fontSize = 14.sp,
+                            color = TextSecondary,
+                            fontStyle = FontStyle.Italic,
+                            lineHeight = 20.sp
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        if (allSynonyms.isEmpty() && allAntonyms.isEmpty() && allExamples.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "Синонимы: ${def.synonyms.joinToString(", ")}",
-                    fontSize = 12.sp,
-                    color = TextTertiary
+                    "Дополнительные данные недоступны",
+                    fontSize = 14.sp,
+                    color = TextTertiary,
+                    textAlign = TextAlign.Center
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SectionCard(title: String, content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextTertiary
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ChipGroup(label: String, items: List<String>, color: Color) {
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = "$label:",
+            fontSize = 12.sp,
+            color = TextTertiary,
+            modifier = Modifier.padding(top = 3.dp)
+        )
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items.take(8).forEach { item ->
+                Box(
+                    modifier = Modifier
+                        .background(color.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                ) {
+                    Text(text = item, fontSize = 12.sp, color = color)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlowChips(items: List<String>, color: Color) {
+    // Simple wrapping row using Column + Rows
+    val chunked = items.chunked(4)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        chunked.forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { item ->
+                    Box(
+                        modifier = Modifier
+                            .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = item, fontSize = 13.sp, color = color)
+                    }
+                }
             }
         }
     }
