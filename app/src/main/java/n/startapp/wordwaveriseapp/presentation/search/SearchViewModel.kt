@@ -36,8 +36,13 @@ class SearchViewModel @Inject constructor(
         Log.d(TAG, "Search query changed: $query")
         _state.value = _state.value.copy(
             searchQuery = query,
-            error = null
+            error = null,
+            suggestions = emptyList()
         )
+        // Live suggestions for Russian (Cyrillic) input — translate to English candidates
+        if (query.length >= 2 && query.any { it in '\u0400'..'\u04FF' }) {
+            fetchSuggestions(query)
+        }
     }
 
     fun searchWord() {
@@ -56,7 +61,8 @@ class SearchViewModel @Inject constructor(
                 isLoading = true,
                 error = null,
                 wordData = null,
-                hasSearched = false
+                hasSearched = false,
+                suggestions = emptyList()
             )
 
             when (val result = searchRepository.searchWord(query)) {
@@ -80,11 +86,33 @@ class SearchViewModel @Inject constructor(
                         wordData = null,
                         hasSearched = true
                     )
+                    // Fetch spelling/translation suggestions on failure
+                    fetchSuggestions(query)
                 }
                 is Resource.Loading -> {
                     _state.value = _state.value.copy(isLoading = true)
                 }
             }
+        }
+    }
+
+    fun selectSuggestion(suggestion: String) {
+        _state.value = _state.value.copy(
+            searchQuery = suggestion,
+            suggestions = emptyList()
+        )
+        searchWord()
+    }
+
+    private fun fetchSuggestions(query: String) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isFetchingSuggestions = true)
+            val suggestions = searchRepository.getSuggestions(query)
+            Log.d(TAG, "Suggestions for '$query': $suggestions")
+            _state.value = _state.value.copy(
+                suggestions = suggestions,
+                isFetchingSuggestions = false
+            )
         }
     }
 

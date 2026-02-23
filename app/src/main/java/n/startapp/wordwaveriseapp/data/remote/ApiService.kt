@@ -2,6 +2,7 @@ package n.startapp.wordwaveriseapp.data.remote
 
 import n.startapp.wordwaveriseapp.data.remote.dto.DeleteResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.HealthResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.SuggestApiResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.WordDetailApiResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.WordResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.AuthResponse
@@ -22,6 +23,9 @@ interface ApiService {
 
     @GET("api/words/details")
     suspend fun getWordDetails(@Query("query") query: String): WordDetailApiResponse
+
+    @GET("api/words/suggest")
+    suspend fun getSuggestions(@Query("query") query: String): SuggestApiResponse
 
     // Auth endpoints
     @POST("api/auth/register")

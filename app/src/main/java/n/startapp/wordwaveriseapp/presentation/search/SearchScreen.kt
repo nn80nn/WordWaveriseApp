@@ -58,6 +58,7 @@ fun SearchScreen(
     onPlayAudio: (String) -> Unit,
     onStopAudio: () -> Unit,
     onWordClick: (String) -> Unit,
+    onSelectSuggestion: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val pagerState = rememberPagerState { DICT_TABS.size }
@@ -107,6 +108,11 @@ fun SearchScreen(
                 unfocusedContainerColor = BackgroundSecondary
             )
         )
+
+        // ── Suggestions strip (Cyrillic input or after failed search) ────
+        if (state.suggestions.isNotEmpty()) {
+            SuggestionsRow(suggestions = state.suggestions, onSelect = onSelectSuggestion)
+        }
 
         // ── Small dictionary tabs (horizontally scrollable) ───────────────
         Row(
@@ -594,6 +600,46 @@ private fun FlowChips(items: List<String>, color: Color) {
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(text = item, fontSize = 13.sp, color = color)
+            }
+        }
+    }
+}
+
+// ── Suggestions strip ─────────────────────────────────────────────────────────
+
+@Composable
+private fun SuggestionsRow(suggestions: List<String>, onSelect: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 2.dp, bottom = 6.dp)
+    ) {
+        Text(
+            text = "Возможно, вы имели в виду:",
+            fontSize = 12.sp,
+            color = TextTertiary
+        )
+        Spacer(modifier = Modifier.height(5.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            suggestions.forEach { suggestion ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(PrimaryBlue.copy(alpha = 0.12f))
+                        .clickable { onSelect(suggestion) }
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = suggestion,
+                        fontSize = 13.sp,
+                        color = PrimaryBlue,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }

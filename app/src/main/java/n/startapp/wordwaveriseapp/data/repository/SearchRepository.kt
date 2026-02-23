@@ -41,4 +41,15 @@ class SearchRepository @Inject constructor(
             Resource.Error(NetworkError.getErrorMessage(e))
         }
     }
+
+    suspend fun getSuggestions(query: String): List<String> {
+        return try {
+            val response = apiService.getSuggestions(query.trim())
+            if (response.status == "ok") response.data?.suggestions.orEmpty()
+            else emptyList()
+        } catch (e: Exception) {
+            Log.d(TAG, "Suggestions failed for '$query': ${e.message}")
+            emptyList()
+        }
+    }
 }

@@ -9,5 +9,7 @@ data class SearchState(
     val error: String? = null,
     val hasSearched: Boolean = false,
     val isPlayingAudio: Boolean = false,
-    val playingAudioUrl: String? = null
+    val playingAudioUrl: String? = null,
+    val suggestions: List<String> = emptyList(),
+    val isFetchingSuggestions: Boolean = false
 )

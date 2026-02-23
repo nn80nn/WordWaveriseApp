@@ -86,7 +86,8 @@ class MainActivity : ComponentActivity() {
                                     onStopAudio = viewModel::stopAudio,
                                     onWordClick = { word ->
                                         navController.navigate(Screen.WordDetail.createRoute(word))
-                                    }
+                                    },
+                                    onSelectSuggestion = viewModel::selectSuggestion
                                 )
                             }
 
