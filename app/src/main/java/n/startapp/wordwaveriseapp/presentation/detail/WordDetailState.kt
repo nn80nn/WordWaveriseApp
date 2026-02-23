@@ -7,5 +7,8 @@ data class WordDetailState(
     val isLoading: Boolean = false,
     val wordDetail: WordDetailResponse? = null,
     val error: String? = null,
-    val isSaved: Boolean = false
+    val isSaved: Boolean = false,
+    val isPlayingAudio: Boolean = false,
+    val playingAudioUrl: String? = null,
+    val audioError: String? = null
 )

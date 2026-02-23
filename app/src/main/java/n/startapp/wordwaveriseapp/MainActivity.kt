@@ -124,7 +124,11 @@ class MainActivity : ComponentActivity() {
                                     error = state.error,
                                     isSaved = state.isSaved,
                                     onSaveWord = viewModel::saveWord,
-                                    onUnsaveWord = viewModel::unsaveWord
+                                    onUnsaveWord = viewModel::unsaveWord,
+                                    isPlayingAudio = state.isPlayingAudio,
+                                    playingAudioUrl = state.playingAudioUrl,
+                                    onPlayAudio = viewModel::playAudio,
+                                    onStopAudio = viewModel::stopAudio
                                 )
                             }
                         }

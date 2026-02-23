@@ -11,6 +11,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import n.startapp.wordwaveriseapp.data.remote.dto.Definition
+import n.startapp.wordwaveriseapp.data.remote.dto.PronunciationEntry
 import n.startapp.wordwaveriseapp.data.remote.dto.WordDetailResponse
 import n.startapp.wordwaveriseapp.ui.theme.*
 
@@ -34,6 +37,10 @@ fun WordDetailScreen(
     isSaved: Boolean,
     onSaveWord: () -> Unit,
     onUnsaveWord: () -> Unit,
+    isPlayingAudio: Boolean = false,
+    playingAudioUrl: String? = null,
+    onPlayAudio: (String) -> Unit = {},
+    onStopAudio: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -54,7 +61,11 @@ fun WordDetailScreen(
                     wordDetail = wordDetail,
                     isSaved = isSaved,
                     onSave = onSaveWord,
-                    onUnsave = onUnsaveWord
+                    onUnsave = onUnsaveWord,
+                    isPlayingAudio = isPlayingAudio,
+                    playingAudioUrl = playingAudioUrl,
+                    onPlayAudio = onPlayAudio,
+                    onStopAudio = onStopAudio
                 )
             }
         }
@@ -146,7 +157,11 @@ private fun WordDetailContent(
     wordDetail: WordDetailResponse,
     isSaved: Boolean,
     onSave: () -> Unit,
-    onUnsave: () -> Unit
+    onUnsave: () -> Unit,
+    isPlayingAudio: Boolean = false,
+    playingAudioUrl: String? = null,
+    onPlayAudio: (String) -> Unit = {},
+    onStopAudio: () -> Unit = {}
 ) {
     var showSynonymsAntonymsSheet by remember { mutableStateOf(false) }
 
@@ -184,7 +199,13 @@ private fun WordDetailContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Word Header Card
-        WordHeaderCard(wordDetail = wordDetail)
+        WordHeaderCard(
+            wordDetail = wordDetail,
+            isPlayingAudio = isPlayingAudio,
+            playingAudioUrl = playingAudioUrl,
+            onPlayAudio = onPlayAudio,
+            onStopAudio = onStopAudio
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -267,27 +288,25 @@ private fun AnimatedSaveButton(
 }
 
 @Composable
-private fun WordHeaderCard(wordDetail: WordDetailResponse) {
+private fun WordHeaderCard(
+    wordDetail: WordDetailResponse,
+    isPlayingAudio: Boolean = false,
+    playingAudioUrl: String? = null,
+    onPlayAudio: (String) -> Unit = {},
+    onStopAudio: () -> Unit = {}
+) {
     var isVisible by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        isVisible = true
-    }
+    LaunchedEffect(Unit) { isVisible = true }
 
     AnimatedVisibility(
         visible = isVisible,
         enter = fadeIn(animationSpec = tween(600)) +
-                slideInVertically(
-                    animationSpec = tween(600),
-                    initialOffsetY = { -40 }
-                )
+                slideInVertically(animationSpec = tween(600), initialOffsetY = { -40 })
     ) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = BackgroundSecondary
-            ),
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(
@@ -295,7 +314,6 @@ private fun WordHeaderCard(wordDetail: WordDetailResponse) {
                     .fillMaxWidth()
                     .padding(24.dp)
             ) {
-                // Word Title
                 Text(
                     text = wordDetail.word.uppercase(),
                     fontSize = 36.sp,
@@ -304,16 +322,76 @@ private fun WordHeaderCard(wordDetail: WordDetailResponse) {
                     letterSpacing = 1.sp
                 )
 
-                // Phonetic
-                wordDetail.phonetic?.let { phonetic ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = phonetic,
-                        fontSize = 18.sp,
-                        color = TextSecondary,
-                        fontWeight = FontWeight.Medium
+                // Pronunciation rows (UK / US from scraper or fallback to legacy fields)
+                val pronunciations = wordDetail.pronunciations.ifEmpty {
+                    // Backward-compat: build a single entry from legacy fields
+                    listOfNotNull(
+                        if (wordDetail.phonetic != null || wordDetail.audioUrl != null)
+                            n.startapp.wordwaveriseapp.data.remote.dto.PronunciationEntry(
+                                region = null,
+                                ipa = wordDetail.phonetic,
+                                audioMp3Url = wordDetail.audioUrl
+                            ) else null
                     )
                 }
+
+                pronunciations.forEach { pron ->
+                    Spacer(modifier = Modifier.height(10.dp))
+                    PronunciationRow(
+                        pronunciation = pron,
+                        isPlaying = isPlayingAudio && playingAudioUrl == pron.audioMp3Url,
+                        onPlay = { url -> onPlayAudio(url) },
+                        onStop = onStopAudio
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PronunciationRow(
+    pronunciation: PronunciationEntry,
+    isPlaying: Boolean,
+    onPlay: (String) -> Unit,
+    onStop: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Region flag / label
+        val regionLabel = when (pronunciation.region?.lowercase()) {
+            "uk" -> "🇬🇧"
+            "us" -> "🇺🇸"
+            else -> "🔊"
+        }
+        Text(text = regionLabel, fontSize = 16.sp)
+
+        // IPA text
+        pronunciation.ipa?.let { ipa ->
+            Text(
+                text = ipa,
+                fontSize = 16.sp,
+                color = TextSecondary,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
+        } ?: Spacer(modifier = Modifier.weight(1f))
+
+        // Play / Stop button
+        pronunciation.audioMp3Url?.let { url ->
+            val tint = if (isPlaying) PrimaryCyan else TextSecondary
+            IconButton(
+                onClick = { if (isPlaying) onStop() else onPlay(url) },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Пауза" else "Воспроизвести",
+                    tint = tint,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }
