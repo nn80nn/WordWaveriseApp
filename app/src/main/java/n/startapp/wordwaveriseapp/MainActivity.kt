@@ -133,7 +133,8 @@ class MainActivity : ComponentActivity() {
                                     isPlayingAudio = state.isPlayingAudio,
                                     playingAudioUrl = state.playingAudioUrl,
                                     onPlayAudio = viewModel::playAudio,
-                                    onStopAudio = viewModel::stopAudio
+                                    onStopAudio = viewModel::stopAudio,
+                                    onBack = { navController.popBackStack() }
                                 )
                             }
                         }

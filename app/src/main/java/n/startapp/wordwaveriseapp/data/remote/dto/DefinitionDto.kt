@@ -8,5 +8,6 @@ data class DefinitionDto(
     val definition: String,
     val example: String? = null,
     val synonyms: List<String> = emptyList(),
-    val antonyms: List<String> = emptyList()
+    val antonyms: List<String> = emptyList(),
+    val source: String? = null
 )

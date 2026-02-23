@@ -13,7 +13,8 @@ data class PronunciationEntry(
 data class Definition(
     val partOfSpeech: String,
     val definition: String,
-    val example: String? = null
+    val example: String? = null,
+    val source: String? = null
 )
 
 @Serializable

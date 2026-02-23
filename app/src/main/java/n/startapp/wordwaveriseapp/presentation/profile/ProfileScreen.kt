@@ -28,7 +28,7 @@ fun ProfileScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Profile Icon
         Text(
@@ -36,16 +36,7 @@ fun ProfileScreen(
             fontSize = 80.sp
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Профиль",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // User Info Card
         Card(

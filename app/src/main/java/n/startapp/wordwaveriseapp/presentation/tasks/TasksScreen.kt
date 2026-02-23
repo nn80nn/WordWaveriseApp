@@ -71,22 +71,6 @@ private fun TasksOverview(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
-        Text(
-            text = "Задания",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary
-        )
-
-        Text(
-            text = "Повторяйте слова с помощью карточек",
-            fontSize = 14.sp,
-            color = TextSecondary
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
         // Stats Card
         Card(
             modifier = Modifier
