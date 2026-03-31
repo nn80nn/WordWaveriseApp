@@ -90,12 +90,12 @@ class SavedWordsRepository @Inject constructor(
         }
     }
 
-    suspend fun syncWords() {
+    suspend fun syncWords(): Boolean {
         try {
             val token = tokenDataStore.token.firstOrNull()
             if (token.isNullOrEmpty()) {
                 Log.d(TAG, "No token, skipping sync")
-                return
+                return true
             }
 
             Log.d(TAG, "Starting words synchronization")
@@ -140,8 +140,10 @@ class SavedWordsRepository @Inject constructor(
 
                 Log.d(TAG, "Synchronization completed")
             }
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "Sync error: ${e.message}", e)
+            return false
         }
     }
 

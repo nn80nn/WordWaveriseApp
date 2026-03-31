@@ -80,7 +80,8 @@ class SavedWordsViewModel @Inject constructor(
     fun syncWords() {
         Log.d(TAG, "Syncing words")
         viewModelScope.launch {
-            savedWordsRepository.syncWords()
+            val success = savedWordsRepository.syncWords()
+            _state.value = _state.value.copy(isOffline = !success)
         }
     }
 

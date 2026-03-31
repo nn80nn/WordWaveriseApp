@@ -6,5 +6,6 @@ data class SavedWordsState(
     val words: List<SavedWordEntity> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isLoggedIn: Boolean = false
+    val isLoggedIn: Boolean = false,
+    val isOffline: Boolean = false
 )

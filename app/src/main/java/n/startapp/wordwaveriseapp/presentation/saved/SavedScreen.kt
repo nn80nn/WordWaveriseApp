@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -33,6 +34,33 @@ fun SavedScreen(
             .background(BackgroundPrimary)
             .padding(horizontal = 16.dp)
     ) {
+        if (state.isOffline) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .background(
+                        color = Warning.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CloudOff,
+                    contentDescription = null,
+                    tint = Warning,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Нет интернета — показаны сохранённые данные",
+                    fontSize = 12.sp,
+                    color = Warning
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         when {
