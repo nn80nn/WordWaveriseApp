@@ -24,6 +24,7 @@ import n.startapp.wordwaveriseapp.presentation.detail.WordDetailViewModel
 import n.startapp.wordwaveriseapp.presentation.navigation.BottomNavigationBar
 import n.startapp.wordwaveriseapp.presentation.navigation.Screen
 import n.startapp.wordwaveriseapp.presentation.profile.ProfileScreen
+import n.startapp.wordwaveriseapp.presentation.profile.ProfileViewModel
 import n.startapp.wordwaveriseapp.presentation.saved.SavedScreen
 import n.startapp.wordwaveriseapp.presentation.saved.SavedWordsViewModel
 import n.startapp.wordwaveriseapp.presentation.search.SearchScreen
@@ -107,11 +108,12 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable(Screen.Profile.route) {
+                                val profileViewModel: ProfileViewModel = hiltViewModel()
+                                val profileState by profileViewModel.state.collectAsState()
                                 ProfileScreen(
                                     userEmail = authState.userEmail ?: "",
-                                    onLogout = {
-                                        authViewModel.logout()
-                                    }
+                                    state = profileState,
+                                    onLogout = { authViewModel.logout() }
                                 )
                             }
 

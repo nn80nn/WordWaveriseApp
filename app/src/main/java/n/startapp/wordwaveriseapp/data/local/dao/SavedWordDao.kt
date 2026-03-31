@@ -24,6 +24,9 @@ interface SavedWordDao {
     @Query("UPDATE saved_words SET isSynced = :isSynced, serverId = :serverId WHERE word = :word")
     suspend fun updateSyncStatus(word: String, isSynced: Boolean, serverId: Int?)
 
+    @Query("SELECT COUNT(*) FROM saved_words")
+    fun getCount(): Flow<Int>
+
     @Query("SELECT * FROM saved_words WHERE isSynced = 0")
     suspend fun getUnsyncedWords(): List<SavedWordEntity>
 
