@@ -1,3 +1,10 @@
+import java.util.Properties
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) load(file.inputStream())
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -24,13 +31,24 @@ android {
         buildConfigField("String", "BASE_URL", "\"https://backend.wordwaverise.com/\"")
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file(localProperties["KEYSTORE_PATH"] as String)
+            storePassword = localProperties["KEYSTORE_PASSWORD"] as String
+            keyAlias = localProperties["KEY_ALIAS"] as String
+            keyPassword = localProperties["KEY_PASSWORD"] as String
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
