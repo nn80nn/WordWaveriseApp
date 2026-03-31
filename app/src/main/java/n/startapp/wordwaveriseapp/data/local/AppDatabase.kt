@@ -10,7 +10,7 @@ import n.startapp.wordwaveriseapp.data.local.entity.SavedWordEntity
 @Database(
     entities = [SavedWordEntity::class, FlashcardEntity::class],
     version = 3,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun savedWordDao(): SavedWordDao

@@ -8,6 +8,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import n.startapp.wordwaveriseapp.data.local.AppDatabase
+import n.startapp.wordwaveriseapp.data.local.MIGRATION_1_2
+import n.startapp.wordwaveriseapp.data.local.MIGRATION_2_3
 import n.startapp.wordwaveriseapp.data.local.TokenDataStore
 import n.startapp.wordwaveriseapp.data.local.dao.FlashcardDao
 import n.startapp.wordwaveriseapp.data.local.dao.SavedWordDao
@@ -25,7 +27,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "wordwaverise_database"
         )
-            .fallbackToDestructiveMigration() // Для разработки - удалить для production
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
     }
 
