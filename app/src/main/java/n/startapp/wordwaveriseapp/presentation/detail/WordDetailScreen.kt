@@ -69,7 +69,6 @@ fun WordDetailScreen(
         val sources = wordDetail?.definitions?.mapNotNull { it.source?.uppercase() }?.toSet().orEmpty()
         buildList {
             add(DetailTab("All", null))
-            if ("LDOCE" in sources) add(DetailTab("Longman", "LDOCE"))
             if ("WIKTIONARY" in sources) add(DetailTab("Wiktionary", "WIKTIONARY"))
             if ("CAMBRIDGE" in sources) add(DetailTab("Cambridge", "CAMBRIDGE"))
             if ("OXFORD" in sources || "OED" in sources) add(DetailTab("Oxford", "OXFORD"))
