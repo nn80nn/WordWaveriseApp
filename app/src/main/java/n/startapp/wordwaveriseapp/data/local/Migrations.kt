@@ -75,3 +75,17 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         )
     }
 }
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `categories` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `serverId` INTEGER,
+                `name` TEXT NOT NULL,
+                `color` TEXT,
+                `createdAt` INTEGER NOT NULL)"""
+        )
+        db.execSQL("ALTER TABLE `saved_words` ADD COLUMN `categoryId` INTEGER")
+    }
+}

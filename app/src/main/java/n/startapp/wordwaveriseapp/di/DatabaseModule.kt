@@ -10,7 +10,9 @@ import dagger.hilt.components.SingletonComponent
 import n.startapp.wordwaveriseapp.data.local.AppDatabase
 import n.startapp.wordwaveriseapp.data.local.MIGRATION_1_2
 import n.startapp.wordwaveriseapp.data.local.MIGRATION_2_3
+import n.startapp.wordwaveriseapp.data.local.MIGRATION_3_4
 import n.startapp.wordwaveriseapp.data.local.TokenDataStore
+import n.startapp.wordwaveriseapp.data.local.dao.CategoryDao
 import n.startapp.wordwaveriseapp.data.local.dao.FlashcardDao
 import n.startapp.wordwaveriseapp.data.local.dao.SavedWordDao
 import javax.inject.Singleton
@@ -27,7 +29,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "wordwaverise_database"
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
     }
 
@@ -41,6 +43,12 @@ object DatabaseModule {
     @Singleton
     fun provideFlashcardDao(database: AppDatabase): FlashcardDao {
         return database.flashcardDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideCategoryDao(database: AppDatabase): CategoryDao {
+        return database.categoryDao()
     }
 
     @Provides

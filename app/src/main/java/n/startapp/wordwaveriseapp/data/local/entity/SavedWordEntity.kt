@@ -9,5 +9,6 @@ data class SavedWordEntity(
     val word: String,
     val savedAt: Long = System.currentTimeMillis(),
     val serverId: Int? = null,
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    val categoryId: Long? = null
 )
