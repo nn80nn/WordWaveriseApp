@@ -54,7 +54,6 @@ fun WordDetailScreen(
     onPlayAudio: (String) -> Unit = {},
     onStopAudio: () -> Unit = {},
     onBack: (() -> Unit)? = null,
-    // AI
     aiExplanation: String? = null,
     isAiExplanationLoading: Boolean = false,
     aiExamples: String? = null,
@@ -222,7 +221,14 @@ fun WordDetailScreen(
                         tab.sourceFilter == "DETAILS" -> {
                             DetailsPage(
                                 wordDetail = wordDetail,
-                                selectedEntry = selectedEntry
+                                selectedEntry = selectedEntry,
+                                aiExplanation = aiExplanation,
+                                isAiExplanationLoading = isAiExplanationLoading,
+                                aiExamples = aiExamples,
+                                isAiExamplesLoading = isAiExamplesLoading,
+                                aiError = aiError,
+                                onLoadExplanation = onLoadAiExplanation,
+                                onLoadExamples = onLoadAiExamples
                             )
                         }
                         else -> {
@@ -281,13 +287,51 @@ fun WordDetailScreen(
                                 ) {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     if (tab.sourceFilter == null) {
-                                        // "All" tab — compact view for quick scanning
-                                        defs.forEach { def ->
-                                            CompactDefinitionRow(def = def)
+                                        // "All" tab — compact rows grouped by source
+                                        val grouped = defs.groupBy { it.source?.uppercase() ?: "API" }
+                                        grouped.forEach { (sourceKey, sourceDefs) ->
+                                            val label = SOURCE_LABELS[sourceKey] ?: sourceKey
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                HorizontalDivider(
+                                                    modifier = Modifier.weight(1f),
+                                                    color = BackgroundLight
+                                                )
+                                                Text(
+                                                    text = label,
+                                                    fontSize = 11.sp,
+                                                    color = TextTertiary,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                HorizontalDivider(
+                                                    modifier = Modifier.weight(1f),
+                                                    color = BackgroundLight
+                                                )
+                                            }
+                                            sourceDefs.forEach { def ->
+                                                CompactDefinitionRow(def = def)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                            }
                                             Spacer(modifier = Modifier.height(4.dp))
                                         }
+                                        // AI section at bottom of All tab
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        AiInlineSection(
+                                            aiExplanation = aiExplanation,
+                                            isAiExplanationLoading = isAiExplanationLoading,
+                                            aiExamples = aiExamples,
+                                            isAiExamplesLoading = isAiExamplesLoading,
+                                            aiError = aiError,
+                                            onLoadExplanation = onLoadAiExplanation,
+                                            onLoadExamples = onLoadAiExamples
+                                        )
                                     } else {
-                                        // Dictionary-specific tabs — full cards with examples
+                                        // Dictionary-specific tabs — full cards with examples, no synonyms
                                         defs.forEach { def ->
                                             DefinitionCard(def = def)
                                             Spacer(modifier = Modifier.height(8.dp))
@@ -613,7 +657,14 @@ private val SOURCE_LABELS = mapOf(
 @Composable
 private fun DetailsPage(
     wordDetail: WordDetailResponse,
-    selectedEntry: WordEntry?
+    selectedEntry: WordEntry?,
+    aiExplanation: String? = null,
+    isAiExplanationLoading: Boolean = false,
+    aiExamples: String? = null,
+    isAiExamplesLoading: Boolean = false,
+    aiError: String? = null,
+    onLoadExplanation: () -> Unit = {},
+    onLoadExamples: () -> Unit = {}
 ) {
     // Always use global synonyms/antonyms — not per-entry duplicates
     val synonyms = wordDetail.synonyms.filter { it.isNotBlank() }
@@ -718,6 +769,17 @@ private fun DetailsPage(
                 )
             }
         }
+
+        // AI section inline
+        AiInlineSection(
+            aiExplanation = aiExplanation,
+            isAiExplanationLoading = isAiExplanationLoading,
+            aiExamples = aiExamples,
+            isAiExamplesLoading = isAiExamplesLoading,
+            aiError = aiError,
+            onLoadExplanation = onLoadExplanation,
+            onLoadExamples = onLoadExamples
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -872,6 +934,48 @@ private fun AiSection(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Compact AI block shown at the bottom of All and Подробнее tabs. */
+@Composable
+private fun AiInlineSection(
+    aiExplanation: String?,
+    isAiExplanationLoading: Boolean,
+    aiExamples: String?,
+    isAiExamplesLoading: Boolean,
+    aiError: String?,
+    onLoadExplanation: () -> Unit,
+    onLoadExamples: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
+            Text("AI ✨", fontSize = 11.sp, color = TextTertiary, fontWeight = FontWeight.Medium)
+            HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
+        }
+        AiSection(
+            title = "Объяснение",
+            content = aiExplanation,
+            isLoading = isAiExplanationLoading,
+            buttonLabel = "Объяснить",
+            onLoad = onLoadExplanation
+        )
+        AiSection(
+            title = "Примеры от ИИ",
+            content = aiExamples,
+            isLoading = isAiExamplesLoading,
+            buttonLabel = "Генерировать",
+            onLoad = onLoadExamples
+        )
+        aiError?.let { err ->
+            Text(err, fontSize = 13.sp, color = Error, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth())
         }
     }
 }
