@@ -150,4 +150,8 @@ class SavedWordsRepository @Inject constructor(
     suspend fun isWordSaved(word: String): Boolean {
         return savedWordDao.getSavedWord(word) != null
     }
+
+    suspend fun updateWordCategory(word: String, categoryId: Long?) {
+        savedWordDao.updateCategory(word, categoryId)
+    }
 }

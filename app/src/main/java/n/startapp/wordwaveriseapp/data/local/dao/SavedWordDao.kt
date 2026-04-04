@@ -32,4 +32,10 @@ interface SavedWordDao {
 
     @Query("DELETE FROM saved_words")
     suspend fun deleteAll()
+
+    @Query("UPDATE saved_words SET categoryId = :categoryId WHERE word = :word")
+    suspend fun updateCategory(word: String, categoryId: Long?)
+
+    @Query("SELECT * FROM saved_words WHERE categoryId = :categoryId ORDER BY savedAt DESC")
+    fun getWordsByCategory(categoryId: Long): Flow<List<SavedWordEntity>>
 }

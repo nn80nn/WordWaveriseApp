@@ -12,6 +12,12 @@ import n.startapp.wordwaveriseapp.data.remote.dto.auth.AuthResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.LoginRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.RegisterRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.flashcard.*
+import n.startapp.wordwaveriseapp.data.remote.dto.category.CategoriesResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.category.CategoryResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.category.CreateCategoryRequest
+import n.startapp.wordwaveriseapp.data.remote.dto.category.RenameCategoryRequest
+import n.startapp.wordwaveriseapp.data.remote.dto.category.SetWordCategoryRequest
+import n.startapp.wordwaveriseapp.data.remote.dto.category.SimpleStringResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.saved.SaveWordResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.saved.SavedWordsResponse
@@ -90,6 +96,36 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("id") id: Int
     ): DeleteResponse
+
+    // Category endpoints (require auth token)
+    @GET("api/categories")
+    suspend fun getCategories(@Header("Authorization") token: String): CategoriesResponse
+
+    @POST("api/categories")
+    suspend fun createCategory(
+        @Header("Authorization") token: String,
+        @Body request: CreateCategoryRequest
+    ): CategoryResponse
+
+    @PUT("api/categories/{id}")
+    suspend fun renameCategory(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body request: RenameCategoryRequest
+    ): SimpleStringResponse
+
+    @DELETE("api/categories/{id}")
+    suspend fun deleteCategory(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): SimpleStringResponse
+
+    @PUT("api/words/saved/{word}/category")
+    suspend fun setWordCategory(
+        @Header("Authorization") token: String,
+        @Path("word") word: String,
+        @Body request: SetWordCategoryRequest
+    ): SimpleStringResponse
 
     // AI endpoints (require auth token)
     @POST("api/ai/explain")

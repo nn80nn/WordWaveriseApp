@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import n.startapp.wordwaveriseapp.data.repository.AuthRepository
+import n.startapp.wordwaveriseapp.data.repository.CategoryRepository
 import n.startapp.wordwaveriseapp.data.repository.SavedWordsRepository
 import n.startapp.wordwaveriseapp.util.Resource
 import javax.inject.Inject
@@ -16,6 +17,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SavedWordsViewModel @Inject constructor(
     private val savedWordsRepository: SavedWordsRepository,
+    private val categoryRepository: CategoryRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
@@ -28,6 +30,7 @@ class SavedWordsViewModel @Inject constructor(
 
     init {
         observeSavedWords()
+        observeCategories()
         observeAuthStatus()
         syncWords()
     }
@@ -35,8 +38,15 @@ class SavedWordsViewModel @Inject constructor(
     private fun observeSavedWords() {
         viewModelScope.launch {
             savedWordsRepository.savedWords.collectLatest { words ->
-                Log.d(TAG, "Saved words updated: ${words.size} words")
                 _state.value = _state.value.copy(words = words)
+            }
+        }
+    }
+
+    private fun observeCategories() {
+        viewModelScope.launch {
+            categoryRepository.categories.collectLatest { cats ->
+                _state.value = _state.value.copy(categories = cats)
             }
         }
     }
@@ -47,41 +57,73 @@ class SavedWordsViewModel @Inject constructor(
                 _state.value = _state.value.copy(isLoggedIn = !token.isNullOrEmpty())
                 if (!token.isNullOrEmpty()) {
                     syncWords()
+                    viewModelScope.launch { categoryRepository.syncCategories() }
                 }
             }
         }
     }
 
     fun deleteWord(word: String) {
-        Log.d(TAG, "Deleting word: $word")
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
-
             when (savedWordsRepository.deleteWord(word)) {
-                is Resource.Success -> {
-                    Log.d(TAG, "Word deleted successfully: $word")
-                    _state.value = _state.value.copy(
-                        isLoading = false,
-                        error = null
-                    )
-                }
-                is Resource.Error -> {
-                    Log.e(TAG, "Failed to delete word: $word")
-                    _state.value = _state.value.copy(
-                        isLoading = false,
-                        error = "Не удалось удалить слово"
-                    )
-                }
+                is Resource.Success -> _state.value = _state.value.copy(isLoading = false, error = null)
+                is Resource.Error -> _state.value = _state.value.copy(isLoading = false, error = "Не удалось удалить слово")
                 else -> {}
             }
         }
     }
 
     fun syncWords() {
-        Log.d(TAG, "Syncing words")
         viewModelScope.launch {
             val success = savedWordsRepository.syncWords()
             _state.value = _state.value.copy(isOffline = !success)
+        }
+    }
+
+    fun selectCategory(id: Long?) {
+        _state.value = _state.value.copy(selectedCategoryId = id)
+    }
+
+    fun showCategorySheet() {
+        _state.value = _state.value.copy(showCategorySheet = true)
+    }
+
+    fun hideCategorySheet() {
+        _state.value = _state.value.copy(showCategorySheet = false, wordToMove = null)
+    }
+
+    fun setWordToMove(word: String) {
+        _state.value = _state.value.copy(wordToMove = word, showCategorySheet = true)
+    }
+
+    fun setNewCategoryName(name: String) {
+        _state.value = _state.value.copy(newCategoryName = name)
+    }
+
+    fun createCategory() {
+        val name = _state.value.newCategoryName.trim()
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            categoryRepository.createCategory(name)
+            _state.value = _state.value.copy(newCategoryName = "")
+        }
+    }
+
+    fun deleteCategory(id: Long, serverId: Int?) {
+        viewModelScope.launch {
+            categoryRepository.deleteCategory(id, serverId)
+            if (_state.value.selectedCategoryId == id) {
+                _state.value = _state.value.copy(selectedCategoryId = null)
+            }
+        }
+    }
+
+    fun moveWordToCategory(word: String, categoryLocalId: Long?, categoryServerId: Int?) {
+        viewModelScope.launch {
+            savedWordsRepository.updateWordCategory(word, categoryLocalId)
+            categoryRepository.setWordCategory(word, categoryLocalId, categoryServerId)
+            _state.value = _state.value.copy(wordToMove = null, showCategorySheet = false)
         }
     }
 

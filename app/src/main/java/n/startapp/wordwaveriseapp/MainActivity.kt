@@ -99,7 +99,15 @@ class MainActivity : ComponentActivity() {
                                     onDeleteWord = viewModel::deleteWord,
                                     onWordClick = { word ->
                                         navController.navigate(Screen.WordDetail.createRoute(word))
-                                    }
+                                    },
+                                    onSelectCategory = viewModel::selectCategory,
+                                    onShowCategorySheet = viewModel::showCategorySheet,
+                                    onHideCategorySheet = viewModel::hideCategorySheet,
+                                    onSetWordToMove = viewModel::setWordToMove,
+                                    onMoveWordToCategory = viewModel::moveWordToCategory,
+                                    onCreateCategory = viewModel::createCategory,
+                                    onDeleteCategory = viewModel::deleteCategory,
+                                    onNewCategoryNameChange = viewModel::setNewCategoryName
                                 )
                             }
 
