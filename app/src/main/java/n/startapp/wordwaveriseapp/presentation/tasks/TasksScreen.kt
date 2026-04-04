@@ -47,6 +47,16 @@ fun TasksScreen(
             .padding(16.dp)
     ) {
         when {
+            state.isMultipleChoiceActive -> {
+                MultipleChoiceMode(
+                    question = state.multipleChoiceQuestion,
+                    selectedIndex = state.selectedChoiceIndex,
+                    answered = state.choiceAnswered,
+                    onSelect = viewModel::selectChoice,
+                    onNext = viewModel::loadNextMultipleChoice,
+                    onExit = viewModel::exitMultipleChoice
+                )
+            }
             state.isExerciseModeActive -> {
                 ExerciseMode(
                     isLoading = state.isExerciseLoading,
@@ -77,7 +87,8 @@ fun TasksScreen(
                     totalCount = state.totalCount,
                     hasWords = state.totalCount > 0,
                     onStartSession = { viewModel.startSession() },
-                    onStartExercise = { viewModel.startExerciseMode() }
+                    onStartExercise = { viewModel.startExerciseMode() },
+                    onStartMultipleChoice = { viewModel.startMultipleChoice() }
                 )
             }
         }
@@ -90,7 +101,8 @@ private fun TasksOverview(
     totalCount: Int,
     hasWords: Boolean,
     onStartSession: () -> Unit,
-    onStartExercise: () -> Unit
+    onStartExercise: () -> Unit,
+    onStartMultipleChoice: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -179,6 +191,36 @@ private fun TasksOverview(
                     Text("✨", fontSize = 18.sp)
                     Text(
                         text = "AI Упражнения",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        // Multiple Choice Button
+        if (hasWords) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(PrimaryBlue, PrimaryCyan)
+                        )
+                    )
+                    .clickable { onStartMultipleChoice() },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("🎯", fontSize = 18.sp)
+                    Text(
+                        text = "Выбор ответа",
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
@@ -628,6 +670,144 @@ private fun TranslationReveal(
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
+        }
+    }
+}
+
+// ── Multiple Choice mode ──────────────────────────────────────────────────────
+
+@Composable
+private fun MultipleChoiceMode(
+    question: MultipleChoiceQuestion?,
+    selectedIndex: Int?,
+    answered: Boolean,
+    onSelect: (Int) -> Unit,
+    onNext: () -> Unit,
+    onExit: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onExit) {
+                Icon(Icons.Default.Close, contentDescription = "Выход", tint = TextPrimary)
+            }
+            Text(
+                text = "🎯 Выбор ответа",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Box(modifier = Modifier.size(48.dp))
+        }
+
+        if (question == null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = PrimaryCyan)
+            }
+            return@Column
+        }
+
+        // Question card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = if (question.wordFirst) "Что означает слово:" else "Какое это слово:",
+                    fontSize = 12.sp,
+                    color = TextTertiary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = question.questionText,
+                    fontSize = if (question.wordFirst) 28.sp else 16.sp,
+                    fontWeight = if (question.wordFirst) FontWeight.Bold else FontWeight.Normal,
+                    color = TextPrimary,
+                    lineHeight = 22.sp
+                )
+            }
+        }
+
+        // Options
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            question.options.forEachIndexed { idx, option ->
+                val isCorrect = idx == question.correctIndex
+                val isSelected = idx == selectedIndex
+                val bgColor = when {
+                    !answered -> BackgroundSecondary
+                    isCorrect -> Success.copy(alpha = 0.18f)
+                    isSelected -> Error.copy(alpha = 0.18f)
+                    else -> BackgroundSecondary
+                }
+                val borderColor = when {
+                    !answered && isSelected -> PrimaryCyan
+                    answered && isCorrect -> Success
+                    answered && isSelected -> Error
+                    else -> Color.Transparent
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(bgColor)
+                        .then(
+                            if (borderColor != Color.Transparent)
+                                Modifier.background(bgColor, RoundedCornerShape(12.dp))
+                            else Modifier
+                        )
+                        .clickable(enabled = !answered) { onSelect(idx) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "${('A' + idx)}.",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                answered && isCorrect -> Success
+                                answered && isSelected -> Error
+                                else -> TextTertiary
+                            }
+                        )
+                        Text(
+                            text = option,
+                            fontSize = 14.sp,
+                            color = TextPrimary,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (answered && isCorrect) Text("✓", fontSize = 16.sp, color = Success)
+                        if (answered && isSelected && !isCorrect) Text("✗", fontSize = 16.sp, color = Error)
+                    }
+                }
+            }
+        }
+
+        // Next button (visible after answering)
+        AnimatedVisibility(
+            visible = answered,
+            enter = fadeIn(tween(300)) + expandVertically()
+        ) {
+            Button(
+                onClick = onNext,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Следующий вопрос →", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }

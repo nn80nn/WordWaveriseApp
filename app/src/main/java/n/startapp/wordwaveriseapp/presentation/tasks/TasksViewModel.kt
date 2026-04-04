@@ -108,6 +108,55 @@ class TasksViewModel @Inject constructor(
         }
     }
 
+    // ── Multiple Choice mode ──────────────────────────────────────────────────
+
+    fun startMultipleChoice() {
+        _state.update { it.copy(isMultipleChoiceActive = true) }
+        loadNextMultipleChoice()
+    }
+
+    fun exitMultipleChoice() {
+        _state.update { it.copy(isMultipleChoiceActive = false, multipleChoiceQuestion = null, selectedChoiceIndex = null, choiceAnswered = false) }
+    }
+
+    fun selectChoice(index: Int) {
+        if (_state.value.choiceAnswered) return
+        _state.update { it.copy(selectedChoiceIndex = index, choiceAnswered = true) }
+    }
+
+    fun loadNextMultipleChoice() {
+        viewModelScope.launch {
+            val allCards = flashcardRepository.allFlashcards.firstOrNull() ?: emptyList()
+            if (allCards.size < 2) {
+                _state.update { it.copy(isMultipleChoiceActive = false) }
+                return@launch
+            }
+            // Randomly pick word-first or definition-first mode
+            val wordFirst = (0..1).random() == 0
+            val correct = allCards.random()
+            val distractors = allCards.filter { it.id != correct.id }.shuffled().take(3)
+            val allOptions = (listOf(correct) + distractors).shuffled()
+            val correctIdx = allOptions.indexOf(correct)
+
+            val question = if (wordFirst) {
+                MultipleChoiceQuestion(
+                    questionText = correct.word,
+                    options = allOptions.map { it.definition.take(100) },
+                    correctIndex = correctIdx,
+                    wordFirst = true
+                )
+            } else {
+                MultipleChoiceQuestion(
+                    questionText = correct.definition.take(150),
+                    options = allOptions.map { it.word },
+                    correctIndex = correctIdx,
+                    wordFirst = false
+                )
+            }
+            _state.update { it.copy(multipleChoiceQuestion = question, selectedChoiceIndex = null, choiceAnswered = false) }
+        }
+    }
+
     // ── AI Exercise mode ──────────────────────────────────────────────────────
 
     fun startExerciseMode() {
