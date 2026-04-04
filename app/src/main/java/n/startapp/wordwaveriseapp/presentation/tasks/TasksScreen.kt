@@ -267,6 +267,8 @@ private fun FlashcardSession(
 
     val currentCard = flashcards[currentIndex]
     var isFlipped by remember(currentIndex) { mutableStateOf(false) }
+    // true = word first (default), false = definition first
+    var wordFirst by remember { mutableStateOf(true) }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -291,8 +293,14 @@ private fun FlashcardSession(
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
             )
-            // Placeholder for symmetry
-            Box(modifier = Modifier.size(48.dp))
+            // Toggle side order button
+            IconButton(onClick = { wordFirst = !wordFirst; isFlipped = false }) {
+                Icon(
+                    imageVector = Icons.Default.SwapVert,
+                    contentDescription = if (wordFirst) "Начать с определения" else "Начать со слова",
+                    tint = TextSecondary
+                )
+            }
         }
 
         // Progress Bar
@@ -315,6 +323,7 @@ private fun FlashcardSession(
             example = currentCard.example,
             translation = currentCard.translation,
             isFlipped = isFlipped,
+            wordFirst = wordFirst,
             onFlip = { isFlipped = !isFlipped }
         )
 
@@ -405,6 +414,7 @@ private fun FlippableCard(
     example: String?,
     translation: String?,
     isFlipped: Boolean,
+    wordFirst: Boolean = true,
     onFlip: () -> Unit
 ) {
     val rotation by animateFloatAsState(
@@ -412,6 +422,10 @@ private fun FlippableCard(
         animationSpec = tween(600, easing = FastOutSlowInEasing),
         label = "card_rotation"
     )
+    // Whether the back side is currently showing
+    val showingBack = rotation > 90f
+    // translation reveal state — reset when card flips back
+    var translationRevealed by remember(isFlipped) { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -422,105 +436,198 @@ private fun FlippableCard(
                 cameraDistance = 12f * density
             }
             .clickable { onFlip() },
-        colors = CardDefaults.cardColors(
-            containerColor = BackgroundSecondary
-        ),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
         shape = RoundedCornerShape(20.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    rotationY = if (rotation > 90f) 180f else 0f
-                }
-                .padding(32.dp),
+                .graphicsLayer { rotationY = if (showingBack) 180f else 0f }
+                .padding(28.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (rotation <= 90f) {
-                // Front - Word
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = word.uppercase(),
-                        fontSize = 42.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        textAlign = TextAlign.Center,
-                        letterSpacing = 1.sp
-                    )
-                    phonetic?.let {
-                        Spacer(modifier = Modifier.height(16.dp))
+            if (!showingBack) {
+                // ── Front side ───────────────────────────────────────────
+                val frontIsWord = wordFirst
+                if (frontIsWord) {
+                    // Word side
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
                         Text(
-                            text = it,
-                            fontSize = 20.sp,
-                            color = TextSecondary,
-                            fontWeight = FontWeight.Medium
+                            text = word.uppercase(),
+                            fontSize = 42.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 1.sp
                         )
-                    }
-                    translation?.let {
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = PrimaryCyan.copy(alpha = 0.1f),
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
+                        phonetic?.let {
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = it,
-                                fontSize = 18.sp,
-                                color = PrimaryCyan,
-                                textAlign = TextAlign.Center,
-                                fontWeight = FontWeight.SemiBold
+                                fontSize = 20.sp,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            "👆 Нажмите чтобы увидеть определение",
+                            fontSize = 12.sp,
+                            color = TextTertiary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    // Definition side first
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = definition,
+                            fontSize = 17.sp,
+                            color = TextPrimary,
+                            lineHeight = 25.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            "👆 Нажмите чтобы увидеть слово",
+                            fontSize = 12.sp,
+                            color = TextTertiary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                // ── Back side ────────────────────────────────────────────
+                val backIsDefinition = wordFirst
+                if (backIsDefinition) {
+                    // Definition + example + translation reveal
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = definition,
+                            fontSize = 17.sp,
+                            color = TextPrimary,
+                            lineHeight = 25.sp
+                        )
+                        example?.let {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = BackgroundLight),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("Пример:", fontSize = 11.sp, color = TextTertiary)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "\"$it\"",
+                                        fontSize = 14.sp,
+                                        color = TextSecondary,
+                                        fontStyle = FontStyle.Italic,
+                                        lineHeight = 20.sp
+                                    )
+                                }
+                            }
+                        }
+                        if (!translation.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            TranslationReveal(
+                                translation = translation,
+                                revealed = translationRevealed,
+                                onReveal = { translationRevealed = true }
+                            )
+                        }
+                    }
+                } else {
+                    // Word side on back
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = word.uppercase(),
+                            fontSize = 42.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 1.sp
+                        )
+                        phonetic?.let {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(it, fontSize = 20.sp, color = TextSecondary, textAlign = TextAlign.Center)
+                        }
+                        if (!translation.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            TranslationReveal(
+                                translation = translation,
+                                revealed = translationRevealed,
+                                onReveal = { translationRevealed = true }
                             )
                         }
                     }
                 }
-            } else {
-                // Back - Definition
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = definition,
-                        fontSize = 18.sp,
-                        color = TextPrimary,
-                        lineHeight = 26.sp
-                    )
-                    example?.let {
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = BackgroundLight
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text(
-                                    text = "Пример:",
-                                    fontSize = 12.sp,
-                                    color = TextTertiary,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "\"$it\"",
-                                    fontSize = 15.sp,
-                                    color = TextSecondary,
-                                    fontStyle = FontStyle.Italic,
-                                    lineHeight = 22.sp
-                                )
-                            }
-                        }
-                    }
-                }
             }
+        }
+    }
+}
+
+@Composable
+private fun TranslationReveal(
+    translation: String,
+    revealed: Boolean,
+    onReveal: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = !revealed,
+        exit = fadeOut(tween(200)) + shrinkVertically()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(PrimaryCyan.copy(alpha = 0.08f))
+                .clickable { onReveal() }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(Icons.Default.Visibility, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                Text("Показать перевод", fontSize = 13.sp, color = PrimaryCyan)
+            }
+        }
+    }
+    AnimatedVisibility(
+        visible = revealed,
+        enter = fadeIn(tween(300)) + expandVertically()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PrimaryCyan.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = translation,
+                fontSize = 17.sp,
+                color = PrimaryCyan,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
