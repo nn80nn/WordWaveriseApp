@@ -69,6 +69,7 @@ fun WordDetailScreen(
         buildList {
             add(DetailTab("All", null))
             if ("LDOCE" in sources) add(DetailTab("Longman", "LDOCE"))
+            if ("WIKTIONARY" in sources) add(DetailTab("Wiktionary", "WIKTIONARY"))
             if ("CAMBRIDGE" in sources) add(DetailTab("Cambridge", "CAMBRIDGE"))
             if ("OXFORD" in sources || "OED" in sources) add(DetailTab("Oxford", "OXFORD"))
             add(DetailTab("Подробнее", "DETAILS"))
@@ -649,6 +650,7 @@ private fun CompactDefinitionRow(def: DisplayDef) {
 
 private val SOURCE_LABELS = mapOf(
     "LDOCE" to "Longman",
+    "WIKTIONARY" to "Wiktionary",
     "CAMBRIDGE" to "Cambridge",
     "OXFORD" to "Oxford",
     "OED" to "Oxford"
