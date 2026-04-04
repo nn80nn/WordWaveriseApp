@@ -134,49 +134,7 @@ fun WordDetailScreen(
             }
 
             wordDetail != null -> {
-                // ── Entry chips (only when word has 2+ entries / POS groups) ──
-                if (wordDetail.entries.size > 1) {
-                    EntrySelector(
-                        entries = wordDetail.entries,
-                        selectedIdx = selectedEntryIdx,
-                        onSelect = { selectedEntryIdx = it }
-                    )
-                }
-
-                // ── Source tab pills ───────────────────────────────────────
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    tabs.forEachIndexed { idx, tab ->
-                        val selected = pagerState.currentPage == idx
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(
-                                    if (selected) PrimaryCyan.copy(alpha = 0.15f)
-                                    else Color.Transparent
-                                )
-                                .clickable { scope.launch { pagerState.animateScrollToPage(idx) } }
-                                .padding(horizontal = 12.dp, vertical = 5.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = tab.label,
-                                fontSize = 12.sp,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selected) PrimaryCyan else TextTertiary
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // ── Word header — uses selected entry's pronunciation ──────
+                // ── Word header ────────────────────────────────────────────
                 WordHeaderCard(
                     wordDetail = wordDetail,
                     selectedEntry = selectedEntry,
@@ -190,6 +148,15 @@ fun WordDetailScreen(
                     onStopAudio = onStopAudio
                 )
 
+                // ── Entry chips (only when word has 2+ entries / POS groups) ──
+                if (wordDetail.entries.size > 1) {
+                    EntrySelector(
+                        entries = wordDetail.entries,
+                        selectedIdx = selectedEntryIdx,
+                        onSelect = { selectedEntryIdx = it }
+                    )
+                }
+
                 // ── Full-data loading indicator ────────────────────────────
                 if (isLoadingFull) {
                     LinearProgressIndicator(
@@ -200,6 +167,13 @@ fun WordDetailScreen(
                         trackColor = PrimaryCyan.copy(alpha = 0.15f)
                     )
                 }
+
+                // ── Source tab row ─────────────────────────────────────────
+                DictTabRow(
+                    tabs = tabs,
+                    selectedIndex = pagerState.currentPage,
+                    onTabClick = { idx -> scope.launch { pagerState.animateScrollToPage(idx) } }
+                )
 
                 // ── Pager ─────────────────────────────────────────────────
                 HorizontalPager(
@@ -346,6 +320,63 @@ fun WordDetailScreen(
                 }
             }
         }
+    }
+}
+
+// ── Dictionary tab row ───────────────────────────────────────────────────────
+
+@Composable
+private fun DictTabRow(
+    tabs: List<DetailTab>,
+    selectedIndex: Int,
+    onTabClick: (Int) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BackgroundPrimary)
+    ) {
+        // Scrollable tab labels
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            tabs.forEachIndexed { idx, tab ->
+                val selected = selectedIndex == idx
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                        .clickable { onTabClick(idx) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = tab.label,
+                            fontSize = 13.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (selected) PrimaryCyan else TextTertiary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        // Underline indicator
+                        Box(
+                            modifier = Modifier
+                                .height(2.dp)
+                                .width(if (selected) 24.dp else 0.dp)
+                                .background(PrimaryCyan, RoundedCornerShape(1.dp))
+                        )
+                    }
+                }
+            }
+        }
+        // Bottom separator line
+        HorizontalDivider(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            color = BackgroundLight
+        )
     }
 }
 
