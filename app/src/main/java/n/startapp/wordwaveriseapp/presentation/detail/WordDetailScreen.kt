@@ -31,15 +31,6 @@ import n.startapp.wordwaveriseapp.ui.theme.*
 
 private data class DetailTab(val label: String, val sourceFilter: String?)
 
-private val DETAIL_TABS = listOf(
-    DetailTab("All", null),
-    DetailTab("Longman", "LDOCE"),
-    DetailTab("Cambridge", "CAMBRIDGE"),
-    DetailTab("Oxford", "OXFORD"),
-    DetailTab("Подробнее", "DETAILS"),
-    DetailTab("AI ✨", "AI")
-)
-
 /** Lightweight display model used inside the pager — avoids coupling to DTO type. */
 private data class DisplayDef(
     val partOfSpeech: String,
@@ -73,7 +64,19 @@ fun WordDetailScreen(
     onLoadAiExamples: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val pagerState = rememberPagerState { DETAIL_TABS.size }
+    // Build tabs dynamically — only show dict tabs when that source has data
+    val tabs = remember(wordDetail?.word) {
+        val sources = wordDetail?.definitions?.mapNotNull { it.source?.uppercase() }?.toSet().orEmpty()
+        buildList {
+            add(DetailTab("All", null))
+            if ("LDOCE" in sources) add(DetailTab("Longman", "LDOCE"))
+            if ("CAMBRIDGE" in sources) add(DetailTab("Cambridge", "CAMBRIDGE"))
+            if ("OXFORD" in sources || "OED" in sources) add(DetailTab("Oxford", "OXFORD"))
+            add(DetailTab("Подробнее", "DETAILS"))
+            add(DetailTab("AI ✨", "AI"))
+        }
+    }
+    val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
 
     // -1 = "All entries"; ≥0 = index into wordDetail.entries
@@ -148,7 +151,7 @@ fun WordDetailScreen(
                         .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    DETAIL_TABS.forEachIndexed { idx, tab ->
+                    tabs.forEachIndexed { idx, tab ->
                         val selected = pagerState.currentPage == idx
                         Box(
                             modifier = Modifier
@@ -203,7 +206,7 @@ fun WordDetailScreen(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize()
                 ) { page ->
-                    val tab = DETAIL_TABS[page]
+                    val tab = tabs[page]
                     when {
                         tab.sourceFilter == "AI" -> {
                             AiPage(
@@ -223,15 +226,18 @@ fun WordDetailScreen(
                             )
                         }
                         else -> {
+                            fun matchesTab(source: String?): Boolean {
+                                val s = source?.uppercase() ?: return tab.sourceFilter == null
+                                return when (tab.sourceFilter) {
+                                    null -> true
+                                    "OXFORD" -> s == "OXFORD" || s == "OED"
+                                    else -> s == tab.sourceFilter
+                                }
+                            }
                             val defs: List<DisplayDef> = if (selectedEntry != null) {
                                 // Entry selected: show only that entry's meanings
                                 selectedEntry.meanings
-                                    .let { all ->
-                                        if (tab.sourceFilter == null) all
-                                        else all.filter {
-                                            it.source?.uppercase() == tab.sourceFilter
-                                        }
-                                    }
+                                    .filter { tab.sourceFilter == null || matchesTab(it.source) }
                                     .map { m ->
                                         DisplayDef(
                                             partOfSpeech = selectedEntry.partOfSpeech ?: "",
@@ -243,12 +249,7 @@ fun WordDetailScreen(
                             } else {
                                 // All entries: use flat definitions list
                                 wordDetail.definitions
-                                    .let { all ->
-                                        if (tab.sourceFilter == null) all
-                                        else all.filter {
-                                            it.source?.uppercase() == tab.sourceFilter
-                                        }
-                                    }
+                                    .filter { tab.sourceFilter == null || matchesTab(it.source) }
                                     .map { def ->
                                         DisplayDef(
                                             partOfSpeech = def.partOfSpeech,
@@ -279,9 +280,18 @@ fun WordDetailScreen(
                                         .padding(horizontal = 16.dp)
                                 ) {
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    defs.forEach { def ->
-                                        DefinitionCard(def = def)
-                                        Spacer(modifier = Modifier.height(8.dp))
+                                    if (tab.sourceFilter == null) {
+                                        // "All" tab — compact view for quick scanning
+                                        defs.forEach { def ->
+                                            CompactDefinitionRow(def = def)
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                        }
+                                    } else {
+                                        // Dictionary-specific tabs — full cards with examples
+                                        defs.forEach { def ->
+                                            DefinitionCard(def = def)
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                        }
                                     }
                                     Spacer(modifier = Modifier.height(16.dp))
                                 }
@@ -546,16 +556,73 @@ private fun DefinitionCard(def: DisplayDef) {
     }
 }
 
+// ── Compact definition row (used in "All" tab) ────────────────────────────────
+
+@Composable
+private fun CompactDefinitionRow(def: DisplayDef) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BackgroundSecondary, RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (def.partOfSpeech.isNotBlank()) {
+            Text(
+                text = def.partOfSpeech,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = PrimaryCyan,
+                modifier = Modifier
+                    .background(PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+        Text(
+            text = def.definition,
+            fontSize = 14.sp,
+            color = TextPrimary,
+            lineHeight = 19.sp,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        def.source?.let { src ->
+            Text(
+                text = src.take(3).uppercase(),
+                fontSize = 9.sp,
+                color = TextTertiary,
+                modifier = Modifier
+                    .background(BackgroundLight, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
 // ── Details page ─────────────────────────────────────────────────────────────
+
+private val SOURCE_LABELS = mapOf(
+    "LDOCE" to "Longman",
+    "CAMBRIDGE" to "Cambridge",
+    "OXFORD" to "Oxford",
+    "OED" to "Oxford"
+)
 
 @Composable
 private fun DetailsPage(
     wordDetail: WordDetailResponse,
     selectedEntry: WordEntry?
 ) {
-    val synonyms = (selectedEntry?.synonyms ?: wordDetail.synonyms).filter { it.isNotBlank() }
-    val antonyms = (selectedEntry?.antonyms ?: wordDetail.antonyms).filter { it.isNotBlank() }
-    val examples = (selectedEntry?.examples ?: wordDetail.examples).filter { it.isNotBlank() }
+    // Always use global synonyms/antonyms — not per-entry duplicates
+    val synonyms = wordDetail.synonyms.filter { it.isNotBlank() }
+    val antonyms = wordDetail.antonyms.filter { it.isNotBlank() }
+
+    // Group definitions by source for this tab
+    val defsBySource = wordDetail.definitions
+        .filter { if (selectedEntry != null) selectedEntry.meanings.any { m -> m.definition == it.definition } else true }
+        .groupBy { it.source?.uppercase() ?: "API" }
 
     Column(
         modifier = Modifier
@@ -565,16 +632,65 @@ private fun DetailsPage(
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (synonyms.isNotEmpty()) {
-            SectionCard(title = "Синонимы") { FlowChips(items = synonyms, color = PrimaryBlue) }
+        // Definitions grouped by source
+        defsBySource.forEach { (sourceKey, defs) ->
+            val sourceLabel = SOURCE_LABELS[sourceKey] ?: sourceKey
+            SectionCard(title = sourceLabel) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    defs.forEach { def ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (def.partOfSpeech.isNotBlank()) {
+                                Text(
+                                    text = def.partOfSpeech,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = PrimaryCyan,
+                                    modifier = Modifier
+                                        .background(PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            Text(
+                                text = def.definition,
+                                fontSize = 14.sp,
+                                color = TextPrimary,
+                                lineHeight = 20.sp
+                            )
+                            def.example?.let { ex ->
+                                Text(
+                                    text = "\"$ex\"",
+                                    fontSize = 13.sp,
+                                    color = TextSecondary,
+                                    fontStyle = FontStyle.Italic,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        if (antonyms.isNotEmpty()) {
-            SectionCard(title = "Антонимы") { FlowChips(items = antonyms, color = Error) }
+        // Synonyms / antonyms — single global section
+        if (synonyms.isNotEmpty() || antonyms.isNotEmpty()) {
+            SectionCard(title = "Тезаурус") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (synonyms.isNotEmpty()) {
+                        Text("Синонимы", fontSize = 11.sp, color = TextTertiary)
+                        FlowChips(items = synonyms, color = PrimaryBlue)
+                    }
+                    if (antonyms.isNotEmpty()) {
+                        Text("Антонимы", fontSize = 11.sp, color = TextTertiary)
+                        FlowChips(items = antonyms, color = Error)
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        // All examples
+        val examples = wordDetail.examples.filter { it.isNotBlank() }
         if (examples.isNotEmpty()) {
             SectionCard(title = "Примеры использования") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -592,7 +708,7 @@ private fun DetailsPage(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        if (synonyms.isEmpty() && antonyms.isEmpty() && examples.isEmpty()) {
+        if (defsBySource.isEmpty() && synonyms.isEmpty() && antonyms.isEmpty() && examples.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     "Дополнительные данные недоступны",
