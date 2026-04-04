@@ -25,7 +25,10 @@ interface ApiService {
     suspend fun searchWord(@Query("query") query: String): WordResponse
 
     @GET("api/words/details")
-    suspend fun getWordDetails(@Query("query") query: String): WordDetailApiResponse
+    suspend fun getWordDetails(
+        @Query("query") query: String,
+        @Query("quick") quick: Boolean = false
+    ): WordDetailApiResponse
 
     @GET("api/words/suggest")
     suspend fun getSuggestions(@Query("query") query: String): SuggestApiResponse

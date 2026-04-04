@@ -55,6 +55,7 @@ fun WordDetailScreen(
     error: String?,
     isSaved: Boolean,
     isSavedLoading: Boolean = false,
+    isLoadingFull: Boolean = false,
     onSaveWord: () -> Unit,
     onUnsaveWord: () -> Unit,
     isPlayingAudio: Boolean = false,
@@ -185,6 +186,17 @@ fun WordDetailScreen(
                     onPlayAudio = onPlayAudio,
                     onStopAudio = onStopAudio
                 )
+
+                // ── Full-data loading indicator ────────────────────────────
+                if (isLoadingFull) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp),
+                        color = PrimaryCyan,
+                        trackColor = PrimaryCyan.copy(alpha = 0.15f)
+                    )
+                }
 
                 // ── Pager ─────────────────────────────────────────────────
                 HorizontalPager(

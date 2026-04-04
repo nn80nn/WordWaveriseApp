@@ -45,15 +45,34 @@ class WordDetailViewModel @Inject constructor(
     private fun loadWordDetail(word: String) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            try {
-                val response = apiService.getWordDetails(word)
+
+            // Phase 1: quick load (API only, ~1-2s) — show data immediately
+            val quickLoaded = try {
+                val response = apiService.getWordDetails(word, quick = true)
                 if (response.status == "ok" && response.data != null) {
-                    _state.update { it.copy(wordDetail = response.data, isLoading = false) }
+                    _state.update { it.copy(wordDetail = response.data, isLoading = false, isLoadingFull = true) }
+                    true
                 } else {
-                    _state.update { it.copy(error = response.message ?: "Слово не найдено", isLoading = false) }
+                    false
+                }
+            } catch (_: Exception) { false }
+
+            // Phase 2: full load (with scrapers, ~5-10s) — update data in background
+            try {
+                val response = apiService.getWordDetails(word, quick = false)
+                if (response.status == "ok" && response.data != null) {
+                    _state.update { it.copy(wordDetail = response.data, isLoading = false, isLoadingFull = false) }
+                } else if (!quickLoaded) {
+                    _state.update { it.copy(error = response.message ?: "Слово не найдено", isLoading = false, isLoadingFull = false) }
+                } else {
+                    _state.update { it.copy(isLoadingFull = false) }
                 }
             } catch (e: Exception) {
-                _state.update { it.copy(error = NetworkError.getErrorMessage(e), isLoading = false) }
+                if (!quickLoaded) {
+                    _state.update { it.copy(error = NetworkError.getErrorMessage(e), isLoading = false, isLoadingFull = false) }
+                } else {
+                    _state.update { it.copy(isLoadingFull = false) }
+                }
             }
         }
     }

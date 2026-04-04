@@ -128,6 +128,7 @@ class MainActivity : ComponentActivity() {
                                 WordDetailScreen(
                                     wordDetail = state.wordDetail,
                                     isLoading = state.isLoading,
+                                    isLoadingFull = state.isLoadingFull,
                                     error = state.error,
                                     isSaved = state.isSaved,
                                     isSavedLoading = state.isSavedLoading,
