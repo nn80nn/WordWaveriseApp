@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -331,52 +332,37 @@ private fun DictTabRow(
     selectedIndex: Int,
     onTabClick: (Int) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(BackgroundPrimary)
+    ScrollableTabRow(
+        selectedTabIndex = selectedIndex,
+        containerColor = BackgroundPrimary,
+        contentColor = PrimaryCyan,
+        edgePadding = 8.dp,
+        indicator = { tabPositions ->
+            if (selectedIndex < tabPositions.size) {
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedIndex]),
+                    height = 2.dp,
+                    color = PrimaryCyan
+                )
+            }
+        },
+        divider = { HorizontalDivider(color = BackgroundLight.copy(alpha = 0.6f)) }
     ) {
-        // Scrollable tab labels
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            tabs.forEachIndexed { idx, tab ->
-                val selected = selectedIndex == idx
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                        .clickable { onTabClick(idx) }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = tab.label,
-                            fontSize = 13.sp,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (selected) PrimaryCyan else TextTertiary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        // Underline indicator
-                        Box(
-                            modifier = Modifier
-                                .height(2.dp)
-                                .width(if (selected) 24.dp else 0.dp)
-                                .background(PrimaryCyan, RoundedCornerShape(1.dp))
-                        )
-                    }
-                }
+        tabs.forEachIndexed { idx, tab ->
+            Tab(
+                selected = idx == selectedIndex,
+                onClick = { onTabClick(idx) },
+                selectedContentColor = PrimaryCyan,
+                unselectedContentColor = TextTertiary
+            ) {
+                Text(
+                    text = tab.label,
+                    fontSize = 13.sp,
+                    fontWeight = if (idx == selectedIndex) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
+                )
             }
         }
-        // Bottom separator line
-        HorizontalDivider(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            color = BackgroundLight
-        )
     }
 }
 
