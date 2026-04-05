@@ -32,16 +32,19 @@ import kotlinx.coroutines.launch
 import n.startapp.wordwaveriseapp.data.remote.dto.DefinitionDto
 import n.startapp.wordwaveriseapp.data.remote.dto.WordDto
 import n.startapp.wordwaveriseapp.ui.theme.*
+import androidx.compose.ui.text.style.TextOverflow
 
 // sourceFilter == null → all defs; "DETAILS" → synonyms/antonyms page
 private data class DictTab(val label: String, val sourceFilter: String?)
 
-private val DICT_TABS = listOf(
-    DictTab("All", null),
-    DictTab("Longman", "LDOCE"),
-    DictTab("Cambridge", "CAMBRIDGE"),
-    DictTab("Oxford", "OXFORD"),
-    DictTab("Подробнее", "DETAILS")
+private val SOURCE_LABELS = mapOf(
+    "WIKTIONARY" to "Wiktionary",
+    "CAMBRIDGE" to "Cambridge",
+    "OXFORD" to "Oxford",
+    "OED" to "Oxford",
+    "FREE_DICTIONARY" to "FreeDictionary",
+    "WORDSAPI" to "WordsAPI",
+    "DATAMUSE" to "DataMuse"
 )
 
 @Composable
@@ -61,8 +64,23 @@ fun SearchScreen(
     onSelectSuggestion: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val pagerState = rememberPagerState { DICT_TABS.size }
+    // Build tabs dynamically based on available sources in the current word data
+    val tabs = remember(state.wordData?.word) {
+        val sources = state.wordData?.definitions?.mapNotNull { it.source?.uppercase() }?.toSet().orEmpty()
+        buildList {
+            add(DictTab("All", null))
+            if ("WIKTIONARY" in sources) add(DictTab("Wiktionary", "WIKTIONARY"))
+            if ("CAMBRIDGE" in sources) add(DictTab("Cambridge", "CAMBRIDGE"))
+            if ("OXFORD" in sources || "OED" in sources) add(DictTab("Oxford", "OXFORD"))
+            add(DictTab("Подробнее", "DETAILS"))
+        }
+    }
+
+    val pagerState = rememberPagerState { tabs.size }
     val scope = rememberCoroutineScope()
+
+    // Reset to first tab when word changes
+    LaunchedEffect(state.wordData?.word) { pagerState.scrollToPage(0) }
 
     Column(
         modifier = modifier
@@ -122,7 +140,7 @@ fun SearchScreen(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            DICT_TABS.forEachIndexed { idx, tab ->
+            tabs.forEachIndexed { idx, tab ->
                 val selected = pagerState.currentPage == idx
                 Box(
                     modifier = Modifier
@@ -166,7 +184,7 @@ fun SearchScreen(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            val tab = DICT_TABS[page]
+            val tab = tabs.getOrNull(page) ?: return@HorizontalPager
 
             when {
                 state.isLoading -> {
@@ -211,14 +229,19 @@ fun SearchScreen(
                 }
 
                 tab.sourceFilter == "DETAILS" -> {
-                    DetailsPage(wordData = state.wordData)
+                    DetailsPage(wordData = state.wordData, onWordClick = onWordClick)
                 }
 
                 else -> {
-                    val defs = state.wordData?.definitions.orEmpty().let { all ->
-                        if (tab.sourceFilter == null) all
-                        else all.filter { it.source?.uppercase() == tab.sourceFilter }
-                    }
+                    val allDefs = state.wordData?.definitions.orEmpty()
+                    val defs = if (tab.sourceFilter == null) allDefs
+                               else allDefs.filter { def ->
+                                   val src = def.source?.uppercase() ?: ""
+                                   when (tab.sourceFilter) {
+                                       "OXFORD" -> src == "OXFORD" || src == "OED"
+                                       else -> src == tab.sourceFilter
+                                   }
+                               }
 
                     if (defs.isEmpty()) {
                         Box(
@@ -240,9 +263,41 @@ fun SearchScreen(
                                 .padding(horizontal = 16.dp)
                         ) {
                             Spacer(modifier = Modifier.height(8.dp))
-                            defs.forEach { def ->
-                                DefinitionCard(def = def)
-                                Spacer(modifier = Modifier.height(8.dp))
+                            if (tab.sourceFilter == null) {
+                                // "All" tab — compact rows grouped by source
+                                val grouped = defs.groupBy { it.source?.uppercase() ?: "API" }
+                                grouped.forEach { (sourceKey, sourceDefs) ->
+                                    val label = SOURCE_LABELS[sourceKey] ?: sourceKey
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
+                                        Text(label, fontSize = 11.sp, color = TextTertiary, fontWeight = FontWeight.Medium)
+                                        HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
+                                    }
+                                    sourceDefs.forEach { def ->
+                                        CompactDefinitionRow(def = def)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                                // Thesaurus section — collapsible at bottom
+                                val syns = defs.flatMap { it.synonyms }.distinct().filter { it.isNotBlank() }
+                                val ants = defs.flatMap { it.antonyms }.distinct().filter { it.isNotBlank() }
+                                if (syns.isNotEmpty() || ants.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    CollapsibleThesaurus(synonyms = syns, antonyms = ants, onWordClick = onWordClick)
+                                }
+                            } else {
+                                // Source-specific tab — full cards (no synonyms inline)
+                                defs.forEach { def ->
+                                    DefinitionCard(def = def)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                         }
@@ -397,6 +452,90 @@ private fun PronAudioButton(
     }
 }
 
+// ── Compact definition row (All tab) ─────────────────────────────────────────
+
+@Composable
+private fun CompactDefinitionRow(def: DefinitionDto) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BackgroundSecondary, RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (def.partOfSpeech.isNotBlank()) {
+            Text(
+                text = def.partOfSpeech,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = PrimaryCyan,
+                modifier = Modifier
+                    .background(PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+        Text(
+            text = def.definition,
+            fontSize = 14.sp,
+            color = TextPrimary,
+            lineHeight = 19.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        def.source?.let { src ->
+            Text(
+                text = src.take(3).uppercase(),
+                fontSize = 9.sp,
+                color = TextTertiary,
+                modifier = Modifier
+                    .background(BackgroundLight, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+// ── Collapsible thesaurus (All tab) ──────────────────────────────────────────
+
+@Composable
+private fun CollapsibleThesaurus(
+    synonyms: List<String>,
+    antonyms: List<String>,
+    onWordClick: (String) -> Unit = {}
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Тезаурус", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextTertiary)
+                Text(if (expanded) "▲" else "▼", fontSize = 11.sp, color = TextTertiary)
+            }
+            if (expanded) {
+                Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (synonyms.isNotEmpty()) {
+                        Text("Синонимы", fontSize = 11.sp, color = TextTertiary)
+                        FlowChips(items = synonyms, color = PrimaryBlue, onItemClick = onWordClick)
+                    }
+                    if (antonyms.isNotEmpty()) {
+                        Text("Антонимы", fontSize = 11.sp, color = TextTertiary)
+                        FlowChips(items = antonyms, color = Error, onItemClick = onWordClick)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── Definition card ───────────────────────────────────────────────────────────
 
 @Composable
@@ -440,16 +579,6 @@ private fun DefinitionCard(def: DefinitionDto) {
                     lineHeight = 19.sp
                 )
             }
-
-            if (def.synonyms.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ChipGroup(label = "Синонимы", items = def.synonyms, color = PrimaryBlue)
-            }
-
-            if (def.antonyms.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                ChipGroup(label = "Антонимы", items = def.antonyms, color = Error)
-            }
         }
     }
 }
@@ -457,7 +586,7 @@ private fun DefinitionCard(def: DefinitionDto) {
 // ── Details page (synonyms / antonyms / all examples) ────────────────────────
 
 @Composable
-private fun DetailsPage(wordData: WordDto?) {
+private fun DetailsPage(wordData: WordDto?, onWordClick: (String) -> Unit = {}) {
     if (wordData == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Нет данных", fontSize = 14.sp, color = TextTertiary)
@@ -488,16 +617,48 @@ private fun DetailsPage(wordData: WordDto?) {
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (allSynonyms.isNotEmpty()) {
-            SectionCard(title = "Синонимы") {
-                FlowChips(items = allSynonyms, color = PrimaryBlue)
+        // Definitions grouped by source
+        val defsBySource = wordData.definitions.groupBy { it.source?.uppercase() ?: "API" }
+        defsBySource.forEach { (sourceKey, defs) ->
+            val sourceLabel = SOURCE_LABELS[sourceKey] ?: sourceKey
+            SectionCard(title = sourceLabel) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    defs.forEach { def ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (def.partOfSpeech.isNotBlank()) {
+                                Text(
+                                    text = def.partOfSpeech,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = PrimaryCyan,
+                                    modifier = Modifier
+                                        .background(PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            Text(text = def.definition, fontSize = 14.sp, color = TextPrimary, lineHeight = 20.sp)
+                            def.example?.let { ex ->
+                                Text("\"$ex\"", fontSize = 13.sp, color = TextSecondary, fontStyle = FontStyle.Italic, lineHeight = 18.sp)
+                            }
+                        }
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        if (allAntonyms.isNotEmpty()) {
-            SectionCard(title = "Антонимы") {
-                FlowChips(items = allAntonyms, color = Error)
+        if (allSynonyms.isNotEmpty() || allAntonyms.isNotEmpty()) {
+            SectionCard(title = "Тезаурус") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (allSynonyms.isNotEmpty()) {
+                        Text("Синонимы", fontSize = 11.sp, color = TextTertiary)
+                        FlowChips(items = allSynonyms, color = PrimaryBlue, onItemClick = onWordClick)
+                    }
+                    if (allAntonyms.isNotEmpty()) {
+                        Text("Антонимы", fontSize = 11.sp, color = TextTertiary)
+                        FlowChips(items = allAntonyms, color = Error, onItemClick = onWordClick)
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -587,7 +748,11 @@ private fun ChipGroup(label: String, items: List<String>, color: Color) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FlowChips(items: List<String>, color: Color) {
+private fun FlowChips(
+    items: List<String>,
+    color: Color,
+    onItemClick: ((String) -> Unit)? = null
+) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -597,6 +762,7 @@ private fun FlowChips(items: List<String>, color: Color) {
             Box(
                 modifier = Modifier
                     .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    .then(if (onItemClick != null) Modifier.clickable { onItemClick(item) } else Modifier)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(text = item, fontSize = 13.sp, color = color)
