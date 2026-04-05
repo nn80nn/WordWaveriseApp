@@ -37,7 +37,10 @@ interface ApiService {
     ): WordDetailApiResponse
 
     @GET("api/words/suggest")
-    suspend fun getSuggestions(@Query("query") query: String): SuggestApiResponse
+    suspend fun getSuggestions(
+        @Query("query") query: String,
+        @Query("prefix") prefix: Boolean = false
+    ): SuggestApiResponse
 
     // Auth endpoints
     @POST("api/auth/register")

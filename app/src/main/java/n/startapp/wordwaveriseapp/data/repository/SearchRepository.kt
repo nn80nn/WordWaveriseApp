@@ -42,9 +42,9 @@ class SearchRepository @Inject constructor(
         }
     }
 
-    suspend fun getSuggestions(query: String): List<String> {
+    suspend fun getSuggestions(query: String, prefix: Boolean = false): List<String> {
         return try {
-            val response = apiService.getSuggestions(query.trim())
+            val response = apiService.getSuggestions(query.trim(), prefix = prefix)
             if (response.status == "ok") response.data?.suggestions.orEmpty()
             else emptyList()
         } catch (e: Exception) {

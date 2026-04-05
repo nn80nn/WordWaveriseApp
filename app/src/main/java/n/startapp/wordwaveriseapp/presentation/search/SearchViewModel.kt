@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import n.startapp.wordwaveriseapp.data.repository.SearchRepository
 import n.startapp.wordwaveriseapp.util.Resource
@@ -31,6 +33,7 @@ class SearchViewModel @Inject constructor(
     val isSaved: State<Boolean> = _isSaved
 
     private var mediaPlayer: MediaPlayer? = null
+    private var suggestJob: Job? = null
 
     fun onSearchQueryChange(query: String) {
         Log.d(TAG, "Search query changed: $query")
@@ -39,9 +42,19 @@ class SearchViewModel @Inject constructor(
             error = null,
             suggestions = emptyList()
         )
-        // Live suggestions for Russian (Cyrillic) input — translate to English candidates
-        if (query.length >= 2 && query.any { it in '\u0400'..'\u04FF' }) {
-            fetchSuggestions(query)
+        suggestJob?.cancel()
+        when {
+            // Russian input — translate to English candidates (immediate)
+            query.length >= 2 && query.any { it in '\u0400'..'\u04FF' } -> {
+                fetchSuggestions(query, prefix = false)
+            }
+            // English input — prefix autocomplete with 300ms debounce
+            query.length >= 2 && query.none { it in '\u0400'..'\u04FF' } -> {
+                suggestJob = viewModelScope.launch {
+                    delay(300)
+                    fetchSuggestions(query, prefix = true)
+                }
+            }
         }
     }
 
@@ -86,8 +99,8 @@ class SearchViewModel @Inject constructor(
                         wordData = null,
                         hasSearched = true
                     )
-                    // Fetch spelling/translation suggestions on failure
-                    fetchSuggestions(query)
+                    // Fetch spelling/translation suggestions on failure (not prefix mode)
+                    fetchSuggestions(query, prefix = false)
                 }
                 is Resource.Loading -> {
                     _state.value = _state.value.copy(isLoading = true)
@@ -104,11 +117,11 @@ class SearchViewModel @Inject constructor(
         searchWord()
     }
 
-    private fun fetchSuggestions(query: String) {
+    private fun fetchSuggestions(query: String, prefix: Boolean = false) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isFetchingSuggestions = true)
-            val suggestions = searchRepository.getSuggestions(query)
-            Log.d(TAG, "Suggestions for '$query': $suggestions")
+            val suggestions = searchRepository.getSuggestions(query, prefix = prefix)
+            Log.d(TAG, "Suggestions for '$query' (prefix=$prefix): $suggestions")
             _state.value = _state.value.copy(
                 suggestions = suggestions,
                 isFetchingSuggestions = false
