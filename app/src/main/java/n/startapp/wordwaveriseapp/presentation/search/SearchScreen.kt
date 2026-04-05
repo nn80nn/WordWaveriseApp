@@ -12,10 +12,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -127,13 +129,14 @@ fun SearchScreen(
             )
         )
 
-        // ── Suggestions strip (Cyrillic input or after failed search) ────
-        if (state.suggestions.isNotEmpty()) {
+        // ── Suggestions strip (English spelling/autocomplete only) ────────
+        // Russian candidates are shown in RuTranslationPanel below, not here
+        if (state.suggestions.isNotEmpty() && !state.isRussianSearch) {
             SuggestionsRow(suggestions = state.suggestions, onSelect = onSelectSuggestion)
         }
 
-        // ── Small dictionary tabs (horizontally scrollable) ───────────────
-        Row(
+        // ── Small dictionary tabs (hidden when showing Russian panel) ─────
+        if (!state.isRussianSearch) Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
@@ -190,6 +193,21 @@ fun SearchScreen(
                 state.isLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = PrimaryCyan)
+                    }
+                }
+
+                state.isRussianSearch -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        RuTranslationPanel(
+                            query = state.russianQuery,
+                            candidates = state.suggestions,
+                            isLoading = state.isFetchingSuggestions,
+                            onWordClick = onSelectSuggestion
+                        )
                     }
                 }
 
@@ -766,6 +784,94 @@ private fun FlowChips(
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(text = item, fontSize = 13.sp, color = color)
+            }
+        }
+    }
+}
+
+// ── Russian translation panel ─────────────────────────────────────────────────
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RuTranslationPanel(
+    query: String,
+    candidates: List<String>,
+    isLoading: Boolean,
+    onWordClick: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Translate,
+                contentDescription = null,
+                tint = PrimaryCyan,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = "Переводы для «$query»",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+        }
+
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = PrimaryCyan, modifier = Modifier.size(28.dp))
+                }
+            }
+            candidates.isEmpty() -> {
+                Text("Перевод не найден", color = TextTertiary, fontSize = 14.sp)
+            }
+            else -> {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    candidates.forEach { word ->
+                        Card(
+                            onClick = { onWordClick(word) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = word,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = TextTertiary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    text = "Нажмите на слово чтобы посмотреть статью",
+                    fontSize = 11.sp,
+                    color = TextTertiary
+                )
             }
         }
     }

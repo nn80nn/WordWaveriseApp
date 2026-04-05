@@ -11,5 +11,7 @@ data class SearchState(
     val isPlayingAudio: Boolean = false,
     val playingAudioUrl: String? = null,
     val suggestions: List<String> = emptyList(),
-    val isFetchingSuggestions: Boolean = false
+    val isFetchingSuggestions: Boolean = false,
+    val isRussianSearch: Boolean = false,
+    val russianQuery: String = ""
 )

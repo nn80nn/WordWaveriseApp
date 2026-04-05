@@ -40,7 +40,9 @@ class SearchViewModel @Inject constructor(
         _state.value = _state.value.copy(
             searchQuery = query,
             error = null,
-            suggestions = emptyList()
+            suggestions = emptyList(),
+            isRussianSearch = false,
+            russianQuery = ""
         )
         suggestJob?.cancel()
         when {
@@ -68,6 +70,25 @@ class SearchViewModel @Inject constructor(
             return
         }
 
+        // Russian query — show translation panel instead of fetching from dictionary
+        val isRussian = query.any { it in '\u0400'..'\u04FF' }
+        if (isRussian) {
+            Log.d(TAG, "Russian query detected: '$query' — showing translation panel")
+            _state.value = _state.value.copy(
+                isRussianSearch = true,
+                russianQuery = query,
+                wordData = null,
+                error = null,
+                isLoading = false,
+                hasSearched = true
+            )
+            // Suggestions may already be loading from onSearchQueryChange; kick off if not
+            if (_state.value.suggestions.isEmpty() && !_state.value.isFetchingSuggestions) {
+                fetchSuggestions(query, prefix = false)
+            }
+            return
+        }
+
         Log.d(TAG, "Starting search for: $query")
         viewModelScope.launch {
             _state.value = _state.value.copy(
@@ -75,6 +96,8 @@ class SearchViewModel @Inject constructor(
                 error = null,
                 wordData = null,
                 hasSearched = false,
+                isRussianSearch = false,
+                russianQuery = "",
                 suggestions = emptyList()
             )
 
@@ -112,7 +135,9 @@ class SearchViewModel @Inject constructor(
     fun selectSuggestion(suggestion: String) {
         _state.value = _state.value.copy(
             searchQuery = suggestion,
-            suggestions = emptyList()
+            suggestions = emptyList(),
+            isRussianSearch = false,
+            russianQuery = ""
         )
         searchWord()
     }
