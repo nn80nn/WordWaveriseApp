@@ -497,7 +497,14 @@ private fun WordHeaderCard(
                     }
                 }
 
-                wordDetail.translation?.let {
+                // Show per-entry translation when one is selected; otherwise all distinct translations
+                val translationText = if (selectedEntry != null) {
+                    selectedEntry.translation ?: wordDetail.translation
+                } else {
+                    val entryTranslations = wordDetail.entries.mapNotNull { it.translation }.distinct().take(3)
+                    entryTranslations.joinToString("  ·  ").ifBlank { null } ?: wordDetail.translation
+                }
+                translationText?.let {
                     Text(
                         text = it,
                         fontSize = 14.sp,
