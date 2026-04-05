@@ -153,7 +153,10 @@ class MainActivity : ComponentActivity() {
                                     isAiExamplesLoading = state.isAiExamplesLoading,
                                     aiError = state.aiError,
                                     onLoadAiExplanation = viewModel::loadAiExplanation,
-                                    onLoadAiExamples = viewModel::loadAiExamples
+                                    onLoadAiExamples = viewModel::loadAiExamples,
+                                    onWordClick = { word ->
+                                        navController.navigate(Screen.WordDetail.createRoute(word))
+                                    }
                                 )
                             }
                         }

@@ -1,5 +1,6 @@
 package n.startapp.wordwaveriseapp.presentation.detail
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -62,6 +63,7 @@ fun WordDetailScreen(
     aiError: String? = null,
     onLoadAiExplanation: () -> Unit = {},
     onLoadAiExamples: () -> Unit = {},
+    onWordClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Build tabs dynamically — only show dict tabs when that source has data
@@ -203,7 +205,8 @@ fun WordDetailScreen(
                                 isAiExamplesLoading = isAiExamplesLoading,
                                 aiError = aiError,
                                 onLoadExplanation = onLoadAiExplanation,
-                                onLoadExamples = onLoadAiExamples
+                                onLoadExamples = onLoadAiExamples,
+                                onWordClick = onWordClick
                             )
                         }
                         else -> {
@@ -305,6 +308,18 @@ fun WordDetailScreen(
                                             onLoadExplanation = onLoadAiExplanation,
                                             onLoadExamples = onLoadAiExamples
                                         )
+                                        // Thesaurus — collapsible at bottom of All tab
+                                        val allSyns = wordDetail.synonyms.filter { it.isNotBlank() }
+                                        val allAnts = wordDetail.antonyms.filter { it.isNotBlank() }
+                                        if (allSyns.isNotEmpty() || allAnts.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            ThesaurusSection(
+                                                synonyms = allSyns,
+                                                antonyms = allAnts,
+                                                collapsible = true,
+                                                onWordClick = onWordClick
+                                            )
+                                        }
                                     } else {
                                         // Dictionary-specific tabs — full cards with examples, no synonyms
                                         defs.forEach { def ->
@@ -682,7 +697,8 @@ private fun DetailsPage(
     isAiExamplesLoading: Boolean = false,
     aiError: String? = null,
     onLoadExplanation: () -> Unit = {},
-    onLoadExamples: () -> Unit = {}
+    onLoadExamples: () -> Unit = {},
+    onWordClick: (String) -> Unit = {}
 ) {
     // Always use global synonyms/antonyms — not per-entry duplicates
     val synonyms = wordDetail.synonyms.filter { it.isNotBlank() }
@@ -743,18 +759,12 @@ private fun DetailsPage(
 
         // Synonyms / antonyms — single global section
         if (synonyms.isNotEmpty() || antonyms.isNotEmpty()) {
-            SectionCard(title = "Тезаурус") {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (synonyms.isNotEmpty()) {
-                        Text("Синонимы", fontSize = 11.sp, color = TextTertiary)
-                        FlowChips(items = synonyms, color = PrimaryBlue)
-                    }
-                    if (antonyms.isNotEmpty()) {
-                        Text("Антонимы", fontSize = 11.sp, color = TextTertiary)
-                        FlowChips(items = antonyms, color = Error)
-                    }
-                }
-            }
+            ThesaurusSection(
+                synonyms = synonyms,
+                antonyms = antonyms,
+                collapsible = false,
+                onWordClick = onWordClick
+            )
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -998,9 +1008,70 @@ private fun AiInlineSection(
     }
 }
 
+// ── Thesaurus section (synonyms + antonyms, optionally collapsible) ───────────
+
+@Composable
+private fun ThesaurusSection(
+    synonyms: List<String>,
+    antonyms: List<String>,
+    collapsible: Boolean = false,
+    onWordClick: (String) -> Unit = {}
+) {
+    var expanded by remember { mutableStateOf(!collapsible) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (collapsible) Modifier.clickable { expanded = !expanded } else Modifier),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Тезаурус",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextTertiary
+                )
+                if (collapsible) {
+                    Text(
+                        text = if (expanded) "▲" else "▼",
+                        fontSize = 11.sp,
+                        color = TextTertiary
+                    )
+                }
+            }
+            AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier.padding(top = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (synonyms.isNotEmpty()) {
+                        Text("Синонимы", fontSize = 11.sp, color = TextTertiary)
+                        FlowChips(items = synonyms, color = PrimaryBlue, onItemClick = onWordClick)
+                    }
+                    if (antonyms.isNotEmpty()) {
+                        Text("Антонимы", fontSize = 11.sp, color = TextTertiary)
+                        FlowChips(items = antonyms, color = Error, onItemClick = onWordClick)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FlowChips(items: List<String>, color: Color) {
+private fun FlowChips(
+    items: List<String>,
+    color: Color,
+    onItemClick: ((String) -> Unit)? = null
+) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1010,6 +1081,10 @@ private fun FlowChips(items: List<String>, color: Color) {
             Box(
                 modifier = Modifier
                     .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    .then(
+                        if (onItemClick != null) Modifier.clickable { onItemClick(item) }
+                        else Modifier
+                    )
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(text = item, fontSize = 13.sp, color = color)
