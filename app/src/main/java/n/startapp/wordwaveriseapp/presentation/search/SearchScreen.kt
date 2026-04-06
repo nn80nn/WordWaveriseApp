@@ -131,7 +131,8 @@ fun SearchScreen(
 
         // ── Suggestions strip (English spelling/autocomplete only) ────────
         // Russian candidates are shown in RuTranslationPanel below, not here
-        if (state.suggestions.isNotEmpty() && !state.isRussianSearch) {
+        // Hide suggestions after a successful search (word found)
+        if (state.suggestions.isNotEmpty() && !state.isRussianSearch && state.wordData == null) {
             SuggestionsRow(suggestions = state.suggestions, onSelect = onSelectSuggestion)
         }
 
@@ -180,21 +181,6 @@ fun SearchScreen(
                 onPlayAudio = onPlayAudio,
                 onStopAudio = onStopAudio
             )
-            when {
-                state.isLoadingAiSummary -> Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    CircularProgressIndicator(
-                        color = PrimaryCyan,
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
-                state.aiSummary != null -> AiSummaryCard(state.aiSummary)
-            }
         }
 
         // ── Pager ─────────────────────────────────────────────────────────
@@ -324,6 +310,26 @@ fun SearchScreen(
                                 if (syns.isNotEmpty() || ants.isNotEmpty()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     CollapsibleThesaurus(synonyms = syns, antonyms = ants, onWordClick = onWordClick)
+                                }
+                                // AI summary card — appears in All tab after definitions
+                                when {
+                                    state.isLoadingAiSummary -> {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                color = PrimaryCyan,
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                    }
+                                    state.aiSummary != null -> {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        AiSummaryCard(state.aiSummary)
+                                    }
                                 }
                             } else {
                                 // Source-specific tab — full cards (no synonyms inline)
