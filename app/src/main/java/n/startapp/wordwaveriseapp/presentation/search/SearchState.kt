@@ -13,5 +13,7 @@ data class SearchState(
     val suggestions: List<String> = emptyList(),
     val isFetchingSuggestions: Boolean = false,
     val isRussianSearch: Boolean = false,
-    val russianQuery: String = ""
+    val russianQuery: String = "",
+    val aiSummary: String? = null,
+    val isLoadingAiSummary: Boolean = false
 )

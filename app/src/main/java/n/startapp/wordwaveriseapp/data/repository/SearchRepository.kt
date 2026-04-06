@@ -42,6 +42,18 @@ class SearchRepository @Inject constructor(
         }
     }
 
+    suspend fun getAiSummary(word: String): Resource<String> {
+        return try {
+            val response = apiService.getAiSummary(word)
+            if (response.status == "ok" && response.data != null)
+                Resource.Success(response.data.result)
+            else Resource.Error(response.message ?: "AI error")
+        } catch (e: Exception) {
+            Log.d(TAG, "AI summary failed for '$word': ${e.message}")
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
     suspend fun getSuggestions(query: String, prefix: Boolean = false): List<String> {
         return try {
             val response = apiService.getSuggestions(query.trim(), prefix = prefix)

@@ -148,4 +148,9 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Body request: AiWordRequest
     ): AiExerciseApiResponse
+
+    @GET("api/ai/summary")
+    suspend fun getAiSummary(
+        @Query("word") word: String
+    ): AiTextApiResponse
 }

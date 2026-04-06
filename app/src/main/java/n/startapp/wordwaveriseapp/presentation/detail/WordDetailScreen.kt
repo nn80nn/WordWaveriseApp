@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -502,14 +503,17 @@ private fun WordHeaderCard(
                     selectedEntry.translation ?: wordDetail.translation
                 } else {
                     val entryTranslations = wordDetail.entries.mapNotNull { it.translation }.distinct().take(3)
-                    entryTranslations.joinToString("  ·  ").ifBlank { null } ?: wordDetail.translation
+                    entryTranslations.joinToString(" | ").ifBlank { null } ?: wordDetail.translation
                 }
                 translationText?.let {
                     Text(
                         text = it,
                         fontSize = 14.sp,
                         color = PrimaryCyan,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = true
                     )
                 }
             }
@@ -668,7 +672,7 @@ private fun CompactDefinitionRow(def: DisplayDef) {
             color = TextPrimary,
             lineHeight = 19.sp,
             maxLines = 2,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
         def.source?.let { src ->
@@ -868,6 +872,7 @@ private fun AiPage(
             content = aiExplanation,
             isLoading = isAiExplanationLoading,
             buttonLabel = "Объяснить",
+            error = if (aiExplanation == null && !isAiExplanationLoading) aiError else null,
             onLoad = onLoadExplanation
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -878,19 +883,9 @@ private fun AiPage(
             content = aiExamples,
             isLoading = isAiExamplesLoading,
             buttonLabel = "Генерировать примеры",
+            error = if (aiExamples == null && !isAiExamplesLoading) aiError else null,
             onLoad = onLoadExamples
         )
-
-        aiError?.let { err ->
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = err,
-                fontSize = 13.sp,
-                color = Error,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
 
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -902,6 +897,7 @@ private fun AiSection(
     content: String?,
     isLoading: Boolean,
     buttonLabel: String,
+    error: String? = null,
     onLoad: () -> Unit
 ) {
     Card(
@@ -921,7 +917,7 @@ private fun AiSection(
                     fontWeight = FontWeight.SemiBold,
                     color = TextTertiary
                 )
-                if (content == null && !isLoading) {
+                if (!isLoading && content == null) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -957,6 +953,14 @@ private fun AiSection(
                         fontSize = 14.sp,
                         color = TextPrimary,
                         lineHeight = 21.sp
+                    )
+                }
+                error != null -> {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = error,
+                        fontSize = 12.sp,
+                        color = Error
                     )
                 }
                 else -> {
@@ -999,6 +1003,7 @@ private fun AiInlineSection(
             content = aiExplanation,
             isLoading = isAiExplanationLoading,
             buttonLabel = "Объяснить",
+            error = if (aiExplanation == null && !isAiExplanationLoading) aiError else null,
             onLoad = onLoadExplanation
         )
         AiSection(
@@ -1006,12 +1011,9 @@ private fun AiInlineSection(
             content = aiExamples,
             isLoading = isAiExamplesLoading,
             buttonLabel = "Генерировать",
+            error = if (aiExamples == null && !isAiExamplesLoading) aiError else null,
             onLoad = onLoadExamples
         )
-        aiError?.let { err ->
-            Text(err, fontSize = 13.sp, color = Error, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth())
-        }
     }
 }
 

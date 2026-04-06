@@ -180,6 +180,21 @@ fun SearchScreen(
                 onPlayAudio = onPlayAudio,
                 onStopAudio = onStopAudio
             )
+            when {
+                state.isLoadingAiSummary -> Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    CircularProgressIndicator(
+                        color = PrimaryCyan,
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+                state.aiSummary != null -> AiSummaryCard(state.aiSummary)
+            }
         }
 
         // ── Pager ─────────────────────────────────────────────────────────
@@ -390,7 +405,9 @@ private fun WordHeader(
                         text = it,
                         fontSize = 14.sp,
                         color = PrimaryCyan,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -790,6 +807,30 @@ private fun FlowChips(
 }
 
 // ── Russian translation panel ─────────────────────────────────────────────────
+
+@Composable
+private fun AiSummaryCard(summary: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("✨", fontSize = 16.sp)
+            Text(
+                text = summary,
+                fontSize = 13.sp,
+                color = TextSecondary,
+                lineHeight = 19.sp
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

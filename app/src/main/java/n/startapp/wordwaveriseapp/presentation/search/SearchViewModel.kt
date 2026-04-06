@@ -98,7 +98,9 @@ class SearchViewModel @Inject constructor(
                 hasSearched = false,
                 isRussianSearch = false,
                 russianQuery = "",
-                suggestions = emptyList()
+                suggestions = emptyList(),
+                aiSummary = null,
+                isLoadingAiSummary = false
             )
 
             when (val result = searchRepository.searchWord(query)) {
@@ -112,6 +114,7 @@ class SearchViewModel @Inject constructor(
                     )
                     result.data?.let { wordData ->
                         checkIfWordIsSaved(wordData.word)
+                        loadAiSummary(wordData.word)
                     }
                 }
                 is Resource.Error -> {
@@ -140,6 +143,18 @@ class SearchViewModel @Inject constructor(
             russianQuery = ""
         )
         searchWord()
+    }
+
+    private fun loadAiSummary(word: String) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoadingAiSummary = true, aiSummary = null)
+            when (val result = searchRepository.getAiSummary(word)) {
+                is Resource.Success -> _state.value = _state.value.copy(
+                    aiSummary = result.data, isLoadingAiSummary = false
+                )
+                else -> _state.value = _state.value.copy(isLoadingAiSummary = false)
+            }
+        }
     }
 
     private fun fetchSuggestions(query: String, prefix: Boolean = false) {
