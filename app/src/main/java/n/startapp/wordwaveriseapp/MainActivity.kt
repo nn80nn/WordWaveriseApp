@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
                             onPasswordChange = authViewModel::onPasswordChange,
                             onLogin = authViewModel::login,
                             onRegister = authViewModel::register,
+                            onLoginWithGoogle = authViewModel::loginWithGoogle,
                             modifier = Modifier.padding(innerPadding)
                         )
                     } else {

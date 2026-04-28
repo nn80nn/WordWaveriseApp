@@ -1,6 +1,10 @@
 package n.startapp.wordwaveriseapp.presentation.auth
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -25,6 +30,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import n.startapp.wordwaveriseapp.BuildConfig
 import n.startapp.wordwaveriseapp.ui.theme.*
 
 @Composable
@@ -34,10 +42,31 @@ fun AuthScreen(
     onPasswordChange: (String) -> Unit,
     onLogin: () -> Unit,
     onRegister: () -> Unit,
+    onLoginWithGoogle: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Вход", "Регистрация")
+    val context = LocalContext.current
+
+    val googleSignInClient = remember {
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(BuildConfig.GOOGLE_CLIENT_ID)
+            .requestEmail()
+            .build()
+        GoogleSignIn.getClient(context, gso)
+    }
+
+    val googleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            try {
+                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                task.result?.idToken?.let { onLoginWithGoogle(it) }
+            } catch (_: Exception) {}
+        }
+    }
 
     Column(
         modifier = modifier
@@ -48,7 +77,6 @@ fun AuthScreen(
     ) {
         Spacer(modifier = Modifier.height(40.dp))
 
-        // Logo/Title
         Text(
             text = "WordWaverise",
             fontSize = 32.sp,
@@ -66,7 +94,6 @@ fun AuthScreen(
 
         Spacer(modifier = Modifier.height(40.dp))
 
-        // Tabs
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.Transparent,
@@ -103,13 +130,9 @@ fun AuthScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Auth Form Card
         Card(
-            modifier = Modifier
-                .fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = BackgroundSecondary
-            ),
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(
@@ -127,12 +150,59 @@ fun AuthScreen(
                     error = state.error,
                     isLogin = selectedTab == 0
                 )
+
+                // Google Sign-In button — shown only if client ID is configured
+                if (BuildConfig.GOOGLE_CLIENT_ID.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = BorderLight)
+                        Text(
+                            text = "  или  ",
+                            fontSize = 12.sp,
+                            color = TextTertiary
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = BorderLight)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, BorderLight, RoundedCornerShape(12.dp))
+                            .background(BackgroundPrimary)
+                            .clickable(enabled = !state.isLoading) {
+                                googleSignInClient.signOut().addOnCompleteListener {
+                                    googleLauncher.launch(googleSignInClient.signInIntent)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(text = "G", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4285F4))
+                            Text(
+                                text = "Войти через Google",
+                                fontSize = 15.sp,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Helper Text
         if (selectedTab == 0) {
             Text(
                 text = "Нет аккаунта? Перейдите на вкладку \"Регистрация\"",
@@ -163,23 +233,15 @@ private fun AuthForm(
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // Email Field
+    Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = email,
             onValueChange = onEmailChange,
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             label = { Text("Email") },
             placeholder = { Text("example@email.com") },
             leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Email,
-                    contentDescription = "Email",
-                    tint = PrimaryCyan
-                )
+                Icon(imageVector = Icons.Default.Email, contentDescription = "Email", tint = PrimaryCyan)
             },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = BackgroundSecondary,
@@ -202,20 +264,14 @@ private fun AuthForm(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Password Field
         OutlinedTextField(
             value = password,
             onValueChange = onPasswordChange,
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             label = { Text("Пароль") },
             placeholder = { Text("Минимум 6 символов") },
             leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = "Пароль",
-                    tint = PrimaryCyan
-                )
+                Icon(imageVector = Icons.Default.Lock, contentDescription = "Пароль", tint = PrimaryCyan)
             },
             trailingIcon = {
                 TextButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -242,27 +298,17 @@ private fun AuthForm(
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(
-                onDone = {
-                    focusManager.clearFocus()
-                    onSubmit()
-                }
+                onDone = { focusManager.clearFocus(); onSubmit() }
             )
         )
 
-        // Error Message
         if (error != null) {
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = error,
-                color = Error,
-                fontSize = 13.sp,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Text(text = error, color = Error, fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Submit Button
         val submitEnabled = !isLoading && email.isNotEmpty() && password.isNotEmpty()
         Box(
             modifier = Modifier
@@ -279,10 +325,7 @@ private fun AuthForm(
             contentAlignment = Alignment.Center
         ) {
             if (isLoading) {
-                CircularProgressIndicator(
-                    color = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
             } else {
                 Text(
                     text = if (isLogin) "Войти" else "Зарегистрироваться",
