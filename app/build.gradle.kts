@@ -15,11 +15,11 @@ plugins {
 }
 
 android {
-    namespace = "n.startapp.wordwaveriseapp"
+    namespace = "com.wordwaverise.wordwaveriseapp"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "n.startapp.wordwaveriseapp"
+        applicationId = "com.wordwaverise.wordwaveriseapp"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

@@ -1,0 +1,67 @@
+package com.wordwaverise.wordwaveriseapp.data.repository
+
+import android.util.Log
+import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
+import com.wordwaverise.wordwaveriseapp.util.NetworkError
+import com.wordwaverise.wordwaveriseapp.util.Resource
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class SearchRepository @Inject constructor(
+    private val apiService: ApiService
+) {
+    companion object {
+        private const val TAG = "SearchRepository"
+    }
+
+    suspend fun searchWord(word: String): Resource<WordDto> {
+        return try {
+            if (word.isBlank()) {
+                Log.w(TAG, "Search word is blank")
+                return Resource.Error("Пожалуйста, введите слово для поиска")
+            }
+
+            Log.d(TAG, "Searching for word: $word")
+            val response = apiService.searchWord(word.trim().lowercase())
+
+            Log.d(TAG, "Response status: ${response.status}")
+            Log.d(TAG, "Response data: ${response.data}")
+
+            if (response.status == "ok" && response.data != null) {
+                Log.d(TAG, "Successfully found word: ${response.data.word}")
+                Resource.Success(response.data)
+            } else {
+                Log.w(TAG, "Word not found or status not ok. Status: ${response.status}")
+                Resource.Error("Слово не найдено")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error searching word: ${e.message}", e)
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
+    suspend fun getAiSummary(word: String): Resource<String> {
+        return try {
+            val response = apiService.getAiSummary(word)
+            if (response.status == "ok" && response.data != null)
+                Resource.Success(response.data.result)
+            else Resource.Error(response.message ?: "AI error")
+        } catch (e: Exception) {
+            Log.d(TAG, "AI summary failed for '$word': ${e.message}")
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
+    suspend fun getSuggestions(query: String, prefix: Boolean = false): List<String> {
+        return try {
+            val response = apiService.getSuggestions(query.trim(), prefix = prefix)
+            if (response.status == "ok") response.data?.suggestions.orEmpty()
+            else emptyList()
+        } catch (e: Exception) {
+            Log.d(TAG, "Suggestions failed for '$query': ${e.message}")
+            emptyList()
+        }
+    }
+}
