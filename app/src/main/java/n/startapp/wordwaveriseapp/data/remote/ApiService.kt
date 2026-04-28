@@ -145,7 +145,6 @@ interface ApiService {
 
     @POST("api/ai/exercise")
     suspend fun getAiExercise(
-        @Header("Authorization") token: String,
         @Body request: AiWordRequest
     ): AiExerciseApiResponse
 

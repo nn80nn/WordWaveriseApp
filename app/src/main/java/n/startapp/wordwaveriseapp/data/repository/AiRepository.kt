@@ -53,9 +53,7 @@ class AiRepository @Inject constructor(
 
     suspend fun getExercise(word: String): Resource<AiExerciseData> {
         return try {
-            val token = authRepository.token.firstOrNull()
-                ?: return Resource.Error("Не авторизован")
-            val response = apiService.getAiExercise("Bearer $token", AiWordRequest(word))
+            val response = apiService.getAiExercise(AiWordRequest(word))
             if (response.status == "ok" && response.data != null) {
                 Resource.Success(response.data)
             } else {
