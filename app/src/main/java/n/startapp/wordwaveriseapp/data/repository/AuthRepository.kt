@@ -4,6 +4,7 @@ import android.util.Log
 import n.startapp.wordwaveriseapp.data.local.TokenDataStore
 import n.startapp.wordwaveriseapp.data.remote.ApiService
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.AuthData
+import n.startapp.wordwaveriseapp.data.remote.dto.auth.GoogleAuthRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.LoginRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.RegisterRequest
 import n.startapp.wordwaveriseapp.util.NetworkError
@@ -58,6 +59,21 @@ class AuthRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Login error: ${e.message}", e)
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
+    suspend fun loginWithGoogle(idToken: String): Resource<AuthData> {
+        return try {
+            val response = apiService.loginWithGoogle(GoogleAuthRequest(idToken))
+            if (response.status == "ok" && response.data != null) {
+                tokenDataStore.saveToken(response.data.token, response.data.user.email)
+                Resource.Success(response.data)
+            } else {
+                Resource.Error(response.message ?: "Google login failed")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Google login error: ${e.message}", e)
             Resource.Error(NetworkError.getErrorMessage(e))
         }
     }

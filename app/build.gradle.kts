@@ -29,6 +29,8 @@ android {
 
         // BuildConfig fields
         buildConfigField("String", "BASE_URL", "\"https://backend.wordwaverise.com/\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${localProperties.getProperty("GOOGLE_CLIENT_ID", "")}\"")
+
     }
 
     signingConfigs {
@@ -107,6 +109,9 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+
+    // Google Sign-In
+    implementation(libs.google.play.services.auth)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

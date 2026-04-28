@@ -9,6 +9,7 @@ import n.startapp.wordwaveriseapp.data.remote.dto.ai.AiExerciseApiResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.ai.AiTextApiResponse
 import n.startapp.wordwaveriseapp.data.remote.dto.ai.AiWordRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.AuthResponse
+import n.startapp.wordwaveriseapp.data.remote.dto.auth.GoogleAuthRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.LoginRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.auth.RegisterRequest
 import n.startapp.wordwaveriseapp.data.remote.dto.flashcard.*
@@ -48,6 +49,9 @@ interface ApiService {
 
     @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): AuthResponse
+
+    @POST("api/auth/google")
+    suspend fun loginWithGoogle(@Body request: GoogleAuthRequest): AuthResponse
 
     // Saved words endpoints (require auth token)
     @POST("api/words/saved")

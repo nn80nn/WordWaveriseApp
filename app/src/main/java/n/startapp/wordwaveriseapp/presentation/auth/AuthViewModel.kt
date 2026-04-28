@@ -120,6 +120,21 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun loginWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, error = null)
+            when (val result = authRepository.loginWithGoogle(idToken)) {
+                is Resource.Success -> _state.value = _state.value.copy(
+                    isLoading = false, isLoggedIn = true, error = null
+                )
+                is Resource.Error -> _state.value = _state.value.copy(
+                    isLoading = false, error = result.message
+                )
+                else -> {}
+            }
+        }
+    }
+
     fun logout() {
         Log.d(TAG, "Logging out")
         viewModelScope.launch {
