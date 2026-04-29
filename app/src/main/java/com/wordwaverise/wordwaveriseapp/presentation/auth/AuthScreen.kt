@@ -39,6 +39,7 @@ import com.wordwaverise.wordwaveriseapp.ui.theme.*
 fun AuthScreen(
     state: AuthState,
     onEmailChange: (String) -> Unit,
+    onLoginChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onLogin: () -> Unit,
     onRegister: () -> Unit,
@@ -142,8 +143,10 @@ fun AuthScreen(
             ) {
                 AuthForm(
                     email = state.email,
+                    login = state.login,
                     password = state.password,
                     onEmailChange = onEmailChange,
+                    onLoginChange = onLoginChange,
                     onPasswordChange = onPasswordChange,
                     onSubmit = if (selectedTab == 0) onLogin else onRegister,
                     isLoading = state.isLoading,
@@ -222,8 +225,10 @@ fun AuthScreen(
 @Composable
 private fun AuthForm(
     email: String,
+    login: String,
     password: String,
     onEmailChange: (String) -> Unit,
+    onLoginChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onSubmit: () -> Unit,
     isLoading: Boolean,
@@ -234,6 +239,38 @@ private fun AuthForm(
     var passwordVisible by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
+        // Login field — only for registration
+        if (!isLogin) {
+            OutlinedTextField(
+                value = login,
+                onValueChange = onLoginChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Логин / Никнейм") },
+                placeholder = { Text("Например: john_doe") },
+                leadingIcon = {
+                    Text(text = "@", fontSize = 18.sp, color = PrimaryCyan, modifier = Modifier.padding(start = 12.dp))
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = BackgroundSecondary,
+                    unfocusedContainerColor = BackgroundSecondary,
+                    focusedBorderColor = PrimaryCyan,
+                    unfocusedBorderColor = BorderLight,
+                    cursorColor = PrimaryCyan
+                ),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+                enabled = !isLoading,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Ascii,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                )
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         OutlinedTextField(
             value = email,
             onValueChange = onEmailChange,

@@ -16,27 +16,27 @@ class TokenDataStore(private val context: Context) {
     companion object {
         private val TOKEN_KEY = stringPreferencesKey("jwt_token")
         private val EMAIL_KEY = stringPreferencesKey("user_email")
+        private val LOGIN_KEY = stringPreferencesKey("user_login")
     }
 
-    val token: Flow<String?> = context.dataStore.data.map { preferences ->
-        preferences[TOKEN_KEY]
-    }
+    val token: Flow<String?> = context.dataStore.data.map { it[TOKEN_KEY] }
+    val userEmail: Flow<String?> = context.dataStore.data.map { it[EMAIL_KEY] }
+    val userLogin: Flow<String?> = context.dataStore.data.map { it[LOGIN_KEY] }
 
-    val userEmail: Flow<String?> = context.dataStore.data.map { preferences ->
-        preferences[EMAIL_KEY]
-    }
-
-    suspend fun saveToken(token: String, email: String) {
-        context.dataStore.edit { preferences ->
-            preferences[TOKEN_KEY] = token
-            preferences[EMAIL_KEY] = email
+    suspend fun saveToken(token: String, email: String, login: String? = null) {
+        context.dataStore.edit { prefs ->
+            prefs[TOKEN_KEY] = token
+            prefs[EMAIL_KEY] = email
+            if (login != null) prefs[LOGIN_KEY] = login
+            else prefs.remove(LOGIN_KEY)
         }
     }
 
     suspend fun clearToken() {
-        context.dataStore.edit { preferences ->
-            preferences.remove(TOKEN_KEY)
-            preferences.remove(EMAIL_KEY)
+        context.dataStore.edit { prefs ->
+            prefs.remove(TOKEN_KEY)
+            prefs.remove(EMAIL_KEY)
+            prefs.remove(LOGIN_KEY)
         }
     }
 }

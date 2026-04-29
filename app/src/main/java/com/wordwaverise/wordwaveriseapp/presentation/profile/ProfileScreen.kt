@@ -25,6 +25,7 @@ import com.wordwaverise.wordwaveriseapp.ui.theme.*
 @Composable
 fun ProfileScreen(
     userEmail: String,
+    userLogin: String?,
     state: ProfileState,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
@@ -54,16 +55,30 @@ fun ProfileScreen(
                     .fillMaxWidth()
                     .padding(20.dp)
             ) {
+                if (userLogin != null) {
+                    Text(
+                        text = "Логин",
+                        fontSize = 11.sp,
+                        color = TextTertiary,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "@$userLogin",
+                        fontSize = 18.sp,
+                        color = PrimaryCyan,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 Text(
-                    text = "Аккаунт",
-                    fontSize = 12.sp,
+                    text = "Email",
+                    fontSize = 11.sp,
                     color = TextTertiary,
                     fontWeight = FontWeight.Medium
                 )
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = userEmail,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     color = TextPrimary,
                     fontWeight = FontWeight.SemiBold
                 )

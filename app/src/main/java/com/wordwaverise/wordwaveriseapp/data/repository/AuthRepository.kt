@@ -24,15 +24,16 @@ class AuthRepository @Inject constructor(
 
     val token: Flow<String?> = tokenDataStore.token
     val userEmail: Flow<String?> = tokenDataStore.userEmail
+    val userLogin: Flow<String?> = tokenDataStore.userLogin
 
-    suspend fun register(email: String, password: String): Resource<AuthData> {
+    suspend fun register(email: String, password: String, login: String? = null): Resource<AuthData> {
         return try {
             Log.d(TAG, "Registering user: $email")
-            val response = apiService.register(RegisterRequest(email, password))
+            val response = apiService.register(RegisterRequest(email, password, login))
 
             if (response.status == "ok" && response.data != null) {
                 Log.d(TAG, "Registration successful")
-                tokenDataStore.saveToken(response.data.token, response.data.user.email)
+                tokenDataStore.saveToken(response.data.token, response.data.user.email, response.data.user.login)
                 Resource.Success(response.data)
             } else {
                 Log.w(TAG, "Registration failed: ${response.message}")
@@ -51,7 +52,7 @@ class AuthRepository @Inject constructor(
 
             if (response.status == "ok" && response.data != null) {
                 Log.d(TAG, "Login successful")
-                tokenDataStore.saveToken(response.data.token, response.data.user.email)
+                tokenDataStore.saveToken(response.data.token, response.data.user.email, response.data.user.login)
                 Resource.Success(response.data)
             } else {
                 Log.w(TAG, "Login failed: ${response.message}")
@@ -67,7 +68,7 @@ class AuthRepository @Inject constructor(
         return try {
             val response = apiService.loginWithGoogle(GoogleAuthRequest(idToken))
             if (response.status == "ok" && response.data != null) {
-                tokenDataStore.saveToken(response.data.token, response.data.user.email)
+                tokenDataStore.saveToken(response.data.token, response.data.user.email, response.data.user.login)
                 Resource.Success(response.data)
             } else {
                 Resource.Error(response.message ?: "Google login failed")

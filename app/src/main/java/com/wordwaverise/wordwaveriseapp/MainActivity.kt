@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
                         AuthScreen(
                             state = authState,
                             onEmailChange = authViewModel::onEmailChange,
+                            onLoginChange = authViewModel::onLoginChange,
                             onPasswordChange = authViewModel::onPasswordChange,
                             onLogin = authViewModel::login,
                             onRegister = authViewModel::register,
@@ -121,6 +122,7 @@ class MainActivity : ComponentActivity() {
                                 val profileState by profileViewModel.state.collectAsState()
                                 ProfileScreen(
                                     userEmail = authState.userEmail ?: "",
+                                    userLogin = authState.userLogin,
                                     state = profileState,
                                     onLogout = { authViewModel.logout() }
                                 )
