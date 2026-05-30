@@ -51,8 +51,9 @@ fun AuthScreen(
     val context = LocalContext.current
 
     val googleSignInClient = remember {
+        val clientId = BuildConfig.GOOGLE_CLIENT_ID
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(BuildConfig.GOOGLE_CLIENT_ID)
+            .apply { if (clientId.isNotEmpty()) requestIdToken(clientId) }
             .requestEmail()
             .build()
         GoogleSignIn.getClient(context, gso)
