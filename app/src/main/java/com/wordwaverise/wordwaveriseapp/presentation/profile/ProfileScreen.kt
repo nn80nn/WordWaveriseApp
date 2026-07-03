@@ -12,6 +12,10 @@ import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,8 +32,17 @@ fun ProfileScreen(
     userLogin: String?,
     state: ProfileState,
     onLogout: () -> Unit,
+    deletionScheduledFor: String? = null,
+    deletionLoading: Boolean = false,
+    deletionError: String? = null,
+    onRequestDeletion: (String) -> Unit = {},
+    onCancelDeletion: () -> Unit = {},
+    onClearDeletionError: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deletePassword by remember { mutableStateOf("") }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -178,6 +191,40 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Danger zone
+        if (deletionScheduledFor != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                    Text(
+                        text = "Ваш аккаунт будет удалён: $deletionScheduledFor",
+                        fontSize = 13.sp,
+                        color = Error
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onCancelDeletion,
+                        enabled = !deletionLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (deletionLoading) "Отмена..." else "Отменить удаление")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        } else {
+            TextButton(
+                onClick = { showDeleteDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Удалить аккаунт", color = Error, fontSize = 14.sp)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         // Logout Button
         Button(
             onClick = onLogout,
@@ -196,6 +243,64 @@ fun ProfileScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteDialog = false
+                deletePassword = ""
+                onClearDeletionError()
+            },
+            title = { Text("Удалить аккаунт") },
+            text = {
+                Column {
+                    Text(
+                        "Аккаунт и все данные будут удалены безвозвратно через 30 дней. " +
+                            "Введите пароль для подтверждения.",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = deletePassword,
+                        onValueChange = { deletePassword = it },
+                        label = { Text("Пароль") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        enabled = !deletionLoading
+                    )
+                    if (deletionError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(deletionError, color = Error, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { onRequestDeletion(deletePassword) },
+                    enabled = !deletionLoading && deletePassword.isNotEmpty()
+                ) {
+                    Text("Удалить", color = Error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteDialog = false
+                    deletePassword = ""
+                    onClearDeletionError()
+                }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
+    androidx.compose.runtime.LaunchedEffect(deletionScheduledFor) {
+        if (deletionScheduledFor != null) {
+            showDeleteDialog = false
+            deletePassword = ""
+        }
     }
 }
 

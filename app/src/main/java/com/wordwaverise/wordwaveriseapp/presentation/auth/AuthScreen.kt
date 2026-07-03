@@ -44,8 +44,22 @@ fun AuthScreen(
     onLogin: () -> Unit,
     onRegister: () -> Unit,
     onLoginWithGoogle: (String) -> Unit,
+    onVerificationCodeChange: (String) -> Unit,
+    onVerifyEmail: () -> Unit,
+    onResendCode: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (state.needsVerification) {
+        VerificationScreen(
+            state = state,
+            onCodeChange = onVerificationCodeChange,
+            onVerify = onVerifyEmail,
+            onResend = onResendCode,
+            modifier = modifier
+        )
+        return
+    }
+
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Вход", "Регистрация")
     val context = LocalContext.current
@@ -219,6 +233,116 @@ fun AuthScreen(
                 fontSize = 13.sp,
                 color = TextTertiary
             )
+        }
+    }
+}
+
+@Composable
+private fun VerificationScreen(
+    state: AuthState,
+    onCodeChange: (String) -> Unit,
+    onVerify: () -> Unit,
+    onResend: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(BackgroundPrimary)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(60.dp))
+
+        Text(
+            text = "Подтвердите email",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryCyan
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Мы отправили 6-значный код на ${state.pendingEmail}",
+            fontSize = 14.sp,
+            color = TextSecondary
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                OutlinedTextField(
+                    value = state.verificationCode,
+                    onValueChange = { if (it.length <= 6) onCodeChange(it.filter(Char::isDigit)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Код подтверждения") },
+                    placeholder = { Text("123456") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = BackgroundSecondary,
+                        unfocusedContainerColor = BackgroundSecondary,
+                        focusedBorderColor = PrimaryCyan,
+                        unfocusedBorderColor = BorderLight,
+                        cursorColor = PrimaryCyan
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { onVerify() })
+                )
+
+                if (state.error != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(text = state.error, color = Error, fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                val submitEnabled = !state.isLoading && state.verificationCode.length == 6
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = if (submitEnabled) listOf(PrimaryBright, PrimaryCyan)
+                                         else listOf(PrimaryBright.copy(alpha = 0.5f), PrimaryCyan.copy(alpha = 0.5f))
+                            )
+                        )
+                        .clickable(enabled = submitEnabled) { onVerify() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
+                        Text(text = "Подтвердить", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TextButton(
+                    onClick = onResend,
+                    enabled = !state.resendLoading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (state.resendLoading) "Отправка..." else "Отправить код повторно",
+                        color = PrimaryCyan,
+                        fontSize = 13.sp
+                    )
+                }
+            }
         }
     }
 }

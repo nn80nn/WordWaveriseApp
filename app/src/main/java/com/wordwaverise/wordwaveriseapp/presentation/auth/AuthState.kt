@@ -8,5 +8,12 @@ data class AuthState(
     val error: String? = null,
     val isLoggedIn: Boolean = false,
     val userEmail: String? = null,
-    val userLogin: String? = null
+    val userLogin: String? = null,
+    val needsVerification: Boolean = false,
+    val pendingEmail: String = "",
+    val verificationCode: String = "",
+    val resendLoading: Boolean = false,
+    val deletionScheduledFor: String? = null,
+    val deletionActionLoading: Boolean = false,
+    val deletionError: String? = null
 )

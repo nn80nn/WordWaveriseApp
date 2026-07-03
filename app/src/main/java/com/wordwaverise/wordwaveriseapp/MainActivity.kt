@@ -65,6 +65,9 @@ class MainActivity : ComponentActivity() {
                             onLogin = authViewModel::login,
                             onRegister = authViewModel::register,
                             onLoginWithGoogle = authViewModel::loginWithGoogle,
+                            onVerificationCodeChange = authViewModel::onVerificationCodeChange,
+                            onVerifyEmail = authViewModel::verifyEmail,
+                            onResendCode = authViewModel::resendVerificationCode,
                             modifier = Modifier.padding(innerPadding)
                         )
                     } else {
@@ -124,7 +127,13 @@ class MainActivity : ComponentActivity() {
                                     userEmail = authState.userEmail ?: "",
                                     userLogin = authState.userLogin,
                                     state = profileState,
-                                    onLogout = { authViewModel.logout() }
+                                    onLogout = { authViewModel.logout() },
+                                    deletionScheduledFor = authState.deletionScheduledFor,
+                                    deletionLoading = authState.deletionActionLoading,
+                                    deletionError = authState.deletionError,
+                                    onRequestDeletion = { authViewModel.requestAccountDeletion(it) },
+                                    onCancelDeletion = { authViewModel.cancelAccountDeletion() },
+                                    onClearDeletionError = { authViewModel.clearDeletionError() }
                                 )
                             }
 

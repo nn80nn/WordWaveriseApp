@@ -12,6 +12,12 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.AuthResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.GoogleAuthRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.LoginRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.RegisterRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.RegisterResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.RequestDeletionRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.ResendVerificationRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.SimpleMessageResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.UserWrapperResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.VerifyEmailRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.*
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoriesResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoryResponse
@@ -45,13 +51,28 @@ interface ApiService {
 
     // Auth endpoints
     @POST("api/auth/register")
-    suspend fun register(@Body request: RegisterRequest): AuthResponse
+    suspend fun register(@Body request: RegisterRequest): RegisterResponse
+
+    @POST("api/auth/verify-email")
+    suspend fun verifyEmail(@Body request: VerifyEmailRequest): AuthResponse
+
+    @POST("api/auth/resend-verification")
+    suspend fun resendVerification(@Body request: ResendVerificationRequest): SimpleMessageResponse
 
     @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): AuthResponse
 
     @POST("api/auth/google")
     suspend fun loginWithGoogle(@Body request: GoogleAuthRequest): AuthResponse
+
+    @POST("api/auth/request-deletion")
+    suspend fun requestAccountDeletion(
+        @Header("Authorization") token: String,
+        @Body request: RequestDeletionRequest
+    ): UserWrapperResponse
+
+    @POST("api/auth/cancel-deletion")
+    suspend fun cancelAccountDeletion(@Header("Authorization") token: String): UserWrapperResponse
 
     // Saved words endpoints (require auth token)
     @POST("api/words/saved")

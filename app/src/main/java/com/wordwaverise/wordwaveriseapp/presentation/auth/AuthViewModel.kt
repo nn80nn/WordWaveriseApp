@@ -68,7 +68,13 @@ class AuthViewModel @Inject constructor(
                     )
                 }
                 is Resource.Error -> {
-                    _state.value = _state.value.copy(isLoading = false, error = result.message)
+                    if (result.message == AuthRepository.EMAIL_NOT_VERIFIED) {
+                        _state.value = _state.value.copy(
+                            isLoading = false, error = null, needsVerification = true, pendingEmail = email
+                        )
+                    } else {
+                        _state.value = _state.value.copy(isLoading = false, error = result.message)
+                    }
                 }
                 is Resource.Loading -> {
                     _state.value = _state.value.copy(isLoading = true)
@@ -88,7 +94,8 @@ class AuthViewModel @Inject constructor(
             when (val result = authRepository.register(email, password, login.ifBlank { null })) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
-                        isLoading = false, isLoggedIn = true, error = null, email = "", login = "", password = ""
+                        isLoading = false, error = null, needsVerification = true,
+                        pendingEmail = result.data?.email ?: email, password = ""
                     )
                 }
                 is Resource.Error -> {
@@ -98,6 +105,46 @@ class AuthViewModel @Inject constructor(
                     _state.value = _state.value.copy(isLoading = true)
                 }
             }
+        }
+    }
+
+    fun onVerificationCodeChange(code: String) {
+        _state.value = _state.value.copy(verificationCode = code, error = null)
+    }
+
+    fun verifyEmail() {
+        val email = _state.value.pendingEmail
+        val code = _state.value.verificationCode.trim()
+        if (code.length != 6) {
+            _state.value = _state.value.copy(error = "Код должен содержать 6 цифр")
+            return
+        }
+
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, error = null)
+            when (val result = authRepository.verifyEmail(email, code)) {
+                is Resource.Success -> {
+                    _state.value = _state.value.copy(
+                        isLoading = false, isLoggedIn = true, error = null,
+                        needsVerification = false, pendingEmail = "", verificationCode = ""
+                    )
+                }
+                is Resource.Error -> {
+                    _state.value = _state.value.copy(isLoading = false, error = result.message)
+                }
+                is Resource.Loading -> {
+                    _state.value = _state.value.copy(isLoading = true)
+                }
+            }
+        }
+    }
+
+    fun resendVerificationCode() {
+        val email = _state.value.pendingEmail
+        viewModelScope.launch {
+            _state.value = _state.value.copy(resendLoading = true)
+            authRepository.resendVerification(email)
+            _state.value = _state.value.copy(resendLoading = false)
         }
     }
 
@@ -114,6 +161,40 @@ class AuthViewModel @Inject constructor(
                 else -> {}
             }
         }
+    }
+
+    fun requestAccountDeletion(password: String) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(deletionActionLoading = true, deletionError = null)
+            when (val result = authRepository.requestAccountDeletion(password)) {
+                is Resource.Success -> _state.value = _state.value.copy(
+                    deletionActionLoading = false, deletionScheduledFor = result.data?.deletionScheduledFor
+                )
+                is Resource.Error -> _state.value = _state.value.copy(
+                    deletionActionLoading = false, deletionError = result.message
+                )
+                is Resource.Loading -> {}
+            }
+        }
+    }
+
+    fun cancelAccountDeletion() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(deletionActionLoading = true, deletionError = null)
+            when (val result = authRepository.cancelAccountDeletion()) {
+                is Resource.Success -> _state.value = _state.value.copy(
+                    deletionActionLoading = false, deletionScheduledFor = null
+                )
+                is Resource.Error -> _state.value = _state.value.copy(
+                    deletionActionLoading = false, deletionError = result.message
+                )
+                is Resource.Loading -> {}
+            }
+        }
+    }
+
+    fun clearDeletionError() {
+        _state.value = _state.value.copy(deletionError = null)
     }
 
     fun logout() {
