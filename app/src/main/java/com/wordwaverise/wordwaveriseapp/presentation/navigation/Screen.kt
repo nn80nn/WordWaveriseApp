@@ -11,31 +11,31 @@ sealed class Screen(
     data object Search : Screen(
         route = "search",
         title = "Поиск",
-        icon = R.drawable.search
+        icon = R.drawable.search2
     )
 
     data object Saved : Screen(
         route = "saved",
         title = "Сохранённые",
-        icon = R.drawable.save
+        icon = R.drawable.save2
     )
 
     data object Tasks : Screen(
         route = "tasks",
         title = "Задания",
-        icon = R.drawable.tacks
+        icon = R.drawable.tacks2
     )
 
     data object Profile : Screen(
         route = "profile",
         title = "Профиль",
-        icon = R.drawable.profile
+        icon = R.drawable.profile2
     )
 
     data object WordDetail : Screen(
         route = "word_detail/{word}",
         title = "Детали слова",
-        icon = R.drawable.search
+        icon = R.drawable.search2
     ) {
         fun createRoute(word: String) = "word_detail/$word"
     }
