@@ -140,7 +140,7 @@ private fun TasksOverview(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .heightIn(min = 56.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     brush = Brush.horizontalGradient(
@@ -148,7 +148,8 @@ private fun TasksOverview(
                                  else listOf(PrimaryBright.copy(alpha = 0.5f), PrimaryCyan.copy(alpha = 0.5f))
                     )
                 )
-                .clickable(enabled = dueCount > 0) { onStartSession() },
+                .clickable(enabled = dueCount > 0) { onStartSession() }
+                .padding(vertical = 8.dp, horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
@@ -174,14 +175,15 @@ private fun TasksOverview(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .heightIn(min = 56.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(
                         brush = Brush.horizontalGradient(
                             colors = listOf(PrimaryBlue.copy(alpha = 0.8f), PrimaryBright.copy(alpha = 0.8f))
                         )
                     )
-                    .clickable { onStartExercise() },
+                    .clickable { onStartExercise() }
+                    .padding(vertical = 8.dp, horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -204,14 +206,15 @@ private fun TasksOverview(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .heightIn(min = 56.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(
                         brush = Brush.horizontalGradient(
                             colors = listOf(PrimaryBlue, PrimaryCyan)
                         )
                     )
-                    .clickable { onStartMultipleChoice() },
+                    .clickable { onStartMultipleChoice() }
+                    .padding(vertical = 8.dp, horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -472,7 +475,7 @@ private fun FlippableCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(400.dp)
+            .heightIn(min = 400.dp)
             .graphicsLayer {
                 rotationY = rotation
                 cameraDistance = 12f * density
