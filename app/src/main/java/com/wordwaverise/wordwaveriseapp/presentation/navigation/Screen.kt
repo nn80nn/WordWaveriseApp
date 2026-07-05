@@ -16,7 +16,7 @@ sealed class Screen(
 
     data object Saved : Screen(
         route = "saved",
-        title = "Сохранённые",
+        title = "Слова",
         icon = R.drawable.save2
     )
 

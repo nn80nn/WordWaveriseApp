@@ -297,6 +297,26 @@ fun SearchScreen(
                         ) {
                             Spacer(modifier = Modifier.height(8.dp))
                             if (tab.sourceFilter == null) {
+                                // AI summary card — appears right under the main word block
+                                when {
+                                    state.isLoadingAiSummary -> {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                color = PrimaryCyan,
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
+                                    state.aiSummary != null -> {
+                                        AiSummaryCard(state.aiSummary)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
+                                }
                                 // "All" tab — compact rows grouped by source
                                 val grouped = defs.groupBy { it.source?.uppercase() ?: "API" }
                                 grouped.forEach { (sourceKey, sourceDefs) ->
@@ -325,26 +345,6 @@ fun SearchScreen(
                                     Spacer(modifier = Modifier.height(4.dp))
                                     CollapsibleThesaurus(synonyms = syns, antonyms = ants, onWordClick = onWordClick)
                                 }
-                                // AI summary card — appears in All tab after definitions
-                                when {
-                                    state.isLoadingAiSummary -> {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Box(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            CircularProgressIndicator(
-                                                color = PrimaryCyan,
-                                                modifier = Modifier.size(20.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                        }
-                                    }
-                                    state.aiSummary != null -> {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        AiSummaryCard(state.aiSummary)
-                                    }
-                                }
                             } else {
                                 // Source-specific tab — full cards (no synonyms inline)
                                 defs.forEach { def ->
@@ -363,6 +363,7 @@ fun SearchScreen(
 
 // ── Word header ───────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WordHeader(
     wordData: WordDto,
@@ -388,74 +389,26 @@ private fun WordHeader(
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // Word title gets almost the full card width — only a star button shares the row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
                 Text(
                     text = wordData.word,
-                    fontSize = 26.sp,
+                    fontSize = if (wordData.word.length > 12) 20.sp else 26.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-
-                // UK / US IPA row
-                val ukIpa = ukPron?.ipa
-                val usIpa = usPron?.ipa
-                if (ukIpa != null || usIpa != null) {
-                    Row(
-                        modifier = Modifier.padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ukIpa?.let { Text("UK $it", fontSize = 13.sp, color = TextSecondary) }
-                        usIpa?.let { Text("US $it", fontSize = 13.sp, color = TextSecondary) }
-                    }
-                } else {
-                    wordData.phonetic?.let {
-                        Text(text = it, fontSize = 13.sp, color = TextSecondary)
-                    }
-                }
-
-                wordData.translation?.let {
-                    Text(
-                        text = it,
-                        fontSize = 14.sp,
-                        color = PrimaryCyan,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // UK audio button
-                ukAudio?.let { url ->
-                    PronAudioButton(
-                        flag = if (usAudio != null) "UK" else null,
-                        url = url,
-                        isPlaying = isPlayingAudio && playingAudioUrl == url,
-                        onPlay = { onPlayAudio(url) },
-                        onStop = onStopAudio
-                    )
-                }
-                // US audio button
-                usAudio?.let { url ->
-                    PronAudioButton(
-                        flag = "US",
-                        url = url,
-                        isPlaying = isPlayingAudio && playingAudioUrl == url,
-                        onPlay = { onPlayAudio(url) },
-                        onStop = onStopAudio
-                    )
-                }
 
                 IconButton(onClick = if (isSaved) onUnsave else onSave) {
                     Icon(
@@ -465,6 +418,59 @@ private fun WordHeader(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+            }
+
+            // UK / US IPA + audio buttons — full width, wraps to a new line instead of
+            // squeezing/fragmenting when both regions and a long word don't fit on one line
+            val ukIpa = ukPron?.ipa
+            val usIpa = usPron?.ipa
+            if (ukIpa != null || usIpa != null || ukAudio != null || usAudio != null) {
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    ukIpa?.let {
+                        Text("UK $it", fontSize = 13.sp, color = TextSecondary, maxLines = 1, softWrap = false)
+                    }
+                    ukAudio?.let { url ->
+                        PronAudioButton(
+                            flag = null,
+                            url = url,
+                            isPlaying = isPlayingAudio && playingAudioUrl == url,
+                            onPlay = { onPlayAudio(url) },
+                            onStop = onStopAudio
+                        )
+                    }
+                    usIpa?.let {
+                        Text("US $it", fontSize = 13.sp, color = TextSecondary, maxLines = 1, softWrap = false)
+                    }
+                    usAudio?.let { url ->
+                        PronAudioButton(
+                            flag = null,
+                            url = url,
+                            isPlaying = isPlayingAudio && playingAudioUrl == url,
+                            onPlay = { onPlayAudio(url) },
+                            onStop = onStopAudio
+                        )
+                    }
+                }
+            } else {
+                wordData.phonetic?.let {
+                    Text(text = it, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp))
+                }
+            }
+
+            wordData.translation?.let {
+                Text(
+                    text = it,
+                    fontSize = 14.sp,
+                    color = PrimaryCyan,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }
