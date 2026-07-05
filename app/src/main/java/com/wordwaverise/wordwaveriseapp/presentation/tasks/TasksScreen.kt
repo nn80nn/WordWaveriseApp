@@ -497,7 +497,7 @@ private fun FlippableCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 400.dp)
+            .heightIn(min = 320.dp, max = 420.dp)
             .graphicsLayer {
                 rotationY = rotation
                 cameraDistance = 12f * density
