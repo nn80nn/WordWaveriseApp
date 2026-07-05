@@ -12,8 +12,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -76,7 +80,7 @@ fun WordDetailScreen(
             if ("CAMBRIDGE" in sources) add(DetailTab("Cambridge", "CAMBRIDGE"))
             if ("OXFORD" in sources || "OED" in sources) add(DetailTab("Oxford", "OXFORD"))
             add(DetailTab("Подробнее", "DETAILS"))
-            add(DetailTab("AI ✨", "AI"))
+            add(DetailTab("AI", "AI"))
         }
     }
     val pagerState = rememberPagerState(pageCount = { tabs.size })
@@ -125,7 +129,12 @@ fun WordDetailScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("❌", fontSize = 48.sp)
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = Error,
+                            modifier = Modifier.size(48.dp)
+                        )
                         Text(
                             error,
                             fontSize = 15.sp,
@@ -488,8 +497,8 @@ private fun WordHeaderCard(
                         modifier = Modifier.padding(top = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        ukIpa?.let { Text("🇬🇧 $it", fontSize = 13.sp, color = TextSecondary) }
-                        usIpa?.let { Text("🇺🇸 $it", fontSize = 13.sp, color = TextSecondary) }
+                        ukIpa?.let { Text("UK $it", fontSize = 13.sp, color = TextSecondary) }
+                        usIpa?.let { Text("US $it", fontSize = 13.sp, color = TextSecondary) }
                     }
                 } else {
                     val phonetic = selectedEntry?.phonetic ?: wordDetail.phonetic
@@ -524,7 +533,7 @@ private fun WordHeaderCard(
             ) {
                 ukAudio?.let { url ->
                     PronAudioButton(
-                        flag = if (usAudio != null) "🇬🇧" else null,
+                        flag = if (usAudio != null) "UK" else null,
                         url = url,
                         isPlaying = isPlayingAudio && playingAudioUrl == url,
                         onPlay = { onPlayAudio(url) },
@@ -533,7 +542,7 @@ private fun WordHeaderCard(
                 }
                 usAudio?.let { url ->
                     PronAudioButton(
-                        flag = "🇺🇸",
+                        flag = "US",
                         url = url,
                         isPlaying = isPlayingAudio && playingAudioUrl == url,
                         onPlay = { onPlayAudio(url) },
@@ -549,10 +558,11 @@ private fun WordHeaderCard(
                     )
                 } else {
                     IconButton(onClick = if (isSaved) onUnsave else onSave) {
-                        Text(
-                            text = if (isSaved) "★" else "☆",
-                            fontSize = 24.sp,
-                            color = if (isSaved) Warning else TextTertiary
+                        Icon(
+                            imageVector = if (isSaved) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = if (isSaved) "Убрать из сохранённых" else "Сохранить",
+                            tint = if (isSaved) Warning else TextTertiary,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -585,7 +595,7 @@ private fun PronAudioButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            if (flag != null) Text(text = flag, fontSize = 14.sp)
+            if (flag != null) Text(text = flag, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                 contentDescription = null,
@@ -995,7 +1005,13 @@ private fun AiInlineSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
-            Text("AI ✨", fontSize = 11.sp, color = TextTertiary, fontWeight = FontWeight.Medium)
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = null,
+                tint = TextTertiary,
+                modifier = Modifier.size(14.dp)
+            )
+            Text("AI", fontSize = 11.sp, color = TextTertiary, fontWeight = FontWeight.Medium)
             HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
         }
         AiSection(

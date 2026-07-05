@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -66,7 +67,10 @@ fun BottomNavigationBar(
                         Icon(
                             painter = painterResource(id = screen.icon),
                             contentDescription = screen.title,
-                            modifier = Modifier.size(24.dp)
+                            tint = Color.Unspecified,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .alpha(if (isSelected) 1f else 0.55f)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -80,9 +84,7 @@ fun BottomNavigationBar(
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = PrimaryCyan,
                     selectedTextColor = PrimaryCyan,
-                    unselectedIconColor = TextTertiary,
                     unselectedTextColor = TextTertiary,
                     indicatorColor = PrimaryCyan.copy(alpha = 0.1f)
                 )

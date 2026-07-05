@@ -13,10 +13,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -218,7 +222,12 @@ fun SearchScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("🔍", fontSize = 56.sp)
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = TextTertiary,
+                                modifier = Modifier.size(56.dp)
+                            )
                             Text(
                                 "Введите слово и нажмите поиск",
                                 fontSize = 15.sp,
@@ -236,7 +245,12 @@ fun SearchScreen(
                             modifier = Modifier.padding(32.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("❌", fontSize = 40.sp)
+                            Icon(
+                                imageVector = Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                tint = Error,
+                                modifier = Modifier.size(40.dp)
+                            )
                             Text(
                                 state.error,
                                 fontSize = 15.sp,
@@ -397,8 +411,8 @@ private fun WordHeader(
                         modifier = Modifier.padding(top = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        ukIpa?.let { Text("🇬🇧 $it", fontSize = 13.sp, color = TextSecondary) }
-                        usIpa?.let { Text("🇺🇸 $it", fontSize = 13.sp, color = TextSecondary) }
+                        ukIpa?.let { Text("UK $it", fontSize = 13.sp, color = TextSecondary) }
+                        usIpa?.let { Text("US $it", fontSize = 13.sp, color = TextSecondary) }
                     }
                 } else {
                     wordData.phonetic?.let {
@@ -425,7 +439,7 @@ private fun WordHeader(
                 // UK audio button
                 ukAudio?.let { url ->
                     PronAudioButton(
-                        flag = if (usAudio != null) "🇬🇧" else null,
+                        flag = if (usAudio != null) "UK" else null,
                         url = url,
                         isPlaying = isPlayingAudio && playingAudioUrl == url,
                         onPlay = { onPlayAudio(url) },
@@ -435,7 +449,7 @@ private fun WordHeader(
                 // US audio button
                 usAudio?.let { url ->
                     PronAudioButton(
-                        flag = "🇺🇸",
+                        flag = "US",
                         url = url,
                         isPlaying = isPlayingAudio && playingAudioUrl == url,
                         onPlay = { onPlayAudio(url) },
@@ -444,10 +458,11 @@ private fun WordHeader(
                 }
 
                 IconButton(onClick = if (isSaved) onUnsave else onSave) {
-                    Text(
-                        text = if (isSaved) "★" else "☆",
-                        fontSize = 24.sp,
-                        color = if (isSaved) Warning else TextTertiary
+                    Icon(
+                        imageVector = if (isSaved) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = if (isSaved) "Убрать из сохранённых" else "Сохранить",
+                        tint = if (isSaved) Warning else TextTertiary,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -481,7 +496,7 @@ private fun PronAudioButton(
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             if (flag != null) {
-                Text(text = flag, fontSize = 14.sp)
+                Text(text = flag, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             }
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -827,7 +842,12 @@ private fun AiSummaryCard(summary: String) {
             modifier = Modifier.padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("✨", fontSize = 16.sp)
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = null,
+                tint = PrimaryCyan,
+                modifier = Modifier.size(18.dp)
+            )
             Text(
                 text = summary,
                 fontSize = 13.sp,

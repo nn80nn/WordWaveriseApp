@@ -13,6 +13,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -436,11 +438,11 @@ private fun AuthForm(
                 Icon(imageVector = Icons.Default.Lock, contentDescription = "Пароль", tint = PrimaryCyan)
             },
             trailingIcon = {
-                TextButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Text(
-                        text = if (passwordVisible) "👁" else "👁‍🗨",
-                        fontSize = 20.sp,
-                        color = TextTertiary
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = if (passwordVisible) "Скрыть пароль" else "Показать пароль",
+                        tint = TextTertiary
                     )
                 }
             },

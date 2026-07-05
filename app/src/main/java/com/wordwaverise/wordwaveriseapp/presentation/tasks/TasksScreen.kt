@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -124,12 +125,12 @@ private fun TasksOverview(
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
                 StatItem(
-                    icon = "🔥",
+                    icon = Icons.Default.LocalFireDepartment,
                     label = "К повторению",
                     value = "$dueCount"
                 )
                 StatItem(
-                    icon = "📚",
+                    icon = Icons.Default.Book,
                     label = "Всего карточек",
                     value = "$totalCount"
                 )
@@ -190,7 +191,7 @@ private fun TasksOverview(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("✨", fontSize = 18.sp)
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     Text(
                         text = "AI Упражнения",
                         color = Color.White,
@@ -221,7 +222,7 @@ private fun TasksOverview(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("🎯", fontSize = 18.sp)
+                    Icon(Icons.Default.GpsFixed, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     Text(
                         text = "Выбор ответа",
                         color = Color.White,
@@ -242,9 +243,11 @@ private fun TasksOverview(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "💡",
-                        fontSize = 48.sp
+                    Icon(
+                        imageVector = Icons.Default.Lightbulb,
+                        contentDescription = null,
+                        tint = Warning,
+                        modifier = Modifier.size(48.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -269,16 +272,18 @@ private fun TasksOverview(
 
 @Composable
 private fun StatItem(
-    icon: String,
+    icon: ImageVector,
     label: String,
     value: String
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = icon,
-            fontSize = 40.sp
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = PrimaryCyan,
+            modifier = Modifier.size(36.dp)
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
@@ -291,6 +296,29 @@ private fun StatItem(
         Text(
             text = label,
             fontSize = 13.sp,
+            color = TextTertiary,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun FlipHint(text: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.TouchApp,
+            contentDescription = null,
+            tint = TextTertiary,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = text,
+            fontSize = 12.sp,
             color = TextTertiary,
             textAlign = TextAlign.Center
         )
@@ -401,7 +429,7 @@ private fun FlashcardSession(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("❌", fontSize = 20.sp)
+                        Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Text(
                             "Не знаю",
                             fontSize = 16.sp,
@@ -427,7 +455,7 @@ private fun FlashcardSession(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("✅", fontSize = 20.sp)
+                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Text(
                             "Знаю",
                             fontSize = 16.sp,
@@ -440,13 +468,7 @@ private fun FlashcardSession(
 
         // Hint to flip
         if (!isFlipped) {
-            Text(
-                text = "👆 Нажмите на карточку чтобы увидеть ответ",
-                fontSize = 13.sp,
-                color = TextTertiary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+            FlipHint(text = "Нажмите на карточку чтобы увидеть ответ", modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -519,12 +541,7 @@ private fun FlippableCard(
                             )
                         }
                         Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            "👆 Нажмите чтобы увидеть определение",
-                            fontSize = 12.sp,
-                            color = TextTertiary,
-                            textAlign = TextAlign.Center
-                        )
+                        FlipHint(text = "Нажмите чтобы увидеть определение")
                     }
                 } else {
                     // Definition side first
@@ -541,12 +558,7 @@ private fun FlippableCard(
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            "👆 Нажмите чтобы увидеть слово",
-                            fontSize = 12.sp,
-                            color = TextTertiary,
-                            textAlign = TextAlign.Center
-                        )
+                        FlipHint(text = "Нажмите чтобы увидеть слово")
                     }
                 }
             } else {
@@ -702,7 +714,7 @@ private fun MultipleChoiceMode(
                 Icon(Icons.Default.Close, contentDescription = "Выход", tint = TextPrimary)
             }
             Text(
-                text = "🎯 Выбор ответа",
+                text = "Выбор ответа",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -791,8 +803,12 @@ private fun MultipleChoiceMode(
                             lineHeight = 20.sp,
                             modifier = Modifier.weight(1f)
                         )
-                        if (answered && isCorrect) Text("✓", fontSize = 16.sp, color = Success)
-                        if (answered && isSelected && !isCorrect) Text("✗", fontSize = 16.sp, color = Error)
+                        if (answered && isCorrect) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = Success, modifier = Modifier.size(18.dp))
+                        }
+                        if (answered && isSelected && !isCorrect) {
+                            Icon(Icons.Default.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }
@@ -849,7 +865,7 @@ private fun ExerciseMode(
                 )
             }
             Text(
-                text = "✨ AI Упражнения",
+                text = "AI Упражнения",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -871,7 +887,12 @@ private fun ExerciseMode(
             error != null -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("😔", fontSize = 48.sp)
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = TextTertiary,
+                            modifier = Modifier.size(48.dp)
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(error, fontSize = 14.sp, color = Error, textAlign = TextAlign.Center)
                         Spacer(modifier = Modifier.height(16.dp))
@@ -953,7 +974,12 @@ private fun ExerciseMode(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(if (isCorrect) "✅" else "❌", fontSize = 24.sp)
+                            Icon(
+                                imageVector = if (isCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                contentDescription = null,
+                                tint = if (isCorrect) Success else Error,
+                                modifier = Modifier.size(24.dp)
+                            )
                             Column {
                                 Text(
                                     text = if (isCorrect) "Правильно!" else "Неправильно",
@@ -1010,9 +1036,11 @@ private fun SessionComplete(onExit: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            text = "🎉",
-            fontSize = 80.sp
+        Icon(
+            imageVector = Icons.Default.EmojiEvents,
+            contentDescription = null,
+            tint = Warning,
+            modifier = Modifier.size(80.dp)
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(

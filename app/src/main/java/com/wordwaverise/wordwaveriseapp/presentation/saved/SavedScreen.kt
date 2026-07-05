@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
@@ -259,7 +261,8 @@ private fun WordCard(
                     Text(formatDate(word.savedAt), fontSize = 12.sp, color = TextTertiary)
                     if (word.isSynced) {
                         Text("·", fontSize = 12.sp, color = TextTertiary)
-                        Text("✓ синхр.", fontSize = 11.sp, color = Success)
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Success, modifier = Modifier.size(11.dp))
+                        Text("синхр.", fontSize = 11.sp, color = Success)
                     }
                     if (categoryName != null) {
                         Text("·", fontSize = 12.sp, color = TextTertiary)
@@ -282,10 +285,15 @@ private fun EmptyState() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.padding(32.dp)
         ) {
-            Text("📚", fontSize = 64.sp)
+            Icon(
+                imageVector = Icons.Default.Book,
+                contentDescription = null,
+                tint = TextTertiary,
+                modifier = Modifier.size(64.dp)
+            )
             Text("Нет сохранённых слов", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Text(
-                "Найдите слово и нажмите ☆ чтобы сохранить",
+                "Найдите слово и нажмите на звезду, чтобы сохранить",
                 fontSize = 14.sp, color = TextSecondary, textAlign = TextAlign.Center, lineHeight = 20.sp
             )
         }
