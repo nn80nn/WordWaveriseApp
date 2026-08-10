@@ -95,55 +95,57 @@ class SearchViewModel @Inject constructor(
                 contextAnalysis = null
             )
 
-            when (val result = searchRepository.lookup(query)) {
-                is Resource.Success -> {
-                    val data = result.data
-                    if (data == null) {
+            // Collected rather than awaited: a cold word streams an immediate raw response and
+            // then the finished article, so each emission replaces the last on screen.
+            searchRepository.lookup(query).collect { result ->
+                when (result) {
+                    is Resource.Success -> {
+                        val data = result.data ?: return@collect
                         _state.value = _state.value.copy(
-                            isLoading = false, hasSearched = true, error = "Слово не найдено"
+                            isLoading = false,
+                            hasSearched = true,
+                            error = null,
+                            notice = data.notice,
+                            entry = data.entry,
+                            annotationPending = data.annotationStatus == "PENDING",
+                            annotationDegraded = data.annotationStatus == "DEGRADED",
+                            wordData = data.raw?.toWordDto(),
+                            // A sentence has no headword — its words become tappable instead.
+                            sentenceText = data.tokenized?.text.orEmpty(),
+                            sentenceTokens = data.tokenized?.tokens.orEmpty(),
+                            isRussianSearch = data.ruEn != null,
+                            russianQuery = if (data.ruEn != null) query else "",
+                            ruEnCandidates = data.ruEn?.candidates.orEmpty(),
+                            ruEnNote = data.ruEn?.note,
+                            ruEnAmbiguous = data.ruEn?.isAmbiguous ?: false
                         )
-                        return@launch
+
+                        data.entry?.lemma?.takeIf { it.isNotBlank() }?.let { checkIfWordIsSaved(it) }
+
+                        // Nothing to show at all — offer alternatives rather than a bare error.
+                        val empty = data.entry == null && data.raw == null &&
+                            data.ruEn == null && data.tokenized == null
+                        if (empty) {
+                            _state.value = _state.value.copy(error = "Слово не найдено")
+                            fetchSuggestions(query, prefix = false)
+                        }
                     }
-
-                    _state.value = _state.value.copy(
-                        isLoading = false,
-                        hasSearched = true,
-                        error = null,
-                        notice = data.notice,
-                        entry = data.entry,
-                        annotationPending = data.annotationStatus == "PENDING",
-                        annotationDegraded = data.annotationStatus == "DEGRADED",
-                        wordData = data.raw?.toWordDto(),
-                        // A sentence has no headword — its words become tappable instead.
-                        sentenceText = data.tokenized?.text.orEmpty(),
-                        sentenceTokens = data.tokenized?.tokens.orEmpty(),
-                        isRussianSearch = data.ruEn != null,
-                        russianQuery = if (data.ruEn != null) query else "",
-                        ruEnCandidates = data.ruEn?.candidates.orEmpty(),
-                        ruEnNote = data.ruEn?.note,
-                        ruEnAmbiguous = data.ruEn?.isAmbiguous ?: false
-                    )
-
-                    data.entry?.lemma?.takeIf { it.isNotBlank() }?.let { checkIfWordIsSaved(it) }
-
-                    // Nothing to show at all — offer alternatives rather than a bare error.
-                    val empty = data.entry == null && data.raw == null &&
-                        data.ruEn == null && data.tokenized == null
-                    if (empty) {
-                        _state.value = _state.value.copy(error = "Слово не найдено")
+                    is Resource.Error -> {
+                        Log.e(TAG, "Lookup error: ${result.message}")
+                        _state.value = _state.value.copy(
+                            isLoading = false,
+                            error = result.message,
+                            hasSearched = true
+                        )
                         fetchSuggestions(query, prefix = false)
                     }
+                    is Resource.Loading -> _state.value = _state.value.copy(isLoading = true)
                 }
-                is Resource.Error -> {
-                    Log.e(TAG, "Lookup error: ${result.message}")
-                    _state.value = _state.value.copy(
-                        isLoading = false,
-                        error = result.message,
-                        hasSearched = true
-                    )
-                    fetchSuggestions(query, prefix = false)
-                }
-                is Resource.Loading -> _state.value = _state.value.copy(isLoading = true)
+            }
+
+            // Stop the spinner if the article never landed; the sources view stays usable.
+            if (_state.value.annotationPending) {
+                _state.value = _state.value.copy(annotationPending = false)
             }
         }
     }

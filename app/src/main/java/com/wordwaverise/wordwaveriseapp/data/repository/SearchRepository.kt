@@ -10,6 +10,8 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.RuEnCandidatesDt
 import com.wordwaverise.wordwaveriseapp.util.NetworkError
 import com.wordwaverise.wordwaveriseapp.util.Resource
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,6 +21,9 @@ class SearchRepository @Inject constructor(
 ) {
     companion object {
         private const val TAG = "SearchRepository"
+
+        /** A cold article takes one to three minutes to write; give up well after that. */
+        private const val ANNOTATION_POLL_TIMEOUT_MS = 4 * 60 * 1000L
     }
 
     suspend fun searchWord(word: String): Resource<WordDto> {
@@ -60,31 +65,41 @@ class SearchRepository @Inject constructor(
     }
 
     /**
-     * v2 lookup: resolves the query and returns the annotated article.
+     * v2 lookup, emitting each response as it arrives.
      *
-     * A cold word answers PENDING with the raw data while annotation finishes in the background,
-     * so we re-issue once after the server's own retryAfterMs. The retry lives here rather than
-     * in the ViewModel so callers see a single result, and it is capped at one attempt — a second
-     * PENDING means the article is slow, not lost, and the raw data is already on screen.
+     * A cold word answers PENDING with the raw data immediately and finishes the article in the
+     * background, so this keeps asking until it lands. It is a Flow rather than a single value
+     * because both halves of the answer improve over time: the article appears, and the raw
+     * aggregate widens — the first response carries only the fast API sources, and Cambridge and
+     * Oxford arrive once the background job's own fetch completes.
      */
-    suspend fun lookup(query: String): Resource<LookupResponseDto> {
-        if (query.isBlank()) return Resource.Error("Пожалуйста, введите слово для поиска")
+    fun lookup(query: String): Flow<Resource<LookupResponseDto>> = flow {
+        if (query.isBlank()) {
+            emit(Resource.Error("Пожалуйста, введите слово для поиска"))
+            return@flow
+        }
 
-        return try {
-            val first = apiService.lookup(query.trim())
-            if (first.status != "ok" || first.data == null) {
-                return Resource.Error(first.message ?: "Слово не найдено")
+        val deadline = System.currentTimeMillis() + ANNOTATION_POLL_TIMEOUT_MS
+        try {
+            var response = apiService.lookup(query.trim())
+            if (response.status != "ok" || response.data == null) {
+                emit(Resource.Error(response.message ?: "Слово не найдено"))
+                return@flow
             }
+            emit(Resource.Success(response.data!!))
 
-            val data = first.data
-            if (data.annotationStatus != "PENDING") return Resource.Success(data)
-
-            delay((data.retryAfterMs ?: 2500).toLong().coerceIn(500L, 6000L))
-            val second = apiService.lookup(query.trim())
-            Resource.Success(second.data ?: data)
+            while (response.data!!.annotationStatus == "PENDING" &&
+                System.currentTimeMillis() < deadline
+            ) {
+                delay((response.data!!.retryAfterMs ?: 5000).toLong().coerceIn(1500L, 10_000L))
+                val next = apiService.lookup(query.trim())
+                if (next.status != "ok" || next.data == null) break
+                response = next
+                emit(Resource.Success(response.data!!))
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Lookup failed for '$query': ${e.message}", e)
-            Resource.Error(NetworkError.getErrorMessage(e))
+            emit(Resource.Error(NetworkError.getErrorMessage(e)))
         }
     }
 
