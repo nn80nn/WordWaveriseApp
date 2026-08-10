@@ -24,6 +24,10 @@ class SearchRepository @Inject constructor(
 
         /** A cold article takes one to three minutes to write; give up well after that. */
         private const val ANNOTATION_POLL_TIMEOUT_MS = 4 * 60 * 1000L
+
+        /** Failures the server retries on its own, so they are worth waiting out. */
+        private val TRANSIENT_ANNOTATION_FAILURES = setOf("llm_call_failed", "llm_timeout")
+        private const val MAX_CONSECUTIVE_POLL_FAILURES = 3
     }
 
     suspend fun searchWord(word: String): Resource<WordDto> {
@@ -79,29 +83,61 @@ class SearchRepository @Inject constructor(
             return@flow
         }
 
-        val deadline = System.currentTimeMillis() + ANNOTATION_POLL_TIMEOUT_MS
-        try {
-            var response = apiService.lookup(query.trim())
-            if (response.status != "ok" || response.data == null) {
-                emit(Resource.Error(response.message ?: "Слово не найдено"))
-                return@flow
-            }
-            emit(Resource.Success(response.data!!))
-
-            while (response.data!!.annotationStatus == "PENDING" &&
-                System.currentTimeMillis() < deadline
-            ) {
-                delay((response.data!!.retryAfterMs ?: 5000).toLong().coerceIn(1500L, 10_000L))
-                val next = apiService.lookup(query.trim())
-                if (next.status != "ok" || next.data == null) break
-                response = next
-                emit(Resource.Success(response.data!!))
-            }
+        val first = try {
+            apiService.lookup(query.trim())
         } catch (e: Exception) {
             Log.e(TAG, "Lookup failed for '$query': ${e.message}", e)
             emit(Resource.Error(NetworkError.getErrorMessage(e)))
+            return@flow
+        }
+
+        if (first.status != "ok" || first.data == null) {
+            emit(Resource.Error(first.message ?: "Слово не найдено"))
+            return@flow
+        }
+
+        var current = first.data!!
+        emit(Resource.Success(current))
+
+        val deadline = System.currentTimeMillis() + ANNOTATION_POLL_TIMEOUT_MS
+        var consecutiveFailures = 0
+
+        while (System.currentTimeMillis() < deadline && shouldKeepPolling(current)) {
+            delay(pollDelay(current))
+            try {
+                val next = apiService.lookup(query.trim())
+                if (next.status == "ok" && next.data != null) {
+                    current = next.data!!
+                    emit(Resource.Success(current))
+                    consecutiveFailures = 0
+                    continue
+                }
+                consecutiveFailures++
+            } catch (e: Exception) {
+                // A blip while polling must not erase what is already on screen: the first
+                // response succeeded, so the user has definitions in front of them.
+                Log.d(TAG, "Poll for '$query' failed, retrying: ${e.message}")
+                consecutiveFailures++
+            }
+            if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) break
         }
     }
+
+    /**
+     * A degraded article is not necessarily final: the server caches a rate-limited or timed-out
+     * annotation only briefly and then retries it. Giving up at the first DEGRADED is what made
+     * reopening the screen produce an article that waiting never showed.
+     */
+    private fun shouldKeepPolling(data: LookupResponseDto): Boolean = when (data.annotationStatus) {
+        "PENDING" -> true
+        "DEGRADED" -> data.annotationNote in TRANSIENT_ANNOTATION_FAILURES
+        else -> false
+    }
+
+    private fun pollDelay(data: LookupResponseDto): Long =
+        // Nothing will change until the server's own retry window elapses, so ask less often.
+        if (data.annotationStatus == "DEGRADED") 15_000L
+        else (data.retryAfterMs ?: 5000).toLong().coerceIn(1500L, 10_000L)
 
     suspend fun analyzeInContext(text: String, tokenIndex: Int): Resource<ContextAnalysisDto> {
         return try {
