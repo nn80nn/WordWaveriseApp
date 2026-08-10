@@ -37,6 +37,10 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.DefinitionDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
+import com.wordwaverise.wordwaveriseapp.presentation.search.components.ArticleView
+import com.wordwaverise.wordwaveriseapp.presentation.search.components.NoticeBar
+import com.wordwaverise.wordwaveriseapp.presentation.search.components.RuEnCandidatesView
+import com.wordwaverise.wordwaveriseapp.presentation.search.components.SentenceView
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 import androidx.compose.ui.text.style.TextOverflow
 
@@ -68,13 +72,17 @@ fun SearchScreen(
     onStopAudio: () -> Unit,
     onWordClick: (String) -> Unit,
     onSelectSuggestion: (String) -> Unit = {},
+    onSearchOriginal: (String) -> Unit = {},
+    onTokenClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // Build tabs dynamically based on available sources in the current word data
-    val tabs = remember(state.wordData?.word) {
+    // The annotated article leads; the per-dictionary tabs stay as a way to check it against
+    // the sources it was built from.
+    val tabs = remember(state.entry?.lemma, state.wordData?.word, state.annotationPending) {
         val sources = state.wordData?.definitions?.mapNotNull { it.source?.uppercase() }?.toSet().orEmpty()
         buildList {
-            add(DictTab("All", null))
+            if (state.entry != null || state.annotationPending) add(DictTab("Статья", "ARTICLE"))
+            add(DictTab("Источники", null))
             if ("WIKTIONARY" in sources) add(DictTab("Wiktionary", "WIKTIONARY"))
             if ("CAMBRIDGE" in sources) add(DictTab("Cambridge", "CAMBRIDGE"))
             if ("OXFORD" in sources || "OED" in sources) add(DictTab("Oxford", "OXFORD"))
@@ -86,7 +94,7 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
 
     // Reset to first tab when word changes
-    LaunchedEffect(state.wordData?.word) { pagerState.scrollToPage(0) }
+    LaunchedEffect(state.entry?.lemma, state.wordData?.word) { pagerState.scrollToPage(0) }
 
     Column(
         modifier = modifier
@@ -136,12 +144,20 @@ fun SearchScreen(
         // ── Suggestions strip (English spelling/autocomplete only) ────────
         // Russian candidates are shown in RuTranslationPanel below, not here
         // Hide suggestions after a successful search (word found)
-        if (state.suggestions.isNotEmpty() && !state.isRussianSearch && state.wordData == null) {
+        if (state.suggestions.isNotEmpty() && !state.isRussianSearch &&
+            state.wordData == null && state.entry == null
+        ) {
             SuggestionsRow(suggestions = state.suggestions, onSelect = onSelectSuggestion)
         }
 
-        // ── Small dictionary tabs (hidden when showing Russian panel) ─────
-        if (!state.isRussianSearch) Row(
+        // A correction the server applied — shown above everything, and reversible.
+        state.notice?.let { notice ->
+            NoticeBar(notice = notice, onSearchOriginal = onSearchOriginal)
+        }
+
+        // ── Dictionary tabs (only when the query resolved to an actual word) ──
+        val showTabs = !state.isRussianSearch && !state.isSentenceMode
+        if (showTabs) Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
@@ -174,7 +190,7 @@ fun SearchScreen(
         Spacer(modifier = Modifier.height(4.dp))
 
         // ── Word header (outside pager — visible on all tabs) ─────────────
-        if (state.wordData != null) {
+        if (state.wordData != null && showTabs) {
             WordHeader(
                 wordData = state.wordData,
                 isSaved = isSaved,
@@ -202,18 +218,25 @@ fun SearchScreen(
                 }
 
                 state.isRussianSearch -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        RuTranslationPanel(
-                            query = state.russianQuery,
-                            candidates = state.suggestions,
-                            isLoading = state.isFetchingSuggestions,
-                            onWordClick = onSelectSuggestion
-                        )
-                    }
+                    RuEnCandidatesView(
+                        query = state.russianQuery,
+                        candidates = state.ruEnCandidates,
+                        note = state.ruEnNote,
+                        isAmbiguous = state.ruEnAmbiguous,
+                        isLoading = state.isFetchingSuggestions,
+                        onSelect = onSelectSuggestion
+                    )
+                }
+
+                state.isSentenceMode -> {
+                    SentenceView(
+                        tokens = state.sentenceTokens,
+                        selectedIndex = state.selectedTokenIndex,
+                        analysis = state.contextAnalysis,
+                        isAnalyzing = state.isAnalyzingContext,
+                        onTokenClick = onTokenClick,
+                        onOpenArticle = onSelectSuggestion
+                    )
                 }
 
                 !state.hasSearched -> {
@@ -261,6 +284,41 @@ fun SearchScreen(
                     }
                 }
 
+                tab.sourceFilter == "ARTICLE" -> {
+                    val entry = state.entry
+                    if (entry != null) {
+                        ArticleView(entry = entry, onWordClick = onWordClick)
+                    } else {
+                        // Annotation is still running. The definitions are already on the
+                        // sources tab, so this waits for the article rather than for data.
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = PrimaryCyan,
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "Собираем статью…",
+                                fontSize = 14.sp,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                "Определения уже доступны на вкладке «Источники»",
+                                fontSize = 12.sp,
+                                color = TextTertiary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(top = 4.dp, start = 32.dp, end = 32.dp)
+                            )
+                        }
+                    }
+                }
+
                 tab.sourceFilter == "DETAILS" -> {
                     DetailsPage(wordData = state.wordData, onWordClick = onWordClick)
                 }
@@ -297,26 +355,10 @@ fun SearchScreen(
                         ) {
                             Spacer(modifier = Modifier.height(8.dp))
                             if (tab.sourceFilter == null) {
-                                // AI summary card — appears right under the main word block
-                                when {
-                                    state.isLoadingAiSummary -> {
-                                        Box(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            CircularProgressIndicator(
-                                                color = PrimaryCyan,
-                                                modifier = Modifier.size(20.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                    }
-                                    state.aiSummary != null -> {
-                                        AiSummaryCard(state.aiSummary)
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                    }
-                                }
+                                // The AI summary that used to sit here is gone: the article
+                                // replaces it, and two descriptions of one word on the same
+                                // screen — one grounded, one not — eventually contradict
+                                // each other, which is corrosive in a dictionary.
                                 // "All" tab — compact rows grouped by source
                                 val grouped = defs.groupBy { it.source?.uppercase() ?: "API" }
                                 grouped.forEach { (sourceKey, sourceDefs) ->

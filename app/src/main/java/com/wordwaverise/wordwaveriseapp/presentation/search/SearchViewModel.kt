@@ -11,6 +11,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.DefinitionDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.PronunciationDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
 import com.wordwaverise.wordwaveriseapp.data.repository.SearchRepository
 import com.wordwaverise.wordwaveriseapp.util.Resource
 import javax.inject.Inject
@@ -36,103 +40,141 @@ class SearchViewModel @Inject constructor(
     private var suggestJob: Job? = null
 
     fun onSearchQueryChange(query: String) {
-        Log.d(TAG, "Search query changed: $query")
         _state.value = _state.value.copy(
             searchQuery = query,
             error = null,
-            suggestions = emptyList(),
-            isRussianSearch = false,
-            russianQuery = ""
+            suggestions = emptyList()
         )
         suggestJob?.cancel()
-        when {
-            // Russian input — translate to English candidates (immediate)
-            query.length >= 2 && query.any { it in '\u0400'..'\u04FF' } -> {
-                fetchSuggestions(query, prefix = false)
-            }
-            // English input — prefix autocomplete with 300ms debounce
-            query.length >= 2 && query.none { it in '\u0400'..'\u04FF' } -> {
-                suggestJob = viewModelScope.launch {
-                    delay(300)
-                    fetchSuggestions(query, prefix = true)
-                }
+        // Autocomplete English single words only. Russian input is answered by the lookup itself
+        // now, with explained options, so pre-fetching bare strings while typing is just noise.
+        val isEnglishWord = query.length >= 2 &&
+            query.none { it in 'Ѐ'..'ӿ' } &&
+            !query.trim().contains(' ')
+        if (isEnglishWord) {
+            suggestJob = viewModelScope.launch {
+                delay(300)
+                fetchSuggestions(query, prefix = true)
             }
         }
     }
 
+    /**
+     * One entry point for every kind of input.
+     *
+     * The server decides what the query is — a word, a typo, an inflected form, a phrase, a
+     * sentence, or Russian — so the client no longer sniffs for Cyrillic or guesses at intent.
+     */
     fun searchWord() {
         val query = _state.value.searchQuery.trim()
         if (query.isEmpty()) {
-            Log.w(TAG, "Search attempted with empty query")
-            _state.value = _state.value.copy(
-                error = "Пожалуйста, введите слово для поиска"
-            )
+            _state.value = _state.value.copy(error = "Пожалуйста, введите слово для поиска")
             return
         }
 
-        // Russian query — show translation panel instead of fetching from dictionary
-        val isRussian = query.any { it in '\u0400'..'\u04FF' }
-        if (isRussian) {
-            Log.d(TAG, "Russian query detected: '$query' — showing translation panel")
-            _state.value = _state.value.copy(
-                isRussianSearch = true,
-                russianQuery = query,
-                wordData = null,
-                error = null,
-                isLoading = false,
-                hasSearched = true
-            )
-            // Suggestions may already be loading from onSearchQueryChange; kick off if not
-            if (_state.value.suggestions.isEmpty() && !_state.value.isFetchingSuggestions) {
-                fetchSuggestions(query, prefix = false)
-            }
-            return
-        }
-
-        Log.d(TAG, "Starting search for: $query")
+        Log.d(TAG, "Looking up: $query")
         viewModelScope.launch {
             _state.value = _state.value.copy(
                 isLoading = true,
                 error = null,
+                notice = null,
                 wordData = null,
+                entry = null,
+                annotationPending = false,
+                annotationDegraded = false,
                 hasSearched = false,
+                suggestions = emptyList(),
                 isRussianSearch = false,
                 russianQuery = "",
-                suggestions = emptyList(),
-                aiSummary = null,
-                isLoadingAiSummary = false
+                ruEnCandidates = emptyList(),
+                ruEnNote = null,
+                ruEnAmbiguous = false,
+                sentenceText = "",
+                sentenceTokens = emptyList(),
+                selectedTokenIndex = null,
+                contextAnalysis = null
             )
 
-            when (val result = searchRepository.searchWord(query)) {
+            when (val result = searchRepository.lookup(query)) {
                 is Resource.Success -> {
-                    Log.d(TAG, "Search success! Word data: ${result.data}")
+                    val data = result.data
+                    if (data == null) {
+                        _state.value = _state.value.copy(
+                            isLoading = false, hasSearched = true, error = "Слово не найдено"
+                        )
+                        return@launch
+                    }
+
                     _state.value = _state.value.copy(
                         isLoading = false,
-                        wordData = result.data,
+                        hasSearched = true,
                         error = null,
-                        hasSearched = true
+                        notice = data.notice,
+                        entry = data.entry,
+                        annotationPending = data.annotationStatus == "PENDING",
+                        annotationDegraded = data.annotationStatus == "DEGRADED",
+                        wordData = data.raw?.toWordDto(),
+                        // A sentence has no headword — its words become tappable instead.
+                        sentenceText = data.tokenized?.text.orEmpty(),
+                        sentenceTokens = data.tokenized?.tokens.orEmpty(),
+                        isRussianSearch = data.ruEn != null,
+                        russianQuery = if (data.ruEn != null) query else "",
+                        ruEnCandidates = data.ruEn?.candidates.orEmpty(),
+                        ruEnNote = data.ruEn?.note,
+                        ruEnAmbiguous = data.ruEn?.isAmbiguous ?: false
                     )
-                    result.data?.let { wordData ->
-                        checkIfWordIsSaved(wordData.word)
-                        loadAiSummary(wordData.word)
+
+                    data.entry?.lemma?.takeIf { it.isNotBlank() }?.let { checkIfWordIsSaved(it) }
+
+                    // Nothing to show at all — offer alternatives rather than a bare error.
+                    val empty = data.entry == null && data.raw == null &&
+                        data.ruEn == null && data.tokenized == null
+                    if (empty) {
+                        _state.value = _state.value.copy(error = "Слово не найдено")
+                        fetchSuggestions(query, prefix = false)
                     }
                 }
                 is Resource.Error -> {
-                    Log.e(TAG, "Search error: ${result.message}")
+                    Log.e(TAG, "Lookup error: ${result.message}")
                     _state.value = _state.value.copy(
                         isLoading = false,
                         error = result.message,
-                        wordData = null,
                         hasSearched = true
                     )
-                    // Fetch spelling/translation suggestions on failure (not prefix mode)
                     fetchSuggestions(query, prefix = false)
                 }
-                is Resource.Loading -> {
-                    _state.value = _state.value.copy(isLoading = true)
-                }
+                is Resource.Loading -> _state.value = _state.value.copy(isLoading = true)
             }
         }
+    }
+
+    /**
+     * Asks what one word means in the sentence the user pasted.
+     * The index refers to the server's own tokenisation, which shipped with the lookup.
+     */
+    fun analyzeToken(index: Int) {
+        val text = _state.value.sentenceText
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(
+                selectedTokenIndex = index,
+                isAnalyzingContext = true,
+                contextAnalysis = null
+            )
+            when (val result = searchRepository.analyzeInContext(text, index)) {
+                is Resource.Success -> _state.value = _state.value.copy(
+                    contextAnalysis = result.data, isAnalyzingContext = false
+                )
+                is Resource.Error -> _state.value = _state.value.copy(
+                    isAnalyzingContext = false, error = result.message
+                )
+                is Resource.Loading -> Unit
+            }
+        }
+    }
+
+    fun dismissContextAnalysis() {
+        _state.value = _state.value.copy(selectedTokenIndex = null, contextAnalysis = null)
     }
 
     fun selectSuggestion(suggestion: String) {
@@ -140,28 +182,22 @@ class SearchViewModel @Inject constructor(
             searchQuery = suggestion,
             suggestions = emptyList(),
             isRussianSearch = false,
-            russianQuery = ""
+            russianQuery = "",
+            ruEnCandidates = emptyList()
         )
         searchWord()
     }
 
-    private fun loadAiSummary(word: String) {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(isLoadingAiSummary = true, aiSummary = null)
-            when (val result = searchRepository.getAiSummary(word)) {
-                is Resource.Success -> _state.value = _state.value.copy(
-                    aiSummary = result.data, isLoadingAiSummary = false
-                )
-                else -> _state.value = _state.value.copy(isLoadingAiSummary = false)
-            }
-        }
+    /** Re-runs the search for exactly what was typed, overriding a spelling correction. */
+    fun searchOriginalQuery(original: String) {
+        _state.value = _state.value.copy(searchQuery = original, notice = null)
+        searchWord()
     }
 
     private fun fetchSuggestions(query: String, prefix: Boolean = false) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isFetchingSuggestions = true)
             val suggestions = searchRepository.getSuggestions(query, prefix = prefix)
-            Log.d(TAG, "Suggestions for '$query' (prefix=$prefix): $suggestions")
             _state.value = _state.value.copy(
                 suggestions = suggestions,
                 isFetchingSuggestions = false
@@ -170,7 +206,6 @@ class SearchViewModel @Inject constructor(
     }
 
     fun clearSearch() {
-        Log.d(TAG, "Clearing search")
         stopAudio()
         _state.value = SearchState()
         _isSaved.value = false
@@ -220,55 +255,53 @@ class SearchViewModel @Inject constructor(
         mediaPlayer = null
     }
 
+    /**
+     * Saves the word, preferring the annotated article.
+     *
+     * Its Russian is written per sense, so the saved word and the flashcard made from it carry a
+     * translation that actually matches the definition sitting next to it.
+     */
     fun saveWord() {
-        val wordData = _state.value.wordData ?: return
-        val word = wordData.word
-        val firstDefinition = wordData.definitions.firstOrNull()
-        Log.d(TAG, "Saving word: $word")
-        viewModelScope.launch {
-            when (savedWordsRepository.saveWord(
-                word = word,
-                translation = wordData.translation,
-                definition = firstDefinition?.definition
-            )) {
-                is Resource.Success -> {
-                    Log.d(TAG, "Word saved successfully")
-                    _isSaved.value = true
+        val entry = _state.value.entry
+        val wordData = _state.value.wordData
+        val word = entry?.lemma?.takeIf { it.isNotBlank() } ?: wordData?.word ?: return
 
-                    // Automatically create flashcard
-                    if (firstDefinition != null) {
-                        Log.d(TAG, "Creating flashcard for word: $word")
+        val firstSense = entry?.posGroups?.firstOrNull()?.senses?.firstOrNull()
+        val firstDefinition = wordData?.definitions?.firstOrNull()
+
+        val translation = firstSense?.translationsRu?.firstOrNull() ?: wordData?.translation
+        val definition = firstSense?.definitionEn ?: firstDefinition?.definition
+        val example = firstSense?.examples?.firstOrNull()?.en ?: firstDefinition?.example
+        val partOfSpeech = entry?.posGroups?.firstOrNull()?.pos ?: firstDefinition?.partOfSpeech
+
+        viewModelScope.launch {
+            when (savedWordsRepository.saveWord(word, translation, definition)) {
+                is Resource.Success -> {
+                    _isSaved.value = true
+                    if (definition != null) {
                         flashcardRepository.createFlashcard(
                             word = word,
-                            definition = firstDefinition.definition,
-                            example = firstDefinition.example,
-                            translation = wordData.translation,
-                            phonetic = wordData.phonetic,
-                            partOfSpeech = firstDefinition.partOfSpeech
+                            definition = definition,
+                            example = example,
+                            translation = translation,
+                            phonetic = entry?.phonetic ?: wordData?.phonetic,
+                            partOfSpeech = partOfSpeech
                         )
-                        Log.d(TAG, "Flashcard created for word: $word")
                     }
                 }
-                is Resource.Error -> {
-                    Log.e(TAG, "Failed to save word")
-                }
+                is Resource.Error -> Log.e(TAG, "Failed to save word")
                 else -> {}
             }
         }
     }
 
     fun unsaveWord() {
-        val word = _state.value.wordData?.word ?: return
-        Log.d(TAG, "Removing word: $word")
+        val word = _state.value.entry?.lemma?.takeIf { it.isNotBlank() }
+            ?: _state.value.wordData?.word ?: return
         viewModelScope.launch {
             when (savedWordsRepository.deleteWord(word)) {
-                is Resource.Success -> {
-                    Log.d(TAG, "Word removed successfully")
-                    _isSaved.value = false
-                }
-                is Resource.Error -> {
-                    Log.e(TAG, "Failed to remove word")
-                }
+                is Resource.Success -> _isSaved.value = false
+                is Resource.Error -> Log.e(TAG, "Failed to remove word")
                 else -> {}
             }
         }
@@ -277,7 +310,31 @@ class SearchViewModel @Inject constructor(
     private fun checkIfWordIsSaved(word: String) {
         viewModelScope.launch {
             _isSaved.value = savedWordsRepository.isWordSaved(word)
-            Log.d(TAG, "Word $word is saved: ${_isSaved.value}")
         }
     }
 }
+
+/**
+ * Adapts the v2 raw aggregate to the shape the existing sources view renders.
+ *
+ * The sources tabs were built against the legacy search response; converting here keeps that
+ * whole rendering path untouched while the article becomes the primary view.
+ */
+private fun WordDetailResponse.toWordDto(): WordDto = WordDto(
+    word = word,
+    phonetic = phonetic,
+    audioUrl = audioUrl,
+    // Same three fields, two declarations — the DTO split predates this screen.
+    pronunciations = pronunciations.map { PronunciationDto(it.region, it.ipa, it.audioMp3Url) },
+    translation = translation,
+    definitions = definitions.map { def ->
+        DefinitionDto(
+            partOfSpeech = def.partOfSpeech,
+            definition = def.definition,
+            example = def.example,
+            synonyms = synonyms.take(5),
+            antonyms = antonyms.take(5),
+            source = def.source
+        )
+    }
+)

@@ -5,6 +5,12 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.HealthResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.SuggestApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisApiResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalyzeRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LookupApiResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.RuEnApiResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.TokenizeRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.TokenizedApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.ai.AiExerciseApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.ai.AiTextApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.ai.AiWordRequest
@@ -48,6 +54,26 @@ interface ApiService {
         @Query("query") query: String,
         @Query("prefix") prefix: Boolean = false
     ): SuggestApiResponse
+
+    // ── v2: LLM-annotated article ───────────────────────────────────────────
+
+    /**
+     * Resolves the query (typos, inflections, phrases, Russian, sentences) and returns the
+     * annotated article. May answer PENDING with the raw data while annotation finishes.
+     */
+    @GET("api/v2/words/lookup")
+    suspend fun lookup(@Query("query") query: String): LookupApiResponse
+
+    /** Explains one word as used in one sentence. */
+    @POST("api/v2/context/analyze")
+    suspend fun analyzeInContext(@Body request: ContextAnalyzeRequest): ContextAnalysisApiResponse
+
+    @POST("api/v2/context/tokenize")
+    suspend fun tokenize(@Body request: TokenizeRequest): TokenizedApiResponse
+
+    /** Russian → English options, each with the context needed to choose it. */
+    @GET("api/v2/translate/ru-en")
+    suspend fun translateRuEn(@Query("query") query: String): RuEnApiResponse
 
     // Auth endpoints
     @POST("api/auth/register")

@@ -93,7 +93,9 @@ class MainActivity : ComponentActivity() {
                                     onWordClick = { word ->
                                         navController.navigate(Screen.WordDetail.createRoute(word))
                                     },
-                                    onSelectSuggestion = viewModel::selectSuggestion
+                                    onSelectSuggestion = viewModel::selectSuggestion,
+                                    onSearchOriginal = viewModel::searchOriginalQuery,
+                                    onTokenClick = viewModel::analyzeToken
                                 )
                             }
 
