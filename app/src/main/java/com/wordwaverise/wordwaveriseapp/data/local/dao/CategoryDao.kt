@@ -9,8 +9,42 @@ interface CategoryDao {
     @Query("SELECT * FROM categories ORDER BY createdAt ASC")
     fun getAll(): Flow<List<CategoryEntity>>
 
+    @Query("SELECT * FROM categories WHERE serverId = :serverId LIMIT 1")
+    suspend fun getByServerId(serverId: Int): CategoryEntity?
+
+    @Query("SELECT * FROM categories WHERE serverId IS NULL AND name = :name LIMIT 1")
+    suspend fun getUnlinkedByName(name: String): CategoryEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(category: CategoryEntity): Long
+
+    @Query("UPDATE categories SET serverId = :serverId, name = :name, color = :color WHERE id = :id")
+    suspend fun linkToServer(id: Long, serverId: Int, name: String, color: String?)
+
+    /**
+     * Repairs rows left behind by the old sync, which inserted a fresh local row for
+     * every server category on every run. Words are moved onto the surviving (oldest)
+     * row before the copies are dropped, so no word loses its category.
+     */
+    @Query(
+        """
+        UPDATE saved_words SET categoryId = (
+            SELECT MIN(c.id) FROM categories c
+            WHERE c.serverId = (SELECT o.serverId FROM categories o WHERE o.id = saved_words.categoryId)
+        )
+        WHERE categoryId IN (SELECT id FROM categories WHERE serverId IS NOT NULL)
+        """
+    )
+    suspend fun remapWordsToOldestDuplicate()
+
+    @Query(
+        """
+        DELETE FROM categories WHERE serverId IS NOT NULL AND id NOT IN (
+            SELECT MIN(id) FROM categories WHERE serverId IS NOT NULL GROUP BY serverId
+        )
+        """
+    )
+    suspend fun deleteDuplicateServerCategories()
 
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deleteById(id: Long)

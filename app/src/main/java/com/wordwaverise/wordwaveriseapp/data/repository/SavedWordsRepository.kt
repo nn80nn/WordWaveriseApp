@@ -10,6 +10,8 @@ import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
 import com.wordwaverise.wordwaveriseapp.util.NetworkError
 import com.wordwaverise.wordwaveriseapp.util.Resource
+import com.wordwaverise.wordwaveriseapp.util.SyncResult
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -90,12 +92,12 @@ class SavedWordsRepository @Inject constructor(
         }
     }
 
-    suspend fun syncWords(): Boolean {
+    suspend fun syncWords(): SyncResult {
         try {
             val token = tokenDataStore.token.firstOrNull()
             if (token.isNullOrEmpty()) {
                 Log.d(TAG, "No token, skipping sync")
-                return true
+                return SyncResult.SUCCESS
             }
 
             Log.d(TAG, "Starting words synchronization")
@@ -140,10 +142,13 @@ class SavedWordsRepository @Inject constructor(
 
                 Log.d(TAG, "Synchronization completed")
             }
-            return true
+            return SyncResult.SUCCESS
+        } catch (e: IOException) {
+            Log.w(TAG, "Sync skipped, network unreachable: ${e.message}")
+            return SyncResult.OFFLINE
         } catch (e: Exception) {
             Log.e(TAG, "Sync error: ${e.message}", e)
-            return false
+            return SyncResult.FAILED
         }
     }
 

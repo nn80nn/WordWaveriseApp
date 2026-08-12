@@ -12,6 +12,7 @@ import com.wordwaverise.wordwaveriseapp.data.repository.AuthRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.CategoryRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.SavedWordsRepository
 import com.wordwaverise.wordwaveriseapp.util.Resource
+import com.wordwaverise.wordwaveriseapp.util.SyncResult
 import javax.inject.Inject
 
 @HiltViewModel
@@ -32,7 +33,6 @@ class SavedWordsViewModel @Inject constructor(
         observeSavedWords()
         observeCategories()
         observeAuthStatus()
-        syncWords()
     }
 
     private fun observeSavedWords() {
@@ -76,8 +76,8 @@ class SavedWordsViewModel @Inject constructor(
 
     fun syncWords() {
         viewModelScope.launch {
-            val success = savedWordsRepository.syncWords()
-            _state.value = _state.value.copy(isOffline = !success)
+            val result = savedWordsRepository.syncWords()
+            _state.value = _state.value.copy(isOffline = result == SyncResult.OFFLINE)
         }
     }
 

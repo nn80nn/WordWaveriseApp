@@ -33,14 +33,27 @@ class CategoryRepository @Inject constructor(
             val response = apiService.getCategories("Bearer $token")
             if (response.status == "ok" && response.data != null) {
                 response.data.forEach { dto ->
-                    categoryDao.insert(
-                        CategoryEntity(
-                            serverId = dto.id,
-                            name = dto.name,
-                            color = dto.color
+                    // Match an existing row first: a blind insert leaves id = 0, so Room
+                    // autogenerates a new primary key and every sync duplicated the chip.
+                    val existing = categoryDao.getByServerId(dto.id)
+                        ?: categoryDao.getUnlinkedByName(dto.name)
+
+                    if (existing == null) {
+                        categoryDao.insert(
+                            CategoryEntity(
+                                serverId = dto.id,
+                                name = dto.name,
+                                color = dto.color
+                            )
                         )
-                    )
+                    } else {
+                        categoryDao.linkToServer(existing.id, dto.id, dto.name, dto.color)
+                    }
                 }
+
+                // Clean up copies produced by earlier versions of this sync.
+                categoryDao.remapWordsToOldestDuplicate()
+                categoryDao.deleteDuplicateServerCategories()
             }
             Resource.Success(categoryDao.getAll().firstOrNull() ?: emptyList())
         } catch (e: Exception) {

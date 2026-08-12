@@ -8,6 +8,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import com.wordwaverise.wordwaveriseapp.BuildConfig
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
+import com.wordwaverise.wordwaveriseapp.data.remote.UnauthorizedInterceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -42,9 +43,11 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        loggingInterceptor: HttpLoggingInterceptor
+        loggingInterceptor: HttpLoggingInterceptor,
+        unauthorizedInterceptor: UnauthorizedInterceptor
     ): OkHttpClient {
         return OkHttpClient.Builder()
+            .addInterceptor(unauthorizedInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
