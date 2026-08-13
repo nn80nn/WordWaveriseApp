@@ -8,6 +8,7 @@ data class SavedWordsState(
     val categories: List<CategoryEntity> = emptyList(),
     val selectedCategoryId: Long? = null,
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val error: String? = null,
     val isLoggedIn: Boolean = false,
     val isOffline: Boolean = false,

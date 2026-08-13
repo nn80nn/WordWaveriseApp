@@ -122,7 +122,8 @@ class MainActivity : ComponentActivity() {
                                     onMoveWordToCategory = viewModel::moveWordToCategory,
                                     onCreateCategory = viewModel::createCategory,
                                     onDeleteCategory = viewModel::deleteCategory,
-                                    onNewCategoryNameChange = viewModel::setNewCategoryName
+                                    onNewCategoryNameChange = viewModel::setNewCategoryName,
+                                    onRefresh = viewModel::refresh
                                 )
                             }
 

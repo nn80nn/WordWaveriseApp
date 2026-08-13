@@ -493,28 +493,32 @@ private fun AuthForm(
         Spacer(modifier = Modifier.height(24.dp))
 
         val submitEnabled = !isLoading && email.isNotEmpty() && password.isNotEmpty()
+        val colors = WaveTheme.colors
+        // A dimmed gradient still reads as a working button. Disabled means a
+        // flat surface behind a hairline — a different thing, not a fainter one.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = if (submitEnabled) listOf(PrimaryBright, PrimaryCyan)
-                                 else listOf(PrimaryBright.copy(alpha = 0.5f), PrimaryCyan.copy(alpha = 0.5f))
-                    )
+                .then(
+                    if (submitEnabled) Modifier.background(signatureGradient())
+                    else Modifier
+                        .background(colors.surfaceElevated)
+                        .border(1.dp, colors.border, RoundedCornerShape(12.dp))
                 )
                 .clickable(enabled = submitEnabled) { onSubmit() },
             contentAlignment = Alignment.Center
         ) {
             if (isLoading) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                CircularProgressIndicator(color = colors.onAccent, modifier = Modifier.size(24.dp))
             } else {
                 Text(
                     text = if (isLogin) "Войти" else "Зарегистрироваться",
-                    color = Color.White,
+                    color = if (submitEnabled) colors.onAccent else colors.textMuted,
+                    fontFamily = Comfortaa,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

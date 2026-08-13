@@ -1,41 +1,50 @@
 package com.wordwaverise.wordwaveriseapp.presentation.navigation
 
-import androidx.annotation.DrawableRes
-import com.wordwaverise.wordwaveriseapp.R
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.ui.graphics.vector.ImageVector
 
+/**
+ * Tab icons are vectors, not the raster PNGs the bar used to ship: those were
+ * baked in the previous brand cyan and had to be re-tinted at runtime, and they
+ * softened on dense screens because there was only one density of each.
+ */
 sealed class Screen(
     val route: String,
     val title: String,
-    @DrawableRes val icon: Int
+    val icon: ImageVector
 ) {
     data object Search : Screen(
         route = "search",
         title = "Поиск",
-        icon = R.drawable.search2
+        icon = Icons.Outlined.Search
     )
 
     data object Saved : Screen(
         route = "saved",
         title = "Слова",
-        icon = R.drawable.save2
+        icon = Icons.Outlined.MenuBook
     )
 
     data object Tasks : Screen(
         route = "tasks",
         title = "Задания",
-        icon = R.drawable.tacks2
+        icon = Icons.Outlined.Checklist
     )
 
     data object Profile : Screen(
         route = "profile",
         title = "Профиль",
-        icon = R.drawable.profile2
+        icon = Icons.Outlined.AccountCircle
     )
 
     data object WordDetail : Screen(
         route = "word_detail/{word}",
         title = "Детали слова",
-        icon = R.drawable.search2
+        icon = Icons.Outlined.Search
     ) {
         fun createRoute(word: String) = "word_detail/$word"
     }

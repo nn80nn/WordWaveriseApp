@@ -17,6 +17,7 @@ lifecycleViewmodel = "2.8.7"
 navigationCompose = "2.8.5"
 hiltNavigationCompose = "1.2.0"
 room = "2.6.1"
+coroutinesTest = "1.8.1"
 datastore = "1.1.1"
 googleSignIn = "21.3.0"
 
@@ -58,6 +59,8 @@ androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navig
 
 # Room
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 

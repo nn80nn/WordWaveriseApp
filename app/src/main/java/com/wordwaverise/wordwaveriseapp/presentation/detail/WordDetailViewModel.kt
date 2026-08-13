@@ -39,74 +39,63 @@ class WordDetailViewModel @Inject constructor(
         val word = savedStateHandle.get<String>("word")
         if (word != null) {
             _state.update { it.copy(word = word) }
-            loadArticle(word)
-            loadWordDetail(word)
+            loadWord(word)
             checkIfWordIsSaved(word)
         }
     }
 
     /**
-     * The annotated article, on the same v2 endpoint the search screen uses.
+     * One request for the whole screen.
      *
-     * Opening a saved word used to land on the raw source aggregate while the
-     * identical word opened from search showed the article — two front doors
-     * onto the same entry. This is the same door.
+     * `/api/v2/words/lookup` returns the annotated article *and* the raw
+     * multi-source aggregate that the per-dictionary tabs are built from, so
+     * the old `/api/words/details` pair (quick, then full) is redundant — it
+     * used to cost two extra round trips to fetch a second copy of the same
+     * aggregate through an older endpoint.
      *
-     * Collected rather than awaited: a cold word answers with raw data first and
-     * the finished article a moment later, so each emission replaces the last.
+     * Collected rather than awaited: a cold word answers with raw data first
+     * and the finished article once the server has written it, so each
+     * emission replaces the last on screen.
      */
-    private fun loadArticle(word: String) {
-        viewModelScope.launch {
-            searchRepository.lookup(word).collect { result ->
-                if (result is Resource.Success) {
-                    val data = result.data ?: return@collect
-                    _state.update {
-                        it.copy(
-                            entry = data.entry ?: it.entry,
-                            annotationPending = data.annotationStatus == "PENDING",
-                            annotationDegraded = data.annotationStatus == "DEGRADED"
-                        )
-                    }
-                }
-                // A failed lookup is not an error for this screen: the source
-                // tabs are loaded separately and stay usable on their own.
-            }
-            _state.update { it.copy(annotationPending = false) }
-        }
-    }
-
-    private fun loadWordDetail(word: String) {
+    private fun loadWord(word: String) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
 
-            // Phase 1: quick load (API only, ~1-2s) — show data immediately
-            val quickLoaded = try {
-                val response = apiService.getWordDetails(word, quick = true)
-                if (response.status == "ok" && response.data != null) {
-                    _state.update { it.copy(wordDetail = response.data, isLoading = false, isLoadingFull = true) }
-                    true
-                } else {
-                    false
-                }
-            } catch (_: Exception) { false }
+            var gotAnything = false
 
-            // Phase 2: full load (with scrapers, ~5-10s) — update data in background
-            try {
-                val response = apiService.getWordDetails(word, quick = false)
-                if (response.status == "ok" && response.data != null) {
-                    _state.update { it.copy(wordDetail = response.data, isLoading = false, isLoadingFull = false) }
-                } else if (!quickLoaded) {
-                    _state.update { it.copy(error = response.message ?: "Слово не найдено", isLoading = false, isLoadingFull = false) }
-                } else {
-                    _state.update { it.copy(isLoadingFull = false) }
-                }
-            } catch (e: Exception) {
-                if (!quickLoaded) {
-                    _state.update { it.copy(error = NetworkError.getErrorMessage(e), isLoading = false, isLoadingFull = false) }
-                } else {
-                    _state.update { it.copy(isLoadingFull = false) }
+            searchRepository.lookup(word).collect { result ->
+                when (result) {
+                    is Resource.Success -> {
+                        val data = result.data ?: return@collect
+                        gotAnything = true
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                error = null,
+                                // A later emission may carry only the article, so
+                                // the aggregate is kept rather than overwritten
+                                // with null.
+                                wordDetail = data.raw ?: it.wordDetail,
+                                entry = data.entry ?: it.entry,
+                                annotationPending = data.annotationStatus == "PENDING",
+                                annotationDegraded = data.annotationStatus == "DEGRADED"
+                            )
+                        }
+                    }
+                    is Resource.Error -> {
+                        // Only an error if nothing has landed yet: the poll for a
+                        // finished article must not wipe definitions already shown.
+                        if (!gotAnything) {
+                            _state.update {
+                                it.copy(isLoading = false, error = result.message ?: "Слово не найдено")
+                            }
+                        }
+                    }
+                    is Resource.Loading -> _state.update { it.copy(isLoading = true) }
                 }
             }
+
+            _state.update { it.copy(isLoading = false, annotationPending = false) }
         }
     }
 

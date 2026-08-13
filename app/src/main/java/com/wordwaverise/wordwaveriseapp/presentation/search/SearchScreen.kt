@@ -580,7 +580,7 @@ private fun PronAudioButton(
             }
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = null,
+                contentDescription = if (isPlaying) "Остановить произношение" else "Прослушать произношение",
                 tint = if (isPlaying) PrimaryCyan else TextSecondary,
                 modifier = Modifier.size(16.dp)
             )

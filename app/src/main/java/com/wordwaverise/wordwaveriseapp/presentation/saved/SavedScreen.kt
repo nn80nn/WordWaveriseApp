@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +44,7 @@ fun SavedScreen(
     onCreateCategory: () -> Unit,
     onDeleteCategory: (id: Long, serverId: Int?) -> Unit,
     onNewCategoryNameChange: (String) -> Unit,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -119,21 +121,27 @@ fun SavedScreen(
                     color = TextTertiary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                PullToRefreshBox(
+                    isRefreshing = state.isRefreshing,
+                    onRefresh = onRefresh,
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    items(state.filteredWords, key = { it.word }) { word ->
-                        WordCard(
-                            word = word,
-                            categoryName = state.categories.find { it.id == word.categoryId }?.name,
-                            onDelete = { onDeleteWord(word.word) },
-                            onClick = { onWordClick(word.word) },
-                            onLongClick = { onSetWordToMove(word.word) }
-                        )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(state.filteredWords, key = { it.word }) { word ->
+                            WordCard(
+                                word = word,
+                                categoryName = state.categories.find { it.id == word.categoryId }?.name,
+                                onDelete = { onDeleteWord(word.word) },
+                                onClick = { onWordClick(word.word) },
+                                onLongClick = { onSetWordToMove(word.word) }
+                            )
+                        }
+                        item { Spacer(modifier = Modifier.height(8.dp)) }
                     }
-                    item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
             }
         }

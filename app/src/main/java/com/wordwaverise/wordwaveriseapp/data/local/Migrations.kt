@@ -89,3 +89,41 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("ALTER TABLE `saved_words` ADD COLUMN `categoryId` INTEGER")
     }
 }
+
+/**
+ * Two things, both about making a fixed bug unrepeatable.
+ *
+ * The unique index on `categories.serverId` cannot be created while duplicates
+ * are still in the table, so the rows left behind by the old sync are collapsed
+ * first — words move onto the surviving (oldest) row before the copies go, so
+ * none of them loses its folder.
+ *
+ * `article_cache` holds finished articles for offline reading.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """UPDATE saved_words SET categoryId = (
+                   SELECT MIN(c.id) FROM categories c
+                   WHERE c.serverId = (
+                       SELECT o.serverId FROM categories o WHERE o.id = saved_words.categoryId
+                   )
+               )
+               WHERE categoryId IN (SELECT id FROM categories WHERE serverId IS NOT NULL)"""
+        )
+        db.execSQL(
+            """DELETE FROM categories WHERE serverId IS NOT NULL AND id NOT IN (
+                   SELECT MIN(id) FROM categories WHERE serverId IS NOT NULL GROUP BY serverId
+               )"""
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_serverId` ON `categories` (`serverId`)"
+        )
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `article_cache` (
+                `key` TEXT PRIMARY KEY NOT NULL,
+                `payload` TEXT NOT NULL,
+                `updatedAt` INTEGER NOT NULL)"""
+        )
+    }
+}

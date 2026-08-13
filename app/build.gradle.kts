@@ -66,6 +66,15 @@ android {
     }
 }
 
+// The exported Room schemas have to travel with the instrumented tests, or
+// MigrationTestHelper cannot open the "before" version of the database.
+androidComponents {
+    onVariants { variant ->
+        // androidTest only — the shipped APK has no use for schema JSON.
+        variant.androidTest?.sources?.assets?.addStaticSourceDirectory("schemas")
+    }
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
@@ -114,7 +123,10 @@ dependencies {
     implementation(libs.google.play.services.auth)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

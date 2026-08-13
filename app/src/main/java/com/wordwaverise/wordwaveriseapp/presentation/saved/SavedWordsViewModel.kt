@@ -74,6 +74,23 @@ class SavedWordsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Pull to refresh. A failed sync used to be a dead end — the only way to
+     * retry was to leave the tab and come back, because nothing on the screen
+     * asked the server again.
+     */
+    fun refresh() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isRefreshing = true)
+            val result = savedWordsRepository.syncWords()
+            categoryRepository.syncCategories()
+            _state.value = _state.value.copy(
+                isRefreshing = false,
+                isOffline = result == SyncResult.OFFLINE
+            )
+        }
+    }
+
     fun syncWords() {
         viewModelScope.launch {
             val result = savedWordsRepository.syncWords()

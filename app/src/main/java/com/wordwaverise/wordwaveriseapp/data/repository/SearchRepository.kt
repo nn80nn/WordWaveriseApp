@@ -1,6 +1,8 @@
 package com.wordwaverise.wordwaveriseapp.data.repository
 
 import android.util.Log
+import com.wordwaverise.wordwaveriseapp.data.local.dao.ArticleCacheDao
+import com.wordwaverise.wordwaveriseapp.data.local.entity.ArticleCacheEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisDto
@@ -12,12 +14,15 @@ import com.wordwaverise.wordwaveriseapp.util.Resource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SearchRepository @Inject constructor(
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    private val articleCacheDao: ArticleCacheDao,
+    private val json: Json
 ) {
     companion object {
         private const val TAG = "SearchRepository"
@@ -87,7 +92,15 @@ class SearchRepository @Inject constructor(
             apiService.lookup(query.trim())
         } catch (e: Exception) {
             Log.e(TAG, "Lookup failed for '$query': ${e.message}", e)
-            emit(Resource.Error(NetworkError.getErrorMessage(e)))
+            // A finished article never changes, so an unreachable network is no
+            // reason to show nothing: serve the stored copy if we have one.
+            val cached = readCache(query)
+            if (cached != null) {
+                Log.d(TAG, "Serving '$query' from the offline cache")
+                emit(Resource.Success(cached))
+            } else {
+                emit(Resource.Error(NetworkError.getErrorMessage(e)))
+            }
             return@flow
         }
 
@@ -97,6 +110,7 @@ class SearchRepository @Inject constructor(
         }
 
         var current = first.data!!
+        writeCache(query, current)
         emit(Resource.Success(current))
 
         val deadline = System.currentTimeMillis() + ANNOTATION_POLL_TIMEOUT_MS
@@ -108,6 +122,7 @@ class SearchRepository @Inject constructor(
                 val next = apiService.lookup(query.trim())
                 if (next.status == "ok" && next.data != null) {
                     current = next.data!!
+                    writeCache(query, current)
                     emit(Resource.Success(current))
                     consecutiveFailures = 0
                     continue
@@ -171,4 +186,55 @@ class SearchRepository @Inject constructor(
             emptyList()
         }
     }
+
+    // ── Offline cache ──────────────────────────────────────────────────────
+
+    private fun cacheKey(value: String) = value.trim().lowercase()
+
+    /**
+     * Only READY articles are stored. PENDING and DEGRADED describe a moment in
+     * the server's work, not an answer, and freezing one of those into the cache
+     * would hand the user a half-written article every time they went offline.
+     *
+     * Written under the resolved lemma as well as the typed query, so a typo or
+     * an inflected form finds the same stored article next time.
+     */
+    private suspend fun writeCache(query: String, response: LookupResponseDto) {
+        if (response.annotationStatus != "READY" || response.entry == null) return
+        val payload = try {
+            json.encodeToString(LookupResponseDto.serializer(), response)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not serialise the article for '$query': ${e.message}")
+            return
+        }
+        val keys = buildSet {
+            add(cacheKey(query))
+            response.entry?.lemma?.takeIf { it.isNotBlank() }?.let { add(cacheKey(it)) }
+        }
+        keys.forEach { key ->
+            try {
+                articleCacheDao.put(ArticleCacheEntity(key = key, payload = payload))
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not cache '$key': ${e.message}")
+            }
+        }
+    }
+
+    private suspend fun readCache(query: String): LookupResponseDto? {
+        val row = try {
+            articleCacheDao.get(cacheKey(query))
+        } catch (e: Exception) {
+            Log.w(TAG, "Cache read failed for '$query': ${e.message}")
+            null
+        } ?: return null
+
+        return try {
+            json.decodeFromString(LookupResponseDto.serializer(), row.payload)
+        } catch (e: Exception) {
+            // A payload written by an older schema is not worth crashing over.
+            Log.w(TAG, "Discarding unreadable cache entry for '$query': ${e.message}")
+            null
+        }
+    }
+
 }

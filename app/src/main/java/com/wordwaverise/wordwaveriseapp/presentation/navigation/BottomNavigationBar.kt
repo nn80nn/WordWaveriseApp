@@ -10,7 +10,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,12 +69,11 @@ fun BottomNavigationBar(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        // The source PNGs carry the old brand cyan, so they are
-                        // re-tinted rather than shown as-is — otherwise the bar
-                        // keeps the previous palette in both themes.
                         Icon(
-                            painter = painterResource(id = screen.icon),
-                            contentDescription = screen.title,
+                            imageVector = screen.icon,
+                            // The label sits right below, so the icon repeating
+                            // it would make TalkBack read every tab twice.
+                            contentDescription = null,
                             tint = if (isSelected) colors.secondary else colors.textMuted,
                             modifier = Modifier.size(23.dp)
                         )
