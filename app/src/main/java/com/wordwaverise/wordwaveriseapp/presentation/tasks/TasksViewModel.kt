@@ -141,13 +141,13 @@ class TasksViewModel @Inject constructor(
             val question = if (wordFirst) {
                 MultipleChoiceQuestion(
                     questionText = correct.word,
-                    options = allOptions.map { it.definition.take(100) },
+                    options = allOptions.map { it.definition },
                     correctIndex = correctIdx,
                     wordFirst = true
                 )
             } else {
                 MultipleChoiceQuestion(
-                    questionText = correct.definition.take(150),
+                    questionText = correct.definition,
                     options = allOptions.map { it.word },
                     correctIndex = correctIdx,
                     wordFirst = false

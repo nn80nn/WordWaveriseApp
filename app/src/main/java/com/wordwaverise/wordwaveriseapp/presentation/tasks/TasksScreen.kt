@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -747,7 +748,9 @@ private fun MultipleChoiceMode(
                     fontSize = if (question.wordFirst) 28.sp else 16.sp,
                     fontWeight = if (question.wordFirst) FontWeight.Bold else FontWeight.Normal,
                     color = TextPrimary,
-                    lineHeight = 22.sp
+                    lineHeight = 22.sp,
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -801,6 +804,8 @@ private fun MultipleChoiceMode(
                             fontSize = 14.sp,
                             color = TextPrimary,
                             lineHeight = 20.sp,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
                         if (answered && isCorrect) {
