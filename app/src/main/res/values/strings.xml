@@ -45,7 +45,7 @@
     <string name="ne_znayu">Не знаю</string>
     <string name="nepravilno">Неправильно</string>
     <string name="neskolko_znacheniy">несколько значений</string>
-    <string name="net_akkaunta_pereydite_na_vkladku_registraciya">Нет аккаунта? Перейдите на вкладку \\"Регистрация\\"</string>
+    <string name="net_akkaunta_pereydite_na_vkladku_registraciya">Нет аккаунта? Перейдите на вкладку «Регистрация»</string>
     <string name="net_dannyh">Нет данных</string>
     <string name="net_interneta_pokazany_sohranennye_dannye">Нет интернета — показаны сохранённые данные</string>
     <string name="net_kartochek_k_povtoreniyu">Нет карточек к повторению</string>
@@ -106,7 +106,7 @@
     <string name="ubrat_iz_sohranennyh">Убрать из сохранённых</string>
     <string name="udalit">Удалить</string>
     <string name="udalit_akkaunt">Удалить аккаунт</string>
-    <string name="uzhe_est_akkaunt_pereydite_na_vkladku_vhod">Уже есть аккаунт? Перейдите на вкладку \\"Вход\\"</string>
+    <string name="uzhe_est_akkaunt_pereydite_na_vkladku_vhod">Уже есть аккаунт? Перейдите на вкладку «Вход»</string>
     <string name="vash_otvet">Ваш ответ</string>
     <string name="versiya">Версия</string>
     <string name="vhod">Вход</string>

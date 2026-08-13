@@ -1,21 +1,47 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# R8 rules for the release build.
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Retrofit, OkHttp, Room and Hilt ship their own consumer rules, so what is left
+# is the part R8 cannot see: classes that exist only to be reflected over or
+# generated into, and the crash reports we want to be able to read.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# ── Crash reports ──────────────────────────────────────────────────────────
+# Without these a Play Console stack trace is a list of a(), b(), c().
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ── kotlinx.serialization ──────────────────────────────────────────────────
+# The plugin generates a $serializer for every @Serializable class and reaches
+# it through the companion. R8 sees no call site for either, so both go unless
+# they are kept — and the failure shows up only at runtime, as an empty article.
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-keepclassmembers @kotlinx.serialization.Serializable class ** {
+    static <1>$Companion Companion;
+    *** Companion;
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-if @kotlinx.serialization.Serializable class **
+-keepclassmembers class <1> {
+    static <1>$$serializer INSTANCE;
+}
+-keep,includedescriptorclasses class kotlinx.serialization.**$$serializer { *; }
+
+# Every DTO the API speaks in. Field names are the wire format: renaming one
+# silently changes the JSON key it is read from.
+-keep class com.wordwaverise.wordwaveriseapp.data.remote.dto.** { *; }
+
+# ── Room ───────────────────────────────────────────────────────────────────
+-keep class com.wordwaverise.wordwaveriseapp.data.local.entity.** { *; }
+
+# ── Enums ──────────────────────────────────────────────────────────────────
+# ThemeMode is persisted by name in DataStore, so obfuscating it would lose the
+# user's choice on upgrade.
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+# ── Coroutines ─────────────────────────────────────────────────────────────
+-dontwarn kotlinx.coroutines.**
+-keepclassmembers class kotlinx.coroutines.** { volatile <fields>; }
