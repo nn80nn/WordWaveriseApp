@@ -818,6 +818,8 @@ private fun MultipleChoiceMode(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = question.questionText,
+                    fontFamily = if (question.wordFirst) Comfortaa else Nunito,
+                    letterSpacing = if (question.wordFirst) (-0.8).sp else 0.sp,
                     fontSize = if (question.wordFirst) 28.sp else 16.sp,
                     fontWeight = if (question.wordFirst) FontWeight.Bold else FontWeight.Normal,
                     color = TextPrimary,

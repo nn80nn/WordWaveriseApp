@@ -255,17 +255,30 @@ private fun WordCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(word.word, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(
+                    text = word.word,
+                    fontFamily = Comfortaa,
+                    fontSize = 19.sp,
+                    letterSpacing = (-0.4).sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(formatDate(word.savedAt), fontSize = 12.sp, color = TextTertiary)
-                    if (word.isSynced) {
+                    // Only the exception is worth a mark. Confirming the normal
+                    // state on every row just adds noise to the list.
+                    if (!word.isSynced) {
                         Text("·", fontSize = 12.sp, color = TextTertiary)
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Success, modifier = Modifier.size(11.dp))
-                        Text("синхр.", fontSize = 11.sp, color = Success)
+                        Icon(
+                            imageVector = Icons.Default.CloudOff,
+                            contentDescription = "Не синхронизировано",
+                            tint = TextTertiary,
+                            modifier = Modifier.size(11.dp)
+                        )
                     }
                     if (categoryName != null) {
                         Text("·", fontSize = 12.sp, color = TextTertiary)
