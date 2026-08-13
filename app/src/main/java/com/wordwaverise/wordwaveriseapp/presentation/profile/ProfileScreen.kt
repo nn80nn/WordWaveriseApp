@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wordwaverise.wordwaveriseapp.BuildConfig
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 @Composable
@@ -89,7 +91,7 @@ fun ProfileScreen(
             ) {
                 if (userLogin != null) {
                     Text(
-                        text = "Логин",
+                        text = stringResource(R.string.login),
                         fontSize = 11.sp,
                         color = TextTertiary,
                         fontWeight = FontWeight.Medium
@@ -120,7 +122,7 @@ fun ProfileScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Statistics
-        Eyebrow("Статистика", modifier = Modifier.padding(bottom = 12.dp))
+        Eyebrow(stringResource(R.string.statistika), modifier = Modifier.padding(bottom = 12.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -131,14 +133,14 @@ fun ProfileScreen(
                 icon = Icons.Default.Book,
                 iconTint = PrimaryCyan,
                 value = state.savedWordsCount.toString(),
-                label = "Сохранено слов"
+                label = stringResource(R.string.sohraneno_slov)
             )
             StatCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.Style,
                 iconTint = PrimaryBlue,
                 value = state.totalFlashcards.toString(),
-                label = "Карточек всего"
+                label = stringResource(R.string.kartochek_vsego)
             )
         }
 
@@ -148,20 +150,20 @@ fun ProfileScreen(
             icon = Icons.Default.Timer,
             iconTint = if (state.dueFlashcards > 0) Warning else Success,
             value = state.dueFlashcards.toString(),
-            label = "К повторению сегодня"
+            label = stringResource(R.string.k_povtoreniyu_segodnya)
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
         // Appearance
-        Eyebrow("Оформление", modifier = Modifier.padding(bottom = 12.dp))
+        Eyebrow(stringResource(R.string.oformlenie), modifier = Modifier.padding(bottom = 12.dp))
 
         ThemePicker(selected = themeMode, onSelect = onThemeModeChange)
 
         Spacer(modifier = Modifier.height(20.dp))
 
         // About section
-        Eyebrow("О приложении", modifier = Modifier.padding(bottom = 12.dp))
+        Eyebrow(stringResource(R.string.o_prilozhenii), modifier = Modifier.padding(bottom = 12.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -188,7 +190,7 @@ fun ProfileScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Версия",
+                        text = stringResource(R.string.versiya),
                         fontSize = 15.sp,
                         color = TextPrimary
                     )
@@ -224,7 +226,7 @@ fun ProfileScreen(
                         enabled = !deletionLoading,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (deletionLoading) "Отмена..." else "Отменить удаление")
+                        Text(if (deletionLoading) stringResource(R.string.otmena_2) else stringResource(R.string.otmenit_udalenie))
                     }
                 }
             }
@@ -234,7 +236,7 @@ fun ProfileScreen(
                 onClick = { showDeleteDialog = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = "Удалить аккаунт", color = Error, fontSize = 14.sp)
+                Text(text = stringResource(R.string.udalit_akkaunt), color = Error, fontSize = 14.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -249,7 +251,7 @@ fun ProfileScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                text = "Выйти из аккаунта",
+                text = stringResource(R.string.vyyti_iz_akkaunta),
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
@@ -266,12 +268,12 @@ fun ProfileScreen(
                 deletePassword = ""
                 onClearDeletionError()
             },
-            title = { Text("Удалить аккаунт") },
+            title = { Text(stringResource(R.string.udalit_akkaunt)) },
             text = {
                 Column {
                     Text(
-                        "Аккаунт и все данные будут удалены безвозвратно через 30 дней. " +
-                            "Введите пароль для подтверждения.",
+                        stringResource(R.string.akkaunt_i_vse_dannye_budut_udaleny_bezvozvratno) +
+                            stringResource(R.string.vvedite_parol_dlya_podtverzhdeniya),
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
@@ -279,7 +281,7 @@ fun ProfileScreen(
                     OutlinedTextField(
                         value = deletePassword,
                         onValueChange = { deletePassword = it },
-                        label = { Text("Пароль") },
+                        label = { Text(stringResource(R.string.parol)) },
                         singleLine = true,
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                         enabled = !deletionLoading
@@ -295,7 +297,7 @@ fun ProfileScreen(
                     onClick = { onRequestDeletion(deletePassword) },
                     enabled = !deletionLoading && deletePassword.isNotEmpty()
                 ) {
-                    Text("Удалить", color = Error)
+                    Text(stringResource(R.string.udalit), color = Error)
                 }
             },
             dismissButton = {
@@ -304,7 +306,7 @@ fun ProfileScreen(
                     deletePassword = ""
                     onClearDeletionError()
                 }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.otmena))
                 }
             }
         )
@@ -416,7 +418,7 @@ private fun StatCardWide(
 // ── Appearance ────────────────────────────────────────────────────────────────
 
 /**
- * Three tiles rather than a switch, because "Система" is a first-class choice
+ * Three tiles rather than a switch, because stringResource(R.string.sistema) is a first-class choice
  * and a two-state toggle can't express it. Each tile shows the theme it selects
  * as a waterline — paper above, deep water below — so the choice is legible
  * before the label is read.
@@ -437,9 +439,9 @@ private fun ThemePicker(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ThemeOption(Modifier.weight(1f), ThemeMode.SYSTEM, "Система", selected, onSelect)
-            ThemeOption(Modifier.weight(1f), ThemeMode.LIGHT, "Светлая", selected, onSelect)
-            ThemeOption(Modifier.weight(1f), ThemeMode.DARK, "Тёмная", selected, onSelect)
+            ThemeOption(Modifier.weight(1f), ThemeMode.SYSTEM, stringResource(R.string.sistema), selected, onSelect)
+            ThemeOption(Modifier.weight(1f), ThemeMode.LIGHT, stringResource(R.string.svetlaya), selected, onSelect)
+            ThemeOption(Modifier.weight(1f), ThemeMode.DARK, stringResource(R.string.temnaya), selected, onSelect)
         }
     }
 }

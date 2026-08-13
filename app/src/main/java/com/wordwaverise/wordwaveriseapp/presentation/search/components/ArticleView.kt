@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LexicalEntryDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.PosGroupDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.SenseDto
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 /**
@@ -66,7 +68,7 @@ fun ArticleView(
 
         if (entry.posGroups.isEmpty() && !entry.degraded) {
             Text(
-                "Статья ещё не готова — откройте вкладку «Источники».",
+                stringResource(R.string.statya_esche_ne_gotova_otkroyte_vkladku_istochniki),
                 fontSize = 14.sp,
                 color = TextTertiary,
                 modifier = Modifier.padding(vertical = 24.dp)
@@ -74,12 +76,12 @@ fun ArticleView(
         }
 
         entry.etymology?.takeIf { it.isNotBlank() }?.let { etymology ->
-            InfoBlock(title = "Происхождение", body = etymology)
+            InfoBlock(title = stringResource(R.string.proishozhdenie), body = etymology)
             Spacer(Modifier.height(12.dp))
         }
 
         entry.usageNotes.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { notes ->
-            InfoBlock(title = "Как употребляется", body = notes.joinToString("\n\n"))
+            InfoBlock(title = stringResource(R.string.kak_upotreblyaetsya), body = notes.joinToString("\n\n"))
             Spacer(Modifier.height(12.dp))
         }
 
@@ -162,7 +164,7 @@ private fun AiGeneratedBanner() {
         colors = CardDefaults.cardColors(containerColor = PrimaryCyan.copy(alpha = 0.10f))
     ) {
         Text(
-            text = "Статья написана ИИ — в словарях-источниках этого выражения нет.",
+            text = stringResource(R.string.statya_napisana_ii_v_slovaryah_istochnikah_etogo),
             fontSize = 13.sp,
             color = TextSecondary,
             lineHeight = 18.sp,
@@ -179,8 +181,8 @@ private fun DegradedBanner() {
         colors = CardDefaults.cardColors(containerColor = Error.copy(alpha = 0.10f))
     ) {
         Text(
-            text = "Разбор пока недоступен — показаны определения из источников без перевода. " +
-                "Попробуйте открыть слово ещё раз чуть позже.",
+            text = stringResource(R.string.razbor_poka_nedostupen_pokazany_opredeleniya_iz_istochnikov) +
+                stringResource(R.string.poprobuyte_otkryt_slovo_esche_raz_chut_pozzhe),
             fontSize = 13.sp,
             color = TextSecondary,
             lineHeight = 18.sp,
@@ -287,7 +289,7 @@ fun SenseCard(
                 sense.cefr?.let { add(it to PrimaryCyan) }
                 registerLabel(sense.register)?.let { add(it to TextTertiary) }
                 sense.domain?.takeIf { it.isNotBlank() }?.let { add(it to TextTertiary) }
-                if (sense.generated) add("ИИ" to Error)
+                if (sense.generated) add(stringResource(R.string.ii) to Error)
             }
             if (labels.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))

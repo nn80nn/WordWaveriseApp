@@ -19,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.wordwaverise.wordwaveriseapp.data.local.entity.FlashcardEntity
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 @Composable
@@ -116,7 +118,7 @@ private fun TasksOverview(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Eyebrow("Сегодня", modifier = Modifier.padding(top = 4.dp))
+        Eyebrow(stringResource(R.string.segodnya), modifier = Modifier.padding(top = 4.dp))
 
         // Counters. A hairline splits them instead of a second card, so the two
         // numbers read as one instrument.
@@ -137,7 +139,7 @@ private fun TasksOverview(
             ) {
                 StatItem(
                     modifier = Modifier.weight(1f),
-                    label = "К повторению",
+                    label = stringResource(R.string.k_povtoreniyu),
                     value = "$dueCount",
                     accent = if (dueCount > 0) colors.brass else colors.textMuted
                 )
@@ -149,7 +151,7 @@ private fun TasksOverview(
                 )
                 StatItem(
                     modifier = Modifier.weight(1f),
-                    label = "Всего карточек",
+                    label = stringResource(R.string.vsego_kartochek),
                     value = "$totalCount",
                     accent = colors.secondary
                 )
@@ -189,8 +191,8 @@ private fun TasksOverview(
                     tint = if (sessionEnabled) colors.onAccent else colors.textMuted
                 )
                 Text(
-                    text = if (sessionEnabled) "Начать сессию"
-                           else "Нет карточек к повторению",
+                    text = if (sessionEnabled) stringResource(R.string.nachat_sessiyu)
+                           else stringResource(R.string.net_kartochek_k_povtoreniyu),
                     color = if (sessionEnabled) colors.onAccent else colors.textMuted,
                     fontFamily = Comfortaa,
                     fontSize = 16.sp,
@@ -202,14 +204,14 @@ private fun TasksOverview(
         if (hasWords) {
             PracticeRow(
                 icon = Icons.Default.AutoAwesome,
-                title = "AI Упражнения",
-                subtitle = "Пропущенное слово в живом предложении",
+                title = stringResource(R.string.ai_uprazhneniya),
+                subtitle = stringResource(R.string.propuschennoe_slovo_v_zhivom_predlozhenii),
                 onClick = onStartExercise
             )
             PracticeRow(
                 icon = Icons.Default.GpsFixed,
-                title = "Выбор ответа",
-                subtitle = "Четыре определения, одно ваше",
+                title = stringResource(R.string.vybor_otveta),
+                subtitle = stringResource(R.string.chetyre_opredeleniya_odno_vashe),
                 onClick = onStartMultipleChoice
             )
         }
@@ -240,7 +242,7 @@ private fun TasksOverview(
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                     Text(
-                        text = "Как создать карточки?",
+                        text = stringResource(R.string.kak_sozdat_kartochki),
                         fontFamily = Comfortaa,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
@@ -248,7 +250,7 @@ private fun TasksOverview(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Сохраняйте новые слова из поиска, и они автоматически станут карточками для изучения!",
+                        text = stringResource(R.string.sohranyayte_novye_slova_iz_poiska_i_oni),
                         fontSize = 14.sp,
                         color = TextSecondary,
                         textAlign = TextAlign.Center,
@@ -417,7 +419,7 @@ private fun FlashcardSession(
             IconButton(onClick = onExit) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Выход",
+                    contentDescription = stringResource(R.string.vyhod),
                     tint = TextPrimary
                 )
             }
@@ -431,7 +433,7 @@ private fun FlashcardSession(
             IconButton(onClick = { wordFirst = !wordFirst; isFlipped = false }) {
                 Icon(
                     imageVector = Icons.Default.SwapVert,
-                    contentDescription = if (wordFirst) "Начать с определения" else "Начать со слова",
+                    contentDescription = if (wordFirst) stringResource(R.string.nachat_s_opredeleniya) else stringResource(R.string.nachat_so_slova),
                     tint = TextSecondary
                 )
             }
@@ -492,7 +494,7 @@ private fun FlashcardSession(
                     ) {
                         Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Text(
-                            "Не знаю",
+                            stringResource(R.string.ne_znayu),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -518,7 +520,7 @@ private fun FlashcardSession(
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Text(
-                            "Знаю",
+                            stringResource(R.string.znayu),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -529,7 +531,7 @@ private fun FlashcardSession(
 
         // Hint to flip
         if (!isFlipped) {
-            FlipHint(text = "Нажмите на карточку чтобы увидеть ответ", modifier = Modifier.fillMaxWidth())
+            FlipHint(text = stringResource(R.string.nazhmite_na_kartochku_chtoby_uvidet_otvet), modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -609,7 +611,7 @@ private fun FlippableCard(
                             )
                         }
                         Spacer(modifier = Modifier.height(24.dp))
-                        FlipHint(text = "Нажмите чтобы увидеть определение")
+                        FlipHint(text = stringResource(R.string.nazhmite_chtoby_uvidet_opredelenie))
                     }
                 } else {
                     // Definition side first
@@ -626,7 +628,7 @@ private fun FlippableCard(
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        FlipHint(text = "Нажмите чтобы увидеть слово")
+                        FlipHint(text = stringResource(R.string.nazhmite_chtoby_uvidet_slovo))
                     }
                 }
             } else {
@@ -653,7 +655,7 @@ private fun FlippableCard(
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
-                                    Text("Пример:", fontSize = 11.sp, color = TextTertiary)
+                                    Text(stringResource(R.string.primer), fontSize = 11.sp, color = TextTertiary)
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "\"$it\"",
@@ -735,7 +737,7 @@ private fun TranslationReveal(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(Icons.Default.Visibility, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
-                Text("Показать перевод", fontSize = 13.sp, color = PrimaryCyan)
+                Text(stringResource(R.string.pokazat_perevod), fontSize = 13.sp, color = PrimaryCyan)
             }
         }
     }
@@ -783,10 +785,10 @@ private fun MultipleChoiceMode(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onExit) {
-                Icon(Icons.Default.Close, contentDescription = "Выход", tint = TextPrimary)
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.vyhod), tint = TextPrimary)
             }
             Text(
-                text = "Выбор ответа",
+                text = stringResource(R.string.vybor_otveta),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -811,7 +813,7 @@ private fun MultipleChoiceMode(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = if (question.wordFirst) "Что означает слово:" else "Какое это слово:",
+                    text = if (question.wordFirst) stringResource(R.string.chto_oznachaet_slovo) else stringResource(R.string.kakoe_eto_slovo),
                     fontSize = 12.sp,
                     color = TextTertiary
                 )
@@ -905,7 +907,7 @@ private fun MultipleChoiceMode(
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Следующий вопрос →", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.sleduyuschiy_vopros), fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -940,12 +942,12 @@ private fun ExerciseMode(
             IconButton(onClick = onExit) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Выход",
+                    contentDescription = stringResource(R.string.vyhod),
                     tint = TextPrimary
                 )
             }
             Text(
-                text = "AI Упражнения",
+                text = stringResource(R.string.ai_uprazhneniya),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -959,7 +961,7 @@ private fun ExerciseMode(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = PrimaryBlue)
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("Генерирую упражнение...", fontSize = 14.sp, color = TextTertiary)
+                        Text(stringResource(R.string.generiruyu_uprazhnenie), fontSize = 14.sp, color = TextTertiary)
                     }
                 }
             }
@@ -981,7 +983,7 @@ private fun ExerciseMode(
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Попробовать снова")
+                            Text(stringResource(R.string.poprobovat_snova))
                         }
                     }
                 }
@@ -998,7 +1000,7 @@ private fun ExerciseMode(
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
                         Text(
-                            text = "Вставьте пропущенное слово:",
+                            text = stringResource(R.string.vstavte_propuschennoe_slovo),
                             fontSize = 12.sp,
                             color = TextTertiary,
                             fontWeight = FontWeight.SemiBold
@@ -1028,7 +1030,7 @@ private fun ExerciseMode(
                 OutlinedTextField(
                     value = userAnswer,
                     onValueChange = { if (!checked) onAnswerChange(it) },
-                    label = { Text("Ваш ответ") },
+                    label = { Text(stringResource(R.string.vash_otvet)) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !checked,
                     singleLine = true,
@@ -1064,7 +1066,7 @@ private fun ExerciseMode(
                             )
                             Column {
                                 Text(
-                                    text = if (isCorrect) "Правильно!" else "Неправильно",
+                                    text = if (isCorrect) stringResource(R.string.pravilno) else stringResource(R.string.nepravilno),
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (isCorrect) Success else Error
@@ -1092,7 +1094,7 @@ private fun ExerciseMode(
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Проверить", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.proverit), fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     }
                 } else {
                     Button(
@@ -1101,7 +1103,7 @@ private fun ExerciseMode(
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Следующее слово →", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.sleduyuschee_slovo), fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -1126,7 +1128,7 @@ private fun SessionComplete(onExit: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(
-            text = "Сессия завершена!",
+            text = stringResource(R.string.sessiya_zavershena),
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = TextPrimary,
@@ -1134,7 +1136,7 @@ private fun SessionComplete(onExit: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Отличная работа! Продолжайте учиться каждый день",
+            text = stringResource(R.string.otlichnaya_rabota_prodolzhayte_uchitsya_kazhdyy_den),
             fontSize = 16.sp,
             color = TextSecondary,
             textAlign = TextAlign.Center,
@@ -1152,7 +1154,7 @@ private fun SessionComplete(onExit: () -> Unit) {
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                "Завершить",
+                stringResource(R.string.zavershit),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             )

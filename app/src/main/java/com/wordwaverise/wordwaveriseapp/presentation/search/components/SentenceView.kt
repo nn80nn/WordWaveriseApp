@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.TokenDto
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 /**
@@ -46,7 +48,7 @@ fun SentenceView(
     ) {
         Spacer(Modifier.height(8.dp))
         Text(
-            "Нажмите на слово, чтобы разобрать его в этом предложении",
+            stringResource(R.string.nazhmite_na_slovo_chtoby_razobrat_ego_v),
             fontSize = 13.sp,
             color = TextTertiary
         )
@@ -139,7 +141,7 @@ private fun ContextCard(
                     Text(lemma, fontSize = 14.sp, color = PrimaryCyan, fontWeight = FontWeight.Medium)
                 }
                 analysis.pos?.let { pos -> Badge(pos, TextTertiary) }
-                if (analysis.senseMatched) Badge("значение из статьи", PrimaryCyan)
+                if (analysis.senseMatched) Badge(stringResource(R.string.znachenie_iz_stati), PrimaryCyan)
             }
 
             analysis.translationLemmaRu?.takeIf { it != analysis.translationRu }?.let { lemmaRu ->
@@ -171,7 +173,7 @@ private fun ContextCard(
 
             analysis.sentenceRu?.takeIf { it.isNotBlank() }?.let { sentenceRu ->
                 Spacer(Modifier.height(12.dp))
-                Text("Перевод предложения", fontSize = 11.sp, color = TextTertiary)
+                Text(stringResource(R.string.perevod_predlozheniya), fontSize = 11.sp, color = TextTertiary)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = sentenceRu,

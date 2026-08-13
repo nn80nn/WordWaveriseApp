@@ -21,11 +21,13 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -63,7 +65,7 @@ fun SavedScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(Icons.Default.CloudOff, contentDescription = null, tint = Warning, modifier = Modifier.size(16.dp))
-                Text("Нет интернета — показаны сохранённые данные", fontSize = 12.sp, color = Warning)
+                Text(stringResource(R.string.net_interneta_pokazany_sohranennye_dannye), fontSize = 12.sp, color = Warning)
             }
         }
 
@@ -83,7 +85,7 @@ fun SavedScreen(
                     FilterChip(
                         selected = state.selectedCategoryId == null,
                         onClick = { onSelectCategory(null) },
-                        label = { Text("Все", fontSize = 13.sp) },
+                        label = { Text(stringResource(R.string.vse), fontSize = 13.sp) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = PrimaryCyan.copy(alpha = 0.2f),
                             selectedLabelColor = PrimaryCyan
@@ -103,7 +105,7 @@ fun SavedScreen(
                 }
             }
             IconButton(onClick = onShowCategorySheet) {
-                Icon(Icons.Default.Folder, contentDescription = "Категории", tint = TextTertiary)
+                Icon(Icons.Default.Folder, contentDescription = stringResource(R.string.kategorii), tint = TextTertiary)
             }
         }
 
@@ -166,7 +168,7 @@ fun SavedScreen(
                         onClick = { onMoveWordToCategory(state.wordToMove, null, null) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Без категории", color = TextSecondary, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(R.string.bez_kategorii), color = TextSecondary, modifier = Modifier.fillMaxWidth())
                     }
                     state.categories.forEach { cat ->
                         TextButton(
@@ -181,7 +183,7 @@ fun SavedScreen(
                 // Manage categories mode
                 Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
                     Text(
-                        "Категории",
+                        stringResource(R.string.kategorii),
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
@@ -195,7 +197,7 @@ fun SavedScreen(
                         ) {
                             Text(cat.name, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
                             IconButton(onClick = { onDeleteCategory(cat.id, cat.serverId) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = TextTertiary.copy(alpha = 0.6f))
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.udalit), tint = TextTertiary.copy(alpha = 0.6f))
                             }
                         }
                     }
@@ -205,7 +207,7 @@ fun SavedScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Create new category
-                    Text("Новая категория", fontSize = 14.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 8.dp))
+                    Text(stringResource(R.string.novaya_kategoriya), fontSize = 14.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -214,7 +216,7 @@ fun SavedScreen(
                         OutlinedTextField(
                             value = state.newCategoryName,
                             onValueChange = onNewCategoryNameChange,
-                            placeholder = { Text("Название", color = TextTertiary) },
+                            placeholder = { Text(stringResource(R.string.nazvanie), color = TextTertiary) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -228,7 +230,7 @@ fun SavedScreen(
                             onClick = onCreateCategory,
                             enabled = state.newCategoryName.isNotBlank()
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Создать", tint = if (state.newCategoryName.isNotBlank()) PrimaryCyan else TextTertiary)
+                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.sozdat), tint = if (state.newCategoryName.isNotBlank()) PrimaryCyan else TextTertiary)
                         }
                     }
                 }
@@ -283,7 +285,7 @@ private fun WordCard(
                         Text("·", fontSize = 12.sp, color = TextTertiary)
                         Icon(
                             imageVector = Icons.Default.CloudOff,
-                            contentDescription = "Не синхронизировано",
+                            contentDescription = stringResource(R.string.ne_sinhronizirovano),
                             tint = TextTertiary,
                             modifier = Modifier.size(11.dp)
                         )
@@ -295,7 +297,7 @@ private fun WordCard(
                 }
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = TextTertiary.copy(alpha = 0.6f))
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.udalit), tint = TextTertiary.copy(alpha = 0.6f))
             }
         }
     }
@@ -315,9 +317,9 @@ private fun EmptyState() {
                 tint = TextTertiary,
                 modifier = Modifier.size(64.dp)
             )
-            Text("Нет сохранённых слов", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            Text(stringResource(R.string.net_sohranennyh_slov), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Text(
-                "Найдите слово и нажмите на звезду, чтобы сохранить",
+                stringResource(R.string.naydite_slovo_i_nazhmite_na_zvezdu_chtoby),
                 fontSize = 14.sp, color = TextSecondary, textAlign = TextAlign.Center, lineHeight = 20.sp
             )
         }

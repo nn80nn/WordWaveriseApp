@@ -32,6 +32,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
@@ -48,6 +49,7 @@ import com.wordwaverise.wordwaveriseapp.presentation.search.components.NoticeBar
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.RuEnCandidatesView
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.SentenceView
 import androidx.compose.foundation.BorderStroke
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 import androidx.compose.ui.text.style.TextOverflow
 
@@ -116,7 +118,7 @@ fun SearchScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             placeholder = {
-                Text("Найти слово...", color = TextPlaceholder)
+                Text(stringResource(R.string.nayti_slovo), color = TextPlaceholder)
             },
             leadingIcon = {
                 Icon(
@@ -130,7 +132,7 @@ fun SearchScreen(
                     IconButton(onClick = onClear) {
                         Icon(
                             imageVector = Icons.Default.Clear,
-                            contentDescription = "Очистить",
+                            contentDescription = stringResource(R.string.ochistit),
                             tint = TextTertiary
                         )
                     }
@@ -259,7 +261,7 @@ fun SearchScreen(
                                 modifier = Modifier.size(56.dp)
                             )
                             Text(
-                                "Введите слово и нажмите поиск",
+                                stringResource(R.string.vvedite_slovo_i_nazhmite_poisk),
                                 fontSize = 15.sp,
                                 color = TextSecondary,
                                 textAlign = TextAlign.Center
@@ -310,13 +312,13 @@ fun SearchScreen(
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                "Собираем статью…",
+                                stringResource(R.string.sobiraem_statyu),
                                 fontSize = 14.sp,
                                 color = TextSecondary,
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                "Определения уже доступны на вкладке «Источники»",
+                                stringResource(R.string.opredeleniya_uzhe_dostupny_na_vkladke_istochniki),
                                 fontSize = 12.sp,
                                 color = TextTertiary,
                                 textAlign = TextAlign.Center,
@@ -486,7 +488,7 @@ private fun WordHeader(
                 IconButton(onClick = if (isSaved) onUnsave else onSave) {
                     Icon(
                         imageVector = if (isSaved) Icons.Default.Star else Icons.Default.StarBorder,
-                        contentDescription = if (isSaved) "Убрать из сохранённых" else "Сохранить",
+                        contentDescription = if (isSaved) stringResource(R.string.ubrat_iz_sohranennyh) else stringResource(R.string.sohranit),
                         tint = if (isSaved) Warning else TextTertiary,
                         modifier = Modifier.size(24.dp)
                     )
@@ -580,7 +582,7 @@ private fun PronAudioButton(
             }
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (isPlaying) "Остановить произношение" else "Прослушать произношение",
+                contentDescription = if (isPlaying) stringResource(R.string.ostanovit_proiznoshenie) else stringResource(R.string.proslushat_proiznoshenie),
                 tint = if (isPlaying) PrimaryCyan else TextSecondary,
                 modifier = Modifier.size(16.dp)
             )
@@ -655,17 +657,17 @@ private fun CollapsibleThesaurus(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Тезаурус", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextTertiary)
+                Text(stringResource(R.string.tezaurus), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextTertiary)
                 Text(if (expanded) "▲" else "▼", fontSize = 11.sp, color = TextTertiary)
             }
             if (expanded) {
                 Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (synonyms.isNotEmpty()) {
-                        Text("Синонимы", fontSize = 11.sp, color = TextTertiary)
+                        Text(stringResource(R.string.sinonimy), fontSize = 11.sp, color = TextTertiary)
                         FlowChips(items = synonyms, color = PrimaryBlue, onItemClick = onWordClick)
                     }
                     if (antonyms.isNotEmpty()) {
-                        Text("Антонимы", fontSize = 11.sp, color = TextTertiary)
+                        Text(stringResource(R.string.antonimy), fontSize = 11.sp, color = TextTertiary)
                         FlowChips(items = antonyms, color = Error, onItemClick = onWordClick)
                     }
                 }
@@ -729,7 +731,7 @@ private fun DefinitionCard(def: DefinitionDto) {
 private fun DetailsPage(wordData: WordDto?, onWordClick: (String) -> Unit = {}) {
     if (wordData == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Нет данных", fontSize = 14.sp, color = TextTertiary)
+            Text(stringResource(R.string.net_dannyh), fontSize = 14.sp, color = TextTertiary)
         }
         return
     }
@@ -788,14 +790,14 @@ private fun DetailsPage(wordData: WordDto?, onWordClick: (String) -> Unit = {}) 
         }
 
         if (allSynonyms.isNotEmpty() || allAntonyms.isNotEmpty()) {
-            SectionCard(title = "Тезаурус") {
+            SectionCard(title = stringResource(R.string.tezaurus)) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (allSynonyms.isNotEmpty()) {
-                        Text("Синонимы", fontSize = 11.sp, color = TextTertiary)
+                        Text(stringResource(R.string.sinonimy), fontSize = 11.sp, color = TextTertiary)
                         FlowChips(items = allSynonyms, color = PrimaryBlue, onItemClick = onWordClick)
                     }
                     if (allAntonyms.isNotEmpty()) {
-                        Text("Антонимы", fontSize = 11.sp, color = TextTertiary)
+                        Text(stringResource(R.string.antonimy), fontSize = 11.sp, color = TextTertiary)
                         FlowChips(items = allAntonyms, color = Error, onItemClick = onWordClick)
                     }
                 }
@@ -804,7 +806,7 @@ private fun DetailsPage(wordData: WordDto?, onWordClick: (String) -> Unit = {}) 
         }
 
         if (allExamples.isNotEmpty()) {
-            SectionCard(title = "Примеры использования") {
+            SectionCard(title = stringResource(R.string.primery_ispolzovaniya)) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     allExamples.forEach { ex ->
                         Text(
@@ -823,7 +825,7 @@ private fun DetailsPage(wordData: WordDto?, onWordClick: (String) -> Unit = {}) 
         if (allSynonyms.isEmpty() && allAntonyms.isEmpty() && allExamples.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    "Дополнительные данные недоступны",
+                    stringResource(R.string.dopolnitelnye_dannye_nedostupny),
                     fontSize = 14.sp,
                     color = TextTertiary,
                     textAlign = TextAlign.Center
@@ -988,7 +990,7 @@ private fun RuTranslationPanel(
                 }
             }
             candidates.isEmpty() -> {
-                Text("Перевод не найден", color = TextTertiary, fontSize = 14.sp)
+                Text(stringResource(R.string.perevod_ne_nayden), color = TextTertiary, fontSize = 14.sp)
             }
             else -> {
                 FlowRow(
@@ -1025,7 +1027,7 @@ private fun RuTranslationPanel(
                     }
                 }
                 Text(
-                    text = "Нажмите на слово чтобы посмотреть статью",
+                    text = stringResource(R.string.nazhmite_na_slovo_chtoby_posmotret_statyu),
                     fontSize = 11.sp,
                     color = TextTertiary
                 )
@@ -1045,7 +1047,7 @@ private fun SuggestionsRow(suggestions: List<String>, onSelect: (String) -> Unit
             .padding(top = 2.dp, bottom = 6.dp)
     ) {
         Text(
-            text = "Возможно, вы имели в виду:",
+            text = stringResource(R.string.vozmozhno_vy_imeli_v_vidu),
             fontSize = 12.sp,
             color = TextTertiary
         )

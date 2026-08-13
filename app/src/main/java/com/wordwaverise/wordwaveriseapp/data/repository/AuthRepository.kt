@@ -2,6 +2,9 @@ package com.wordwaverise.wordwaveriseapp.data.repository
 
 import android.util.Log
 import com.wordwaverise.wordwaveriseapp.data.local.TokenDataStore
+import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.FlashcardDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.SavedWordDao
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.AuthData
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.GoogleAuthRequest
@@ -26,7 +29,10 @@ import javax.inject.Singleton
 @Singleton
 class AuthRepository @Inject constructor(
     private val apiService: ApiService,
-    private val tokenDataStore: TokenDataStore
+    private val tokenDataStore: TokenDataStore,
+    private val savedWordDao: SavedWordDao,
+    private val flashcardDao: FlashcardDao,
+    private val categoryDao: CategoryDao
 ) {
     companion object {
         private const val TAG = "AuthRepository"
@@ -176,8 +182,26 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Logging out has to take the local copy with it.
+     *
+     * Room outlived the session: clearing only the token left the previous
+     * account's saved words, folders and flashcards in the database, and the
+     * next person to sign in on the device saw them merged into their own list.
+     * Everything dropped here exists on the server and syncs back on login.
+     *
+     * The article cache is deliberately kept — it holds dictionary entries, not
+     * anybody's data, and re-downloading them would be pure waste.
+     */
     suspend fun logout() {
         Log.d(TAG, "Logging out user")
         tokenDataStore.clearToken()
+        try {
+            savedWordDao.deleteAll()
+            flashcardDao.deleteAll()
+            categoryDao.deleteAll()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not clear local data on logout: ${e.message}")
+        }
     }
 }

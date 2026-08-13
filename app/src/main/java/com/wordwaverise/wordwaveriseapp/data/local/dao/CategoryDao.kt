@@ -46,6 +46,9 @@ interface CategoryDao {
     )
     suspend fun deleteDuplicateServerCategories()
 
+    @Query("DELETE FROM categories")
+    suspend fun deleteAll()
+
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deleteById(id: Long)
 

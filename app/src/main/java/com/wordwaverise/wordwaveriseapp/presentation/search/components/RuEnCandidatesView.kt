@@ -10,11 +10,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.RuEnCandidateDto
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 /**
@@ -50,7 +52,7 @@ fun RuEnCandidatesView(
 
         if (isAmbiguous) {
             Spacer(Modifier.height(6.dp))
-            Badge("несколько значений", PrimaryCyan)
+            Badge(stringResource(R.string.neskolko_znacheniy), PrimaryCyan)
         }
 
         note?.takeIf { it.isNotBlank() }?.let {
@@ -73,7 +75,7 @@ fun RuEnCandidatesView(
             }
 
             candidates.isEmpty() -> Text(
-                "Перевод не найден",
+                stringResource(R.string.perevod_ne_nayden),
                 fontSize = 14.sp,
                 color = TextTertiary,
                 modifier = Modifier.padding(vertical = 24.dp)

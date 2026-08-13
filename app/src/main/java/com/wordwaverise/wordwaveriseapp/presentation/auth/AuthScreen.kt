@@ -20,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.wordwaverise.wordwaveriseapp.BuildConfig
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 @Composable
@@ -65,7 +67,7 @@ fun AuthScreen(
     }
 
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Вход", "Регистрация")
+    val tabs = listOf(stringResource(R.string.vhod), stringResource(R.string.registraciya))
     val context = LocalContext.current
 
     val googleSignInClient = remember {
@@ -97,7 +99,7 @@ fun AuthScreen(
     ) {
         Spacer(modifier = Modifier.height(44.dp))
 
-        Eyebrow("Словарь", ruleWidth = 26.dp)
+        Eyebrow(stringResource(R.string.slovar), ruleWidth = 26.dp)
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -116,7 +118,7 @@ fun AuthScreen(
         Spacer(modifier = Modifier.height(10.dp))
 
         Text(
-            text = "Изучайте английский легко",
+            text = stringResource(R.string.izuchayte_angliyskiy_legko),
             fontSize = 14.sp,
             color = TextSecondary
         )
@@ -198,7 +200,7 @@ fun AuthScreen(
                     ) {
                         HorizontalDivider(modifier = Modifier.weight(1f), color = BorderLight)
                         Text(
-                            text = "  или  ",
+                            text = stringResource(R.string.ili),
                             fontSize = 12.sp,
                             color = TextTertiary
                         )
@@ -227,7 +229,7 @@ fun AuthScreen(
                         ) {
                             Text(text = "G", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4285F4))
                             Text(
-                                text = "Войти через Google",
+                                text = stringResource(R.string.voyti_cherez_google),
                                 fontSize = 15.sp,
                                 color = TextPrimary,
                                 fontWeight = FontWeight.Medium
@@ -242,13 +244,13 @@ fun AuthScreen(
 
         if (selectedTab == 0) {
             Text(
-                text = "Нет аккаунта? Перейдите на вкладку \"Регистрация\"",
+                text = stringResource(R.string.net_akkaunta_pereydite_na_vkladku_registraciya),
                 fontSize = 13.sp,
                 color = TextTertiary
             )
         } else {
             Text(
-                text = "Уже есть аккаунт? Перейдите на вкладку \"Вход\"",
+                text = stringResource(R.string.uzhe_est_akkaunt_pereydite_na_vkladku_vhod),
                 fontSize = 13.sp,
                 color = TextTertiary
             )
@@ -274,7 +276,7 @@ private fun VerificationScreen(
         Spacer(modifier = Modifier.height(60.dp))
 
         Text(
-            text = "Подтвердите email",
+            text = stringResource(R.string.podtverdite_email),
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = PrimaryCyan
@@ -302,7 +304,7 @@ private fun VerificationScreen(
                     value = state.verificationCode,
                     onValueChange = { if (it.length <= 6) onCodeChange(it.filter(Char::isDigit)) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Код подтверждения") },
+                    label = { Text(stringResource(R.string.kod_podtverzhdeniya)) },
                     placeholder = { Text("123456") },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = BackgroundSecondary,
@@ -346,7 +348,7 @@ private fun VerificationScreen(
                     if (state.isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                     } else {
-                        Text(text = "Подтвердить", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        Text(text = stringResource(R.string.podtverdit), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     }
                 }
 
@@ -358,7 +360,7 @@ private fun VerificationScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = if (state.resendLoading) "Отправка..." else "Отправить код повторно",
+                        text = if (state.resendLoading) stringResource(R.string.otpravka) else stringResource(R.string.otpravit_kod_povtorno),
                         color = PrimaryCyan,
                         fontSize = 13.sp
                     )
@@ -391,8 +393,8 @@ private fun AuthForm(
                 value = login,
                 onValueChange = onLoginChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Логин / Никнейм") },
-                placeholder = { Text("Например: john_doe") },
+                label = { Text(stringResource(R.string.login_nikneym)) },
+                placeholder = { Text(stringResource(R.string.naprimer_john_doe)) },
                 leadingIcon = {
                     Text(text = "@", fontSize = 18.sp, color = PrimaryCyan, modifier = Modifier.padding(start = 12.dp))
                 },
@@ -451,16 +453,16 @@ private fun AuthForm(
             value = password,
             onValueChange = onPasswordChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Пароль") },
-            placeholder = { Text("Минимум 6 символов") },
+            label = { Text(stringResource(R.string.parol)) },
+            placeholder = { Text(stringResource(R.string.minimum_6_simvolov)) },
             leadingIcon = {
-                Icon(imageVector = Icons.Default.Lock, contentDescription = "Пароль", tint = PrimaryCyan)
+                Icon(imageVector = Icons.Default.Lock, contentDescription = stringResource(R.string.parol), tint = PrimaryCyan)
             },
             trailingIcon = {
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                     Icon(
                         imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                        contentDescription = if (passwordVisible) "Скрыть пароль" else "Показать пароль",
+                        contentDescription = if (passwordVisible) stringResource(R.string.skryt_parol) else stringResource(R.string.pokazat_parol),
                         tint = TextTertiary
                     )
                 }
@@ -514,7 +516,7 @@ private fun AuthForm(
                 CircularProgressIndicator(color = colors.onAccent, modifier = Modifier.size(24.dp))
             } else {
                 Text(
-                    text = if (isLogin) "Войти" else "Зарегистрироваться",
+                    text = if (isLogin) stringResource(R.string.voyti) else stringResource(R.string.zaregistrirovatsya),
                     color = if (submitEnabled) colors.onAccent else colors.textMuted,
                     fontFamily = Comfortaa,
                     fontSize = 16.sp,

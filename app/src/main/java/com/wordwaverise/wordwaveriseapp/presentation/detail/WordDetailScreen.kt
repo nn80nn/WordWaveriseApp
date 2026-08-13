@@ -24,6 +24,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
@@ -37,6 +38,7 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailResponse
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.ArticleView
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LexicalEntryDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordEntry
+import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 private data class DetailTab(val label: String, val sourceFilter: String?)
@@ -114,7 +116,7 @@ fun WordDetailScreen(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Назад",
+                    contentDescription = stringResource(R.string.nazad),
                     tint = TextPrimary
                 )
             }
@@ -423,7 +425,7 @@ private fun EntrySelector(
             .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        EntryChip(label = "Все", selected = selectedIdx == -1, onClick = { onSelect(-1) })
+        EntryChip(label = stringResource(R.string.vse), selected = selectedIdx == -1, onClick = { onSelect(-1) })
         entries.forEachIndexed { idx, entry ->
             val label = buildString {
                 entry.partOfSpeech?.let { append(it) }
@@ -530,7 +532,7 @@ private fun WordHeaderCard(
                     IconButton(onClick = if (isSaved) onUnsave else onSave) {
                         Icon(
                             imageVector = if (isSaved) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = if (isSaved) "Убрать из сохранённых" else "Сохранить",
+                            contentDescription = if (isSaved) stringResource(R.string.ubrat_iz_sohranennyh) else stringResource(R.string.sohranit),
                             tint = if (isSaved) Warning else TextTertiary,
                             modifier = Modifier.size(24.dp)
                         )
@@ -629,7 +631,7 @@ private fun PronAudioButton(
             if (flag != null) Text(text = flag, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (isPlaying) "Остановить произношение" else "Прослушать произношение",
+                contentDescription = if (isPlaying) stringResource(R.string.ostanovit_proiznoshenie) else stringResource(R.string.proslushat_proiznoshenie),
                 tint = if (isPlaying) PrimaryCyan else TextSecondary,
                 modifier = Modifier.size(16.dp)
             )
@@ -825,7 +827,7 @@ private fun DetailsPage(
         // All examples
         val examples = wordDetail.examples.filter { it.isNotBlank() }
         if (examples.isNotEmpty()) {
-            SectionCard(title = "Примеры использования") {
+            SectionCard(title = stringResource(R.string.primery_ispolzovaniya)) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     examples.forEach { ex ->
                         Text(
@@ -844,7 +846,7 @@ private fun DetailsPage(
         if (defsBySource.isEmpty() && synonyms.isEmpty() && antonyms.isEmpty() && examples.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    "Дополнительные данные недоступны",
+                    stringResource(R.string.dopolnitelnye_dannye_nedostupny),
                     fontSize = 14.sp,
                     color = TextTertiary,
                     textAlign = TextAlign.Center
@@ -913,10 +915,10 @@ private fun AiPage(
 
         // Explanation section
         AiSection(
-            title = "Объяснение ИИ",
+            title = stringResource(R.string.obyasnenie_ii),
             content = aiExplanation,
             isLoading = isAiExplanationLoading,
-            buttonLabel = "Объяснить",
+            buttonLabel = stringResource(R.string.obyasnit),
             error = if (aiExplanation == null && !isAiExplanationLoading) aiError else null,
             onLoad = onLoadExplanation
         )
@@ -924,10 +926,10 @@ private fun AiPage(
 
         // Examples section
         AiSection(
-            title = "Примеры от ИИ",
+            title = stringResource(R.string.primery_ot_ii),
             content = aiExamples,
             isLoading = isAiExamplesLoading,
-            buttonLabel = "Генерировать примеры",
+            buttonLabel = stringResource(R.string.generirovat_primery),
             error = if (aiExamples == null && !isAiExamplesLoading) aiError else null,
             onLoad = onLoadExamples
         )
@@ -1015,7 +1017,7 @@ private fun AiSection(
                 else -> {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Нажмите кнопку чтобы загрузить",
+                        text = stringResource(R.string.nazhmite_knopku_chtoby_zagruzit),
                         fontSize = 13.sp,
                         color = TextTertiary,
                         fontStyle = FontStyle.Italic
@@ -1054,18 +1056,18 @@ private fun AiInlineSection(
             HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
         }
         AiSection(
-            title = "Объяснение",
+            title = stringResource(R.string.obyasnenie),
             content = aiExplanation,
             isLoading = isAiExplanationLoading,
-            buttonLabel = "Объяснить",
+            buttonLabel = stringResource(R.string.obyasnit),
             error = if (aiExplanation == null && !isAiExplanationLoading) aiError else null,
             onLoad = onLoadExplanation
         )
         AiSection(
-            title = "Примеры от ИИ",
+            title = stringResource(R.string.primery_ot_ii),
             content = aiExamples,
             isLoading = isAiExamplesLoading,
-            buttonLabel = "Генерировать",
+            buttonLabel = stringResource(R.string.generirovat),
             error = if (aiExamples == null && !isAiExamplesLoading) aiError else null,
             onLoad = onLoadExamples
         )
@@ -1099,7 +1101,7 @@ private fun ThesaurusSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Тезаурус",
+                    text = stringResource(R.string.tezaurus),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TextTertiary
@@ -1118,11 +1120,11 @@ private fun ThesaurusSection(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (synonyms.isNotEmpty()) {
-                        Text("Синонимы", fontSize = 11.sp, color = TextTertiary)
+                        Text(stringResource(R.string.sinonimy), fontSize = 11.sp, color = TextTertiary)
                         FlowChips(items = synonyms, color = PrimaryBlue, onItemClick = onWordClick)
                     }
                     if (antonyms.isNotEmpty()) {
-                        Text("Антонимы", fontSize = 11.sp, color = TextTertiary)
+                        Text(stringResource(R.string.antonimy), fontSize = 11.sp, color = TextTertiary)
                         FlowChips(items = antonyms, color = Error, onItemClick = onWordClick)
                     }
                 }

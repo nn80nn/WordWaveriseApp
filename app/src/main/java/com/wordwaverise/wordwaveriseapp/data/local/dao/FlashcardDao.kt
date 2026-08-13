@@ -30,6 +30,9 @@ interface FlashcardDao {
     @Delete
     suspend fun deleteFlashcard(flashcard: FlashcardEntity)
 
+    @Query("DELETE FROM flashcards")
+    suspend fun deleteAll()
+
     @Query("DELETE FROM flashcards WHERE word = :word")
     suspend fun deleteByWord(word: String)
 
