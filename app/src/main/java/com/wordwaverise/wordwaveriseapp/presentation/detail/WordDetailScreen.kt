@@ -492,7 +492,10 @@ private fun WordHeaderCard(
             ) {
                 Text(
                     text = wordDetail.word,
-                    fontSize = if (wordDetail.word.length > 12) 20.sp else 26.sp,
+                    fontFamily = Comfortaa,
+                    letterSpacing = (-0.6).sp,
+                    fontSize = if (wordDetail.word.length > 12) 22.sp else 30.sp,
+                    lineHeight = if (wordDetail.word.length > 12) 27.sp else 36.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     maxLines = 2,
@@ -531,7 +534,7 @@ private fun WordHeaderCard(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     ukIpa?.let {
-                        Text("UK $it", fontSize = 13.sp, color = TextSecondary, maxLines = 1, softWrap = false)
+                        Text("UK $it", style = ApparatusStyle, color = TextSecondary, maxLines = 1, softWrap = false)
                     }
                     ukAudio?.let { url ->
                         PronAudioButton(
@@ -543,7 +546,7 @@ private fun WordHeaderCard(
                         )
                     }
                     usIpa?.let {
-                        Text("US $it", fontSize = 13.sp, color = TextSecondary, maxLines = 1, softWrap = false)
+                        Text("US $it", style = ApparatusStyle, color = TextSecondary, maxLines = 1, softWrap = false)
                     }
                     usAudio?.let { url ->
                         PronAudioButton(
