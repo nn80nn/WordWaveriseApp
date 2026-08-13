@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.wordwaverise.wordwaveriseapp.data.repository.AiRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.AuthRepository
+import com.wordwaverise.wordwaveriseapp.data.repository.SearchRepository
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
 import com.wordwaverise.wordwaveriseapp.util.NetworkError
@@ -25,6 +26,7 @@ class WordDetailViewModel @Inject constructor(
     private val apiService: ApiService,
     private val authRepository: AuthRepository,
     private val aiRepository: AiRepository,
+    private val searchRepository: SearchRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -37,8 +39,39 @@ class WordDetailViewModel @Inject constructor(
         val word = savedStateHandle.get<String>("word")
         if (word != null) {
             _state.update { it.copy(word = word) }
+            loadArticle(word)
             loadWordDetail(word)
             checkIfWordIsSaved(word)
+        }
+    }
+
+    /**
+     * The annotated article, on the same v2 endpoint the search screen uses.
+     *
+     * Opening a saved word used to land on the raw source aggregate while the
+     * identical word opened from search showed the article — two front doors
+     * onto the same entry. This is the same door.
+     *
+     * Collected rather than awaited: a cold word answers with raw data first and
+     * the finished article a moment later, so each emission replaces the last.
+     */
+    private fun loadArticle(word: String) {
+        viewModelScope.launch {
+            searchRepository.lookup(word).collect { result ->
+                if (result is Resource.Success) {
+                    val data = result.data ?: return@collect
+                    _state.update {
+                        it.copy(
+                            entry = data.entry ?: it.entry,
+                            annotationPending = data.annotationStatus == "PENDING",
+                            annotationDegraded = data.annotationStatus == "DEGRADED"
+                        )
+                    }
+                }
+                // A failed lookup is not an error for this screen: the source
+                // tabs are loaded separately and stay usable on their own.
+            }
+            _state.update { it.copy(annotationPending = false) }
         }
     }
 

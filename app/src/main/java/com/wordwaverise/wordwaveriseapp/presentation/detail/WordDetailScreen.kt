@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailResponse
+import com.wordwaverise.wordwaveriseapp.presentation.search.components.ArticleView
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LexicalEntryDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordEntry
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
@@ -50,6 +52,9 @@ private data class DisplayDef(
 @Composable
 fun WordDetailScreen(
     wordDetail: WordDetailResponse?,
+    entry: LexicalEntryDto? = null,
+    annotationPending: Boolean = false,
+    annotationDegraded: Boolean = false,
     isLoading: Boolean,
     error: String?,
     isSaved: Boolean,
@@ -73,10 +78,13 @@ fun WordDetailScreen(
     modifier: Modifier = Modifier
 ) {
     // Build tabs dynamically — only show dict tabs when that source has data
-    val tabs = remember(wordDetail?.word) {
+    val tabs = remember(wordDetail?.word, entry != null) {
         val sources = wordDetail?.definitions?.mapNotNull { it.source?.uppercase() }?.toSet().orEmpty()
         buildList {
-            add(DetailTab("All", null))
+            // The article is the primary view of a word, exactly as on search;
+            // the raw per-dictionary pages stay behind it as evidence.
+            if (entry != null) add(DetailTab("Статья", "ARTICLE"))
+            add(DetailTab("Источники", null))
             if ("WIKTIONARY" in sources) add(DetailTab("Wiktionary", "WIKTIONARY"))
             if ("CAMBRIDGE" in sources) add(DetailTab("Cambridge", "CAMBRIDGE"))
             if ("OXFORD" in sources || "OED" in sources) add(DetailTab("Oxford", "OXFORD"))
@@ -146,9 +154,9 @@ fun WordDetailScreen(
                 }
             }
 
-            wordDetail != null -> {
+            wordDetail != null || entry != null -> {
                 // ── Word header ────────────────────────────────────────────
-                WordHeaderCard(
+                if (wordDetail != null) WordHeaderCard(
                     wordDetail = wordDetail,
                     selectedEntry = selectedEntry,
                     isSaved = isSaved,
@@ -162,7 +170,10 @@ fun WordDetailScreen(
                 )
 
                 // ── Entry chips (only when word has 2+ entries / POS groups) ──
-                if (wordDetail.entries.size > 1) {
+                // They filter the raw source pages, so on the article they are
+                // a control with nothing to act on.
+                val onArticleTab = tabs.getOrNull(pagerState.currentPage)?.sourceFilter == "ARTICLE"
+                if (!onArticleTab && wordDetail != null && wordDetail.entries.size > 1) {
                     EntrySelector(
                         entries = wordDetail.entries,
                         selectedIdx = selectedEntryIdx,
@@ -171,7 +182,8 @@ fun WordDetailScreen(
                 }
 
                 // ── Full-data loading indicator ────────────────────────────
-                if (isLoadingFull) {
+                // Also runs while the article is still being written server-side.
+                if (isLoadingFull || annotationPending) {
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -195,6 +207,11 @@ fun WordDetailScreen(
                 ) { page ->
                     val tab = tabs[page]
                     when {
+                        tab.sourceFilter == "ARTICLE" -> {
+                            if (entry != null) {
+                                ArticleView(entry = entry, onWordClick = onWordClick)
+                            }
+                        }
                         tab.sourceFilter == "AI" -> {
                             AiPage(
                                 aiExplanation = aiExplanation,
@@ -208,7 +225,7 @@ fun WordDetailScreen(
                         }
                         tab.sourceFilter == "DETAILS" -> {
                             DetailsPage(
-                                wordDetail = wordDetail,
+                                wordDetail = wordDetail ?: return@HorizontalPager,
                                 selectedEntry = selectedEntry,
                                 aiExplanation = aiExplanation,
                                 isAiExplanationLoading = isAiExplanationLoading,
@@ -243,7 +260,7 @@ fun WordDetailScreen(
                                     }
                             } else {
                                 // All entries: use flat definitions list
-                                wordDetail.definitions
+                                wordDetail?.definitions.orEmpty()
                                     .filter { tab.sourceFilter == null || matchesTab(it.source) }
                                     .map { def ->
                                         DisplayDef(
@@ -320,8 +337,8 @@ fun WordDetailScreen(
                                             onLoadExamples = onLoadAiExamples
                                         )
                                         // Thesaurus — collapsible at bottom of All tab
-                                        val allSyns = wordDetail.synonyms.filter { it.isNotBlank() }
-                                        val allAnts = wordDetail.antonyms.filter { it.isNotBlank() }
+                                        val allSyns = wordDetail?.synonyms.orEmpty().filter { it.isNotBlank() }
+                                        val allAnts = wordDetail?.antonyms.orEmpty().filter { it.isNotBlank() }
                                         if (allSyns.isNotEmpty() || allAnts.isNotEmpty()) {
                                             Spacer(modifier = Modifier.height(8.dp))
                                             ThesaurusSection(

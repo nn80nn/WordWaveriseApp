@@ -160,6 +160,9 @@ class MainActivity : ComponentActivity() {
                                 val state by viewModel.state.collectAsState()
                                 WordDetailScreen(
                                     wordDetail = state.wordDetail,
+                                    entry = state.entry,
+                                    annotationPending = state.annotationPending,
+                                    annotationDegraded = state.annotationDegraded,
                                     isLoading = state.isLoading,
                                     isLoadingFull = state.isLoadingFull,
                                     error = state.error,
