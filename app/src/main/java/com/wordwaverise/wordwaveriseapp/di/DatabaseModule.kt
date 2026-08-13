@@ -11,6 +11,7 @@ import com.wordwaverise.wordwaveriseapp.data.local.AppDatabase
 import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_1_2
 import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_2_3
 import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_3_4
+import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
 import com.wordwaverise.wordwaveriseapp.data.local.TokenDataStore
 import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.FlashcardDao
@@ -55,5 +56,11 @@ object DatabaseModule {
     @Singleton
     fun provideTokenDataStore(@ApplicationContext context: Context): TokenDataStore {
         return TokenDataStore(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSettingsDataStore(@ApplicationContext context: Context): SettingsDataStore {
+        return SettingsDataStore(context)
     }
 }

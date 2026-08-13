@@ -2,7 +2,10 @@ package com.wordwaverise.wordwaveriseapp.presentation.tasks
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
@@ -45,7 +49,7 @@ fun TasksScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundPrimary)
+            .waveSurface()
             .padding(16.dp)
     ) {
         when {
@@ -106,153 +110,138 @@ private fun TasksOverview(
     onStartExercise: () -> Unit,
     onStartMultipleChoice: () -> Unit = {}
 ) {
+    val colors = WaveTheme.colors
+
     Column(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Stats Card
+        Eyebrow("Сегодня", modifier = Modifier.padding(top = 4.dp))
+
+        // Counters. A hairline splits them instead of a second card, so the two
+        // numbers read as one instrument.
         Card(
-            modifier = Modifier
-                .fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = BackgroundSecondary
-            ),
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+            border = BorderStroke(1.dp, WaveTheme.colors.border),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalArrangement = Arrangement.SpaceAround
+                    .height(IntrinsicSize.Min)
+                    .padding(vertical = 20.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 StatItem(
-                    icon = Icons.Default.LocalFireDepartment,
+                    modifier = Modifier.weight(1f),
                     label = "К повторению",
-                    value = "$dueCount"
+                    value = "$dueCount",
+                    accent = if (dueCount > 0) colors.brass else colors.textMuted
+                )
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(colors.hairline)
                 )
                 StatItem(
-                    icon = Icons.Default.Book,
+                    modifier = Modifier.weight(1f),
                     label = "Всего карточек",
-                    value = "$totalCount"
+                    value = "$totalCount",
+                    accent = colors.secondary
                 )
             }
         }
 
-        // Start Session Button
+        // The one filled control on the screen — the signature gradient is
+        // spent here and nowhere else.
+        val sessionEnabled = dueCount > 0
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = if (dueCount > 0) listOf(PrimaryBright, PrimaryCyan)
-                                 else listOf(PrimaryBright.copy(alpha = 0.5f), PrimaryCyan.copy(alpha = 0.5f))
-                    )
+                .heightIn(min = 62.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .then(
+                    if (sessionEnabled) Modifier.background(signatureGradient())
+                    else Modifier
+                        .background(colors.surfaceElevated)
+                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
                 )
-                .clickable(enabled = dueCount > 0) { onStartSession() }
-                .padding(vertical = 8.dp, horizontal = 16.dp),
+                .then(
+                    if (sessionEnabled) Modifier.contourField(
+                        color = colors.onAccent, alpha = 0.10f, spacing = 20.dp
+                    ) else Modifier
+                )
+                .clickable(enabled = sessionEnabled) { onStartSession() }
+                .padding(vertical = 10.dp, horizontal = 18.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
-                    tint = Color.White
+                    tint = if (sessionEnabled) colors.onAccent else colors.textMuted
                 )
                 Text(
-                    text = if (dueCount > 0) "Начать сессию" else "Нет карточек к повторению",
-                    color = Color.White,
+                    text = if (sessionEnabled) "Начать сессию"
+                           else "Нет карточек к повторению",
+                    color = if (sessionEnabled) colors.onAccent else colors.textMuted,
+                    fontFamily = Comfortaa,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        // AI Exercise Button
         if (hasWords) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 56.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(PrimaryBlue.copy(alpha = 0.8f), PrimaryBright.copy(alpha = 0.8f))
-                        )
-                    )
-                    .clickable { onStartExercise() }
-                    .padding(vertical = 8.dp, horizontal = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    Text(
-                        text = "AI Упражнения",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+            PracticeRow(
+                icon = Icons.Default.AutoAwesome,
+                title = "AI Упражнения",
+                subtitle = "Пропущенное слово в живом предложении",
+                onClick = onStartExercise
+            )
+            PracticeRow(
+                icon = Icons.Default.GpsFixed,
+                title = "Выбор ответа",
+                subtitle = "Четыре определения, одно ваше",
+                onClick = onStartMultipleChoice
+            )
         }
 
-        // Multiple Choice Button
         if (hasWords) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 56.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(PrimaryBlue, PrimaryCyan)
-                        )
-                    )
-                    .clickable { onStartMultipleChoice() }
-                    .padding(vertical = 8.dp, horizontal = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Default.GpsFixed, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    Text(
-                        text = "Выбор ответа",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.weight(1f))
+            Horizon(modifier = Modifier.padding(bottom = 4.dp))
         }
 
         // Info Card
         if (dueCount == 0 && totalCount == 0) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = BackgroundSecondary)
+                colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+                border = BorderStroke(1.dp, WaveTheme.colors.border),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
                         imageVector = Icons.Default.Lightbulb,
                         contentDescription = null,
-                        tint = Warning,
-                        modifier = Modifier.size(48.dp)
+                        tint = colors.brass,
+                        modifier = Modifier.size(40.dp)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Text(
                         text = "Как создать карточки?",
+                        fontFamily = Comfortaa,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -263,7 +252,7 @@ private fun TasksOverview(
                         fontSize = 14.sp,
                         color = TextSecondary,
                         textAlign = TextAlign.Center,
-                        lineHeight = 20.sp
+                        lineHeight = 21.sp
                     )
                 }
             }
@@ -271,33 +260,104 @@ private fun TasksOverview(
     }
 }
 
+/**
+ * Secondary practice modes. Cards with a leading rule rather than more filled
+ * gradients — a screen carrying three saturated slabs stops having a primary
+ * action at all.
+ */
+@Composable
+private fun PracticeRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    val colors = WaveTheme.colors
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .clickable { onClick() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(Brush.verticalGradient(listOf(colors.secondary, colors.primary)))
+            )
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = colors.secondary,
+                modifier = Modifier
+                    .padding(start = 15.dp, end = 14.dp)
+                    .size(22.dp)
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 16.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontFamily = Comfortaa,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = colors.textMuted,
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .size(20.dp)
+            )
+        }
+    }
+}
+
 @Composable
 private fun StatItem(
-    icon: ImageVector,
+    modifier: Modifier = Modifier,
     label: String,
-    value: String
+    value: String,
+    accent: Color
 ) {
     Column(
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = PrimaryCyan,
-            modifier = Modifier.size(36.dp)
-        )
-        Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = value,
-            fontSize = 32.sp,
+            fontFamily = Comfortaa,
+            fontSize = 38.sp,
+            lineHeight = 42.sp,
+            letterSpacing = (-1.4).sp,
             fontWeight = FontWeight.Bold,
-            color = PrimaryCyan
+            color = accent
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = label,
-            fontSize = 13.sp,
-            color = TextTertiary,
+            text = label.uppercase(),
+            style = EyebrowStyle,
+            color = TextSecondary,
             textAlign = TextAlign.Center
         )
     }
@@ -505,6 +565,8 @@ private fun FlippableCard(
             }
             .clickable { onFlip() },
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(20.dp)
     ) {
         Box(
@@ -523,19 +585,24 @@ private fun FlippableCard(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
+                        // A dictionary sets its headword the way the word is
+                        // written, so no shouting caps and no added tracking.
                         Text(
-                            text = word.uppercase(),
-                            fontSize = 42.sp,
+                            text = word,
+                            fontFamily = Comfortaa,
+                            fontSize = 40.sp,
+                            lineHeight = 46.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary,
                             textAlign = TextAlign.Center,
-                            letterSpacing = 1.sp
+                            letterSpacing = (-1.2).sp
                         )
                         phonetic?.let {
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = it,
-                                fontSize = 20.sp,
+                                fontFamily = JetBrainsMono,
+                                fontSize = 16.sp,
                                 color = TextSecondary,
                                 fontWeight = FontWeight.Medium,
                                 textAlign = TextAlign.Center
@@ -613,17 +680,21 @@ private fun FlippableCard(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
+                        // A dictionary sets its headword the way the word is
+                        // written, so no shouting caps and no added tracking.
                         Text(
-                            text = word.uppercase(),
-                            fontSize = 42.sp,
+                            text = word,
+                            fontFamily = Comfortaa,
+                            fontSize = 40.sp,
+                            lineHeight = 46.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary,
                             textAlign = TextAlign.Center,
-                            letterSpacing = 1.sp
+                            letterSpacing = (-1.2).sp
                         )
                         phonetic?.let {
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text(it, fontSize = 20.sp, color = TextSecondary, textAlign = TextAlign.Center)
+                            Text(it, fontFamily = JetBrainsMono, fontSize = 16.sp, color = TextSecondary, textAlign = TextAlign.Center)
                         }
                         if (!translation.isNullOrBlank()) {
                             Spacer(modifier = Modifier.height(16.dp))
@@ -734,6 +805,8 @@ private fun MultipleChoiceMode(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+            border = BorderStroke(1.dp, WaveTheme.colors.border),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -917,6 +990,8 @@ private fun ExerciseMode(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+                    border = BorderStroke(1.dp, WaveTheme.colors.border),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
@@ -1079,6 +1154,47 @@ private fun SessionComplete(onExit: () -> Unit) {
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             )
+        }
+    }
+}
+
+/**
+ * Layered swells closing the foot of the screen. Purely atmospheric, and
+ * deliberately faint — it exists so an empty study day still looks like part
+ * of the water rather than like a page that failed to load.
+ */
+@Composable
+private fun Horizon(modifier: Modifier = Modifier) {
+    val colors = WaveTheme.colors
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(84.dp)
+    ) {
+        val tones = listOf(
+            colors.primary.copy(alpha = if (colors.isDark) 0.16f else 0.10f),
+            colors.secondary.copy(alpha = if (colors.isDark) 0.13f else 0.09f),
+            colors.brass.copy(alpha = if (colors.isDark) 0.10f else 0.08f)
+        )
+        tones.forEachIndexed { i, tone ->
+            val baseY = size.height * (0.42f + i * 0.19f)
+            val amp = size.height * (0.13f - i * 0.02f)
+            val path = Path().apply {
+                moveTo(0f, baseY)
+                var x = 0f
+                var up = i % 2 == 0
+                val half = size.width / 3f
+                while (x < size.width) {
+                    val peak = if (up) baseY - amp else baseY + amp
+                    cubicTo(x + half * 0.35f, peak, x + half * 0.65f, peak, x + half, baseY)
+                    x += half
+                    up = !up
+                }
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
+            }
+            drawPath(path, tone)
         }
     }
 }

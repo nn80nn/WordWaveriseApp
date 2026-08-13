@@ -1,6 +1,7 @@
 package com.wordwaverise.wordwaveriseapp.presentation.detail
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -95,7 +96,7 @@ fun WordDetailScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundPrimary)
+            .waveSurface()
     ) {
         // ── Back button ───────────────────────────────────────────────────
         if (onBack != null) {
@@ -474,6 +475,8 @@ private fun WordHeaderCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
@@ -621,6 +624,8 @@ private fun DefinitionCard(def: DisplayDef) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -849,6 +854,8 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -921,6 +928,8 @@ private fun AiSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -947,6 +956,8 @@ private fun AiSection(
                             text = buttonLabel,
                             fontSize = 12.sp,
                             color = PrimaryCyan,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -1055,6 +1066,8 @@ private fun ThesaurusSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {

@@ -1,6 +1,7 @@
 package com.wordwaverise.wordwaveriseapp.presentation.saved
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -47,7 +48,7 @@ fun SavedScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundPrimary)
+            .waveSurface()
     ) {
         if (state.isOffline) {
             Row(
@@ -242,6 +243,8 @@ private fun WordCard(
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(

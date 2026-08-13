@@ -1,5 +1,6 @@
 package com.wordwaverise.wordwaveriseapp.presentation.search.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -113,7 +114,9 @@ private fun ContextCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary)
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
 

@@ -1,6 +1,7 @@
 package com.wordwaverise.wordwaveriseapp
 
 import android.os.Bundle
+import javax.inject.Inject
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -30,16 +31,23 @@ import com.wordwaverise.wordwaveriseapp.presentation.saved.SavedWordsViewModel
 import com.wordwaverise.wordwaveriseapp.presentation.search.SearchScreen
 import com.wordwaverise.wordwaveriseapp.presentation.search.SearchViewModel
 import com.wordwaverise.wordwaveriseapp.presentation.tasks.TasksScreen
+import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
+import com.wordwaverise.wordwaveriseapp.ui.theme.ThemeMode
 import com.wordwaverise.wordwaveriseapp.ui.theme.WordWaveriseAppTheme
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    @Inject lateinit var settingsDataStore: SettingsDataStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            WordWaveriseAppTheme {
+            val themeMode by settingsDataStore.themeMode
+                .collectAsState(initial = ThemeMode.SYSTEM)
+
+            WordWaveriseAppTheme(themeMode = themeMode) {
                 val navController = rememberNavController()
                 val authViewModel: AuthViewModel = hiltViewModel()
                 val authState by authViewModel.state
@@ -125,10 +133,13 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Profile.route) {
                                 val profileViewModel: ProfileViewModel = hiltViewModel()
                                 val profileState by profileViewModel.state.collectAsState()
+                                val currentThemeMode by profileViewModel.themeMode.collectAsState()
                                 ProfileScreen(
                                     userEmail = authState.userEmail ?: "",
                                     userLogin = authState.userLogin,
                                     state = profileState,
+                                    themeMode = currentThemeMode,
+                                    onThemeModeChange = profileViewModel::setThemeMode,
                                     onLogout = { authViewModel.logout() },
                                     deletionScheduledFor = authState.deletionScheduledFor,
                                     deletionLoading = authState.deletionActionLoading,

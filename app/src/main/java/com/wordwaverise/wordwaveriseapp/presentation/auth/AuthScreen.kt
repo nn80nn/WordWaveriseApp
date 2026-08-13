@@ -3,6 +3,7 @@ package com.wordwaverise.wordwaveriseapp.presentation.auth
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -89,20 +91,29 @@ fun AuthScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundPrimary)
+            .waveSurface()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(44.dp))
 
+        Eyebrow("Словарь", ruleWidth = 26.dp)
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // The wordmark carries the signature gradient — the one place on the
+        // screen where the two accents meet.
         Text(
             text = "WordWaverise",
-            fontSize = 32.sp,
+            fontFamily = Comfortaa,
+            fontSize = 34.sp,
+            lineHeight = 40.sp,
+            letterSpacing = (-1.0).sp,
             fontWeight = FontWeight.Bold,
-            color = PrimaryCyan
+            style = LocalTextStyle.current.merge(TextStyle(brush = signatureGradient()))
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Text(
             text = "Изучайте английский легко",
@@ -110,7 +121,11 @@ fun AuthScreen(
             color = TextSecondary
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(22.dp))
+
+        RuleFade(modifier = Modifier.padding(horizontal = 24.dp))
+
+        Spacer(modifier = Modifier.height(26.dp))
 
         TabRow(
             selectedTabIndex = selectedTab,
@@ -151,6 +166,8 @@ fun AuthScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+            border = BorderStroke(1.dp, WaveTheme.colors.border),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(
@@ -196,7 +213,7 @@ fun AuthScreen(
                             .height(48.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .border(1.dp, BorderLight, RoundedCornerShape(12.dp))
-                            .background(BackgroundPrimary)
+                            .waveSurface()
                             .clickable(enabled = !state.isLoading) {
                                 googleSignInClient.signOut().addOnCompleteListener {
                                     googleLauncher.launch(googleSignInClient.signInIntent)
@@ -250,7 +267,7 @@ private fun VerificationScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundPrimary)
+            .waveSurface()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -276,6 +293,8 @@ private fun VerificationScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+            border = BorderStroke(1.dp, WaveTheme.colors.border),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {

@@ -1,8 +1,10 @@
 package com.wordwaverise.wordwaveriseapp.presentation.search.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -12,7 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -131,7 +138,9 @@ private fun InfoBlock(title: String, body: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary)
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextTertiary)
@@ -189,13 +198,21 @@ fun Badge(text: String, color: Color, modifier: Modifier = Modifier) {
             .background(color.copy(alpha = 0.15f))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
-        Text(text, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = color)
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
 /**
  * One sense: its Russian first, then the English definition, then evidence.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SenseCard(
     sense: SenseDto,
@@ -206,41 +223,66 @@ fun SenseCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary)
+        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(14.dp)) {
-
-            Row(verticalAlignment = Alignment.Top) {
-                Text(
-                    text = "$ordinal.",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextTertiary,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Column(Modifier.weight(1f)) {
-                    if (sense.translationsRu.isNotEmpty()) {
-                        Text(
-                            text = sense.translationsRu.joinToString(", "),
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        )
-                        Spacer(Modifier.height(6.dp))
-                    }
-
-                    if (sense.definitionRu.isNotBlank()) {
-                        Text(sense.definitionRu, fontSize = 14.sp, color = TextSecondary, lineHeight = 20.sp)
-                        Spacer(Modifier.height(6.dp))
-                    }
-
-                    if (sense.definitionEn.isNotBlank()) {
-                        Text(sense.definitionEn, fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp)
-                    }
-                }
+        // Every part of the sense starts on the same left edge, and the ordinal
+        // rides inline at the head of the first line instead of holding a
+        // gutter open down the whole card — a reserved column costs width on
+        // every line to label the block once.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp)
+        ) {
+            val marker = buildAnnotatedString {
+                withStyle(
+                    SpanStyle(
+                        color = TextTertiary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                ) { append("$ordinal.  ") }
             }
 
-            // ── Labels ────────────────────────────────────────────────────
+            var markerUsed = false
+
+            if (sense.translationsRu.isNotEmpty()) {
+                markerUsed = true
+                Text(
+                    text = marker + AnnotatedString(sense.translationsRu.joinToString(", ")),
+                    fontSize = 17.sp,
+                    lineHeight = 23.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (sense.definitionRu.isNotBlank()) {
+                val body = AnnotatedString(sense.definitionRu)
+                Text(
+                    text = if (markerUsed) body else marker + body,
+                    fontSize = 14.sp,
+                    color = TextSecondary,
+                    lineHeight = 21.sp
+                )
+                markerUsed = true
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (sense.definitionEn.isNotBlank()) {
+                val body = AnnotatedString(sense.definitionEn)
+                Text(
+                    text = if (markerUsed) body else marker + body,
+                    fontSize = 13.sp,
+                    color = TextTertiary,
+                    lineHeight = 19.sp
+                )
+            }
+
+            // ── Labels ────────────────────────────────────────────────
             val labels = buildList {
                 sense.cefr?.let { add(it to PrimaryCyan) }
                 registerLabel(sense.register)?.let { add(it to TextTertiary) }
@@ -248,52 +290,57 @@ fun SenseCard(
                 if (sense.generated) add("ИИ" to Error)
             }
             if (labels.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(12.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     labels.forEach { (text, color) -> Badge(text, color) }
                 }
             }
 
-            // ── Examples ──────────────────────────────────────────────────
+            // ── Examples ──────────────────────────────────────────────
             sense.examples.filter { it.en.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { examples ->
-                Spacer(Modifier.height(12.dp))
-                examples.forEach { example ->
-                    Column(Modifier.padding(bottom = 8.dp)) {
-                        Text(
-                            text = example.en,
-                            fontSize = 14.sp,
-                            fontStyle = FontStyle.Italic,
-                            color = TextPrimary,
-                            lineHeight = 19.sp
-                        )
-                        if (example.ru.isNotBlank()) {
-                            Text(example.ru, fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp)
-                        }
+                Spacer(Modifier.height(14.dp))
+                examples.forEachIndexed { index, example ->
+                    if (index > 0) Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = example.en,
+                        fontSize = 14.sp,
+                        fontStyle = FontStyle.Italic,
+                        color = TextPrimary,
+                        lineHeight = 20.sp
+                    )
+                    if (example.ru.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(example.ru, fontSize = 13.sp, color = TextTertiary, lineHeight = 19.sp)
                     }
                 }
             }
 
             sense.collocations.filter { it.pattern.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { collocations ->
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
                     text = collocations.joinToString("  ·  ") { it.pattern },
                     fontSize = 12.sp,
+                    lineHeight = 18.sp,
                     color = PrimaryCyan
                 )
             }
 
             sense.usageNote?.takeIf { it.isNotBlank() }?.let { note ->
-                Spacer(Modifier.height(8.dp))
-                Text(note, fontSize = 12.sp, color = TextTertiary, lineHeight = 17.sp)
+                Spacer(Modifier.height(10.dp))
+                Text(note, fontSize = 12.sp, color = TextTertiary, lineHeight = 18.sp)
             }
 
-            // ── Thesaurus ─────────────────────────────────────────────────
+            // ── Thesaurus ─────────────────────────────────────────────
             val related = sense.synonyms.map { it to PrimaryCyan } + sense.antonyms.map { it to Error }
             if (related.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Row(
+                Spacer(Modifier.height(12.dp))
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     related.take(6).forEach { (word, color) ->
                         Box(
@@ -301,24 +348,36 @@ fun SenseCard(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(color.copy(alpha = 0.12f))
                                 .clickable { onWordClick(word) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
                         ) {
-                            Text(word, fontSize = 12.sp, color = color)
+                            // A chip never breaks the word it carries: it
+                            // either fits on its line or moves to the next.
+                            Text(
+                                text = word,
+                                fontSize = 12.sp,
+                                color = color,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
             }
 
-            // ── Provenance ────────────────────────────────────────────────
-            // Which dictionaries backed this sense, so the article stays checkable.
+            // ── Provenance ────────────────────────────────────────────
+            // Which dictionaries backed this sense, so the article stays
+            // checkable. A faded rule sets it apart as apparatus.
             val sources = sense.sourceRefs
                 .mapNotNull { ref -> entry.sources.firstOrNull { it.index == ref }?.source }
                 .distinct()
             if (sources.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(14.dp))
+                RuleFade()
+                Spacer(Modifier.height(8.dp))
                 Text(
                     text = sources.joinToString(" · ") { SOURCE_LABELS[it.uppercase()] ?: it },
-                    fontSize = 10.sp,
+                    style = ApparatusStyle,
+                    fontSize = 9.sp,
                     color = TextTertiary
                 )
             }

@@ -1,6 +1,12 @@
 package com.wordwaverise.wordwaveriseapp.presentation.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -41,6 +47,7 @@ import com.wordwaverise.wordwaveriseapp.presentation.search.components.ArticleVi
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.NoticeBar
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.RuEnCandidatesView
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.SentenceView
+import androidx.compose.foundation.BorderStroke
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 import androidx.compose.ui.text.style.TextOverflow
 
@@ -99,7 +106,7 @@ fun SearchScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundPrimary)
+            .waveSurface()
     ) {
         // ── Search field ──────────────────────────────────────────────────
         OutlinedTextField(
@@ -424,17 +431,32 @@ private fun WordHeader(
         ?: wordData.audioUrl.takeIf { wordData.pronunciations.isEmpty() }
     val usAudio = usPron?.audioMp3Url
 
+    val colors = WaveTheme.colors
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp)
     ) {
+        // A brass-to-tide rule down the leading edge: the article reads as a
+        // page torn from a dictionary rather than as a coloured box.
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            Box(
+                Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(
+                        Brush.verticalGradient(listOf(colors.secondary, colors.primary))
+                    )
+            )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(start = 15.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)
         ) {
             // Word title gets almost the full card width — only a star button shares the row
             Row(
@@ -444,12 +466,21 @@ private fun WordHeader(
             ) {
                 Text(
                     text = wordData.word,
-                    fontSize = if (wordData.word.length > 12) 20.sp else 26.sp,
+                    fontFamily = Comfortaa,
+                    fontSize = if (wordData.word.length > 12) 22.sp else 30.sp,
+                    lineHeight = if (wordData.word.length > 12) 27.sp else 36.sp,
+                    letterSpacing = (-0.6).sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        // wrapContentWidth first, so the wave is drawn under the
+                        // word itself rather than across the whole header row.
+                        .wrapContentWidth(Alignment.Start)
+                        .padding(bottom = 6.dp)
+                        .waveUnderline(color = colors.secondary.copy(alpha = 0.65f))
                 )
 
                 IconButton(onClick = if (isSaved) onUnsave else onSave) {
@@ -475,7 +506,7 @@ private fun WordHeader(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     ukIpa?.let {
-                        Text("UK $it", fontSize = 13.sp, color = TextSecondary, maxLines = 1, softWrap = false)
+                        Text("UK $it", style = ApparatusStyle, color = TextSecondary, maxLines = 1, softWrap = false)
                     }
                     ukAudio?.let { url ->
                         PronAudioButton(
@@ -487,7 +518,7 @@ private fun WordHeader(
                         )
                     }
                     usIpa?.let {
-                        Text("US $it", fontSize = 13.sp, color = TextSecondary, maxLines = 1, softWrap = false)
+                        Text("US $it", style = ApparatusStyle, color = TextSecondary, maxLines = 1, softWrap = false)
                     }
                     usAudio?.let { url ->
                         PronAudioButton(
@@ -501,7 +532,7 @@ private fun WordHeader(
                 }
             } else {
                 wordData.phonetic?.let {
-                    Text(text = it, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp))
+                    Text(text = it, style = ApparatusStyle, color = TextSecondary, modifier = Modifier.padding(top = 2.dp))
                 }
             }
 
@@ -510,10 +541,11 @@ private fun WordHeader(
                     text = it,
                     fontSize = 14.sp,
                     color = PrimaryCyan,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 4.dp)
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 6.dp)
                 )
             }
+        }
         }
     }
 }
@@ -613,6 +645,8 @@ private fun CollapsibleThesaurus(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -647,6 +681,8 @@ private fun DefinitionCard(def: DefinitionDto) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -806,6 +842,8 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -843,7 +881,7 @@ private fun ChipGroup(label: String, items: List<String>, color: Color) {
                         .background(color.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 7.dp, vertical = 2.dp)
                 ) {
-                    Text(text = item, fontSize = 12.sp, color = color)
+                    Text(text = item, fontSize = 12.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -869,7 +907,7 @@ private fun FlowChips(
                     .then(if (onItemClick != null) Modifier.clickable { onItemClick(item) } else Modifier)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
-                Text(text = item, fontSize = 13.sp, color = color)
+                Text(text = item, fontSize = 13.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -884,6 +922,8 @@ private fun AiSummaryCard(summary: String) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -959,7 +999,9 @@ private fun RuTranslationPanel(
                         Card(
                             onClick = { onWordClick(word) },
                             shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary)
+                            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+                            border = BorderStroke(1.dp, WaveTheme.colors.border),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -1024,6 +1066,8 @@ private fun SuggestionsRow(suggestions: List<String>, onSelect: (String) -> Unit
                         text = suggestion,
                         fontSize = 13.sp,
                         color = PrimaryBlue,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         fontWeight = FontWeight.Medium
                     )
                 }

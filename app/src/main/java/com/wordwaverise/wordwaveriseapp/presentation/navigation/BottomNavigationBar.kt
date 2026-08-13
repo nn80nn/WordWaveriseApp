@@ -1,5 +1,6 @@
 package com.wordwaverise.wordwaveriseapp.presentation.navigation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -32,15 +33,20 @@ fun BottomNavigationBar(
         Screen.Profile
     )
 
-    NavigationBar(
-        modifier = modifier
+    val colors = WaveTheme.colors
+
+    // A hairline instead of a drop shadow: the bar is a rule the content
+    // stops at, not a slab floating over it.
+    Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
+    Box(
+        Modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = 8.dp,
-                spotColor = Color.Black.copy(alpha = 0.1f),
-                ambientColor = Color.Black.copy(alpha = 0.05f)
-            ),
-        containerColor = BackgroundSecondary,
+            .height(1.dp)
+            .background(colors.hairline)
+    )
+    NavigationBar(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = colors.surface,
         tonalElevation = 0.dp
     ) {
         screens.forEach { screen ->
@@ -64,13 +70,14 @@ fun BottomNavigationBar(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
+                        // The source PNGs carry the old brand cyan, so they are
+                        // re-tinted rather than shown as-is — otherwise the bar
+                        // keeps the previous palette in both themes.
                         Icon(
                             painter = painterResource(id = screen.icon),
                             contentDescription = screen.title,
-                            tint = Color.Unspecified,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .alpha(if (isSelected) 1f else 0.55f)
+                            tint = if (isSelected) colors.secondary else colors.textMuted,
+                            modifier = Modifier.size(23.dp)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -84,11 +91,12 @@ fun BottomNavigationBar(
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedTextColor = PrimaryCyan,
-                    unselectedTextColor = TextTertiary,
-                    indicatorColor = PrimaryCyan.copy(alpha = 0.1f)
+                    selectedTextColor = colors.secondary,
+                    unselectedTextColor = colors.textMuted,
+                    indicatorColor = colors.tag
                 )
             )
         }
+    }
     }
 }
