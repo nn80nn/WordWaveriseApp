@@ -61,6 +61,7 @@ data class TasksState(
     val verdict: ExerciseVerdict? = null,
     val given: String = "",
     val typed: String = "",
+    val isAudioPlaying: Boolean = false,
     val results: List<ExerciseResult> = emptyList(),
     val notice: String? = null,
     val error: String? = null

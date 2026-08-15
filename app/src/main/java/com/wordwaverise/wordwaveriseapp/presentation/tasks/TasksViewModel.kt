@@ -1,5 +1,7 @@
 package com.wordwaverise.wordwaveriseapp.presentation.tasks
 
+import android.media.MediaPlayer
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +32,9 @@ class TasksViewModel @Inject constructor(
 
     /** The counters watch one folder at a time; switching folders replaces the subscription. */
     private var countsJob: Job? = null
+
+    /** One clip at a time, and never one that outlives the screen. */
+    private var mediaPlayer: MediaPlayer? = null
 
     init {
         viewModelScope.launch {
@@ -299,12 +304,61 @@ class TasksViewModel @Inject constructor(
                                    else TasksMode.EXERCISE_SESSION
                         )
                     }
+                    playIfListening()
                 }
                 else -> _state.update {
                     it.copy(isExerciseLoading = false, error = result.message)
                 }
             }
         }
+    }
+
+    // ── Listening ────────────────────────────────────────────────────────────
+
+    /**
+     * Plays the recording the exercise carries.
+     *
+     * Called on its own when a listening question arrives: the question *is* the sound, and
+     * making the learner press a button before they can hear it adds a step to every single
+     * question of that kind. The control stays on screen for replays.
+     */
+    fun playAudio() {
+        val url = _state.value.currentExercise?.audioUrl ?: return
+        stopAudio()
+        try {
+            val player = MediaPlayer()
+            mediaPlayer = player
+            player.setDataSource(url)
+            player.setOnPreparedListener { it.start() }
+            player.setOnCompletionListener { _state.update { s -> s.copy(isAudioPlaying = false) } }
+            player.setOnErrorListener { _, _, _ ->
+                // A recording that will not load must not look like one that is still playing.
+                _state.update { s -> s.copy(isAudioPlaying = false) }
+                true
+            }
+            _state.update { it.copy(isAudioPlaying = true) }
+            player.prepareAsync()
+        } catch (e: Exception) {
+            Log.w("TasksViewModel", "Audio playback failed: ${e.message}")
+            _state.update { it.copy(isAudioPlaying = false) }
+        }
+    }
+
+    private fun stopAudio() {
+        runCatching { mediaPlayer?.let { if (it.isPlaying) it.stop() } }
+        mediaPlayer?.release()
+        mediaPlayer = null
+        _state.update { it.copy(isAudioPlaying = false) }
+    }
+
+    /** Every route into a new question passes through here, so nothing is left silent. */
+    private fun playIfListening() {
+        if (_state.value.currentExercise?.audioUrl != null) playAudio()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopAudio()
     }
 
     fun onTypedChange(value: String) {
@@ -342,6 +396,7 @@ class TasksViewModel @Inject constructor(
     }
 
     fun nextExercise() {
+        stopAudio()
         _state.update { current ->
             val nextIndex = current.exerciseIndex + 1
             current.copy(
@@ -353,10 +408,12 @@ class TasksViewModel @Inject constructor(
                        else current.mode
             )
         }
+        playIfListening()
     }
 
     /** Skipping is not failing, but it is not knowing either — the question comes back later. */
     fun skipExercise() {
+        stopAudio()
         _state.update { current ->
             val exercise = current.currentExercise ?: return@update current
             val rest = current.exercises.toMutableList()
@@ -364,9 +421,11 @@ class TasksViewModel @Inject constructor(
             rest.add(exercise)
             current.copy(exercises = rest, verdict = null, given = "", typed = "")
         }
+        playIfListening()
     }
 
     fun exitExercises() {
+        stopAudio()
         _state.update {
             it.copy(
                 mode = TasksMode.OVERVIEW,

@@ -17,11 +17,13 @@ enum class ExerciseKind {
     MEANING_CHOICE,
     WORD_CHOICE,
     TRANSLATE_RU_EN,
+    TRANSLATE_EN_RU,
     FILL_BLANK,
     CONTEXT_CHOICE,
     COLLOCATION,
     WORD_FORM,
     SPELLING,
+    LISTENING,
 
     /** A kind this build predates. Rendered by `format`, never by name. */
     UNKNOWN
@@ -47,6 +49,8 @@ data class ExerciseDto(
     val questionIsSentence: Boolean = false,
     val options: List<String> = emptyList(),
     val correctIndex: Int? = null,
+    /** A recording of the word. Present only when the exercise needs one. */
+    val audioUrl: String? = null,
     val answer: String = "",
     val acceptedAnswers: List<String> = emptyList(),
     val hintRu: String? = null,

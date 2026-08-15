@@ -86,6 +86,7 @@ fun TasksScreen(
 
             TasksMode.EXERCISE_SESSION -> ExerciseSession(
                 state = state,
+                onPlayAudio = viewModel::playAudio,
                 onChoose = viewModel::chooseOption,
                 onTypedChange = viewModel::onTypedChange,
                 onSubmit = viewModel::submitTyped,
@@ -714,6 +715,7 @@ private fun KindRow(
 @Composable
 private fun ExerciseSession(
     state: TasksState,
+    onPlayAudio: () -> Unit,
     onChoose: (Int) -> Unit,
     onTypedChange: (String) -> Unit,
     onSubmit: () -> Unit,
@@ -770,6 +772,10 @@ private fun ExerciseSession(
             sourceLabel(exercise.source)?.let {
                 Text(text = it, style = ApparatusStyle, color = colors.textMuted)
             }
+        }
+
+        exercise.audioUrl?.let {
+            AudioPrompt(playing = state.isAudioPlaying, onPlay = onPlayAudio)
         }
 
         QuestionText(exercise)
@@ -848,8 +854,57 @@ private fun ExerciseSession(
     }
 }
 
+/**
+ * The recording, and the only control that replays it.
+ *
+ * Playback starts on its own when the question arrives — the question *is* the sound, and a
+ * button between the learner and hearing it is a step on every single question of this kind.
+ * The control stays for replays, which is what the exercise is actually practised with.
+ */
+@Composable
+private fun AudioPrompt(playing: Boolean, onPlay: () -> Unit) {
+    val colors = WaveTheme.colors
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onPlay() }
+            .padding(vertical = 4.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    if (playing) colors.secondary.copy(alpha = 0.16f) else colors.surfaceElevated
+                )
+                .border(
+                    1.dp,
+                    if (playing) colors.secondary else colors.border,
+                    RoundedCornerShape(32.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.VolumeUp,
+                contentDescription = stringResource(R.string.proslushat_proiznoshenie),
+                tint = colors.secondary,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Text(
+            text = if (playing) stringResource(R.string.zvuchit)
+                   else stringResource(R.string.poslushat_esche_raz),
+            style = ApparatusStyle,
+            color = TextSecondary
+        )
+    }
+}
+
 @Composable
 private fun QuestionText(exercise: ExerciseDto) {
+    if (exercise.question.isBlank()) return
     if (exercise.questionIsSentence) {
         // The gap is the point of the question, so it is the one thing set apart.
         val parts = exercise.question.split(ExerciseDto.BLANK)

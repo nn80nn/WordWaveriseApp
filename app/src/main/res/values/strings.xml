@@ -165,4 +165,6 @@
     <string name="verno_pochti_mimo">верно %1$d · почти %2$d · мимо %3$d</string>
     <string name="net_slov_dlya_uprazhneniy">Нет слов для упражнений</string>
     <string name="sobiraem_uprazhneniya">Собираем упражнения…</string>
+    <string name="poslushat_esche_raz">послушать ещё раз</string>
+    <string name="zvuchit">звучит</string>
 </resources>
