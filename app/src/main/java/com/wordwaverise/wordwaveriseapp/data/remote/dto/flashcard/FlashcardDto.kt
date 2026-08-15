@@ -47,7 +47,9 @@ data class BulkCreateFlashcardsRequest(
 @Serializable
 data class BulkCreateFlashcardsData(
     val created: Int = 0,
-    val skipped: Int = 0
+    val skipped: Int = 0,
+    /** Карточки, что лежали вне папок и переехали в эту вместе с историей повторений. */
+    val moved: Int = 0
 )
 
 @Serializable

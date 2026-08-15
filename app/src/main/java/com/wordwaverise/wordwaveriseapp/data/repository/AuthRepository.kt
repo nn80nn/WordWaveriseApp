@@ -45,11 +45,31 @@ class AuthRepository @Inject constructor(
     val userEmail: Flow<String?> = tokenDataStore.userEmail
     val userLogin: Flow<String?> = tokenDataStore.userLogin
 
+    // Перевод стоит здесь, а не у каждого вызова: сообщение про аккаунт Google одинаково
+    // прилетает и логину, и регистрации, и разъехались бы они молча.
     private fun extractBackendMessage(e: HttpException): String? = try {
         val body = e.response()?.errorBody()?.string()
-        body?.let { errorJson.parseToJsonElement(it).jsonObject["message"]?.jsonPrimitive?.content }
+        humanize(body?.let { errorJson.parseToJsonElement(it).jsonObject["message"]?.jsonPrimitive?.content })
     } catch (ex: Exception) {
         null
+    }
+
+    /**
+     * Бэкенд отвечает одной английской строкой всем клиентам сразу.
+     *
+     * Про аккаунт из Google это важно перевести, а не показать как есть: у такого аккаунта
+     * пароля не существует вовсе, и английское сообщение отправило бы человека восстанавливать
+     * то, чего нет.
+     */
+    private fun humanize(message: String?): String? = when (message) {
+        "This account uses Google Sign-In" ->
+            "Этот аккаунт заведён через Google — войдите кнопкой «Войти через Google»"
+        "This email is already signed up with Google" ->
+            "На этот адрес уже есть аккаунт Google — войдите кнопкой «Войти через Google»"
+        "Google account email is not verified" -> "Google не подтвердил адрес этого аккаунта"
+        "Invalid email or password" -> "Неверный email или пароль"
+        "User with this email already exists" -> "Аккаунт с таким email уже существует"
+        else -> message
     }
 
     suspend fun register(email: String, password: String, login: String? = null): Resource<RegisterData> {
@@ -116,7 +136,7 @@ class AuthRepository @Inject constructor(
                 Resource.Success(response.data)
             } else {
                 Log.w(TAG, "Login failed: ${response.message}")
-                Resource.Error(response.message ?: "Неверный email или пароль")
+                Resource.Error(humanize(response.message) ?: "Неверный email или пароль")
             }
         } catch (e: HttpException) {
             val backendMessage = extractBackendMessage(e)

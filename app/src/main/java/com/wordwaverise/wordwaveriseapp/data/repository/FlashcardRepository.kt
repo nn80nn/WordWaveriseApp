@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import com.wordwaverise.wordwaveriseapp.data.local.dao.FlashcardDao
 import com.wordwaverise.wordwaveriseapp.data.local.entity.FlashcardEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.BulkCreateFlashcardsData
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.BulkCreateFlashcardsRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.CreateFlashcardRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.FlashcardDto
@@ -118,9 +119,10 @@ class FlashcardRepository @Inject constructor(
     /**
      * Creates a card for every saved word in a folder, in one request.
      *
-     * @return created count to skipped count.
+     * Сервер отдаёт три числа, а не два: слово могло уже иметь карточку вне папок, и такая
+     * карточка переезжает в папку, а не создаётся заново.
      */
-    suspend fun createFromFolder(folderId: Int?): Resource<Pair<Int, Int>> {
+    suspend fun createFromFolder(folderId: Int?): Resource<BulkCreateFlashcardsData> {
         return try {
             val token = authRepository.token.firstOrNull()
                 ?: return Resource.Error("Не авторизован")
@@ -129,7 +131,7 @@ class FlashcardRepository @Inject constructor(
             )
             if (response.status == "ok" && response.data != null) {
                 syncFromServer()
-                Resource.Success(response.data.created to response.data.skipped)
+                Resource.Success(response.data)
             } else {
                 Resource.Error(response.message ?: "Не удалось создать карточки")
             }

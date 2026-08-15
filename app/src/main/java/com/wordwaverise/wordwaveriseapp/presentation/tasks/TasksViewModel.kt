@@ -189,12 +189,20 @@ class TasksViewModel @Inject constructor(
             _state.update { it.copy(isBulkCreating = true, bulkMessage = null) }
             when (val result = flashcardRepository.createFromFolder(_state.value.selectedFolder)) {
                 is Resource.Success -> {
-                    val (created, skipped) = result.data ?: (0 to 0)
+                    val created = result.data?.created ?: 0
+                    val moved = result.data?.moved ?: 0
+                    val skipped = result.data?.skipped ?: 0
+                    // Перенос называется переносом: карточка не появилась заново, её история
+                    // повторений цела, и «создано» читалось бы как потеря прогресса.
+                    val done = buildList {
+                        if (created > 0) add("создано $created")
+                        if (moved > 0) add("перенесено в папку $moved")
+                    }
                     _state.update {
                         it.copy(
                             isBulkCreating = false,
                             bulkMessage = when {
-                                created > 0 -> "Создано карточек: $created"
+                                done.isNotEmpty() -> "Готово: ${done.joinToString(", ")}"
                                 skipped > 0 -> "Карточки для этих слов уже есть"
                                 else -> "В этой папке нет сохранённых слов"
                             }
