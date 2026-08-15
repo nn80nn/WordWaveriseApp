@@ -3,223 +3,393 @@ package com.wordwaverise.wordwaveriseapp.presentation.tasks
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import com.wordwaverise.wordwaveriseapp.data.repository.AiRepository
+import com.wordwaverise.wordwaveriseapp.data.local.entity.FlashcardEntity
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseKind
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseScope
+import com.wordwaverise.wordwaveriseapp.data.repository.CategoryRepository
+import com.wordwaverise.wordwaveriseapp.data.repository.ExerciseRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.FlashcardRepository
+import com.wordwaverise.wordwaveriseapp.util.ExerciseGrading
+import com.wordwaverise.wordwaveriseapp.util.ExerciseVerdict
 import com.wordwaverise.wordwaveriseapp.util.Resource
 import javax.inject.Inject
 
 @HiltViewModel
 class TasksViewModel @Inject constructor(
     private val flashcardRepository: FlashcardRepository,
-    private val aiRepository: AiRepository
+    private val exerciseRepository: ExerciseRepository,
+    private val categoryRepository: CategoryRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TasksState())
     val state: StateFlow<TasksState> = _state.asStateFlow()
 
-    init {
-        syncFromServer()
-        observeFlashcards()
-    }
+    /** The counters watch one folder at a time; switching folders replaces the subscription. */
+    private var countsJob: Job? = null
 
-    private fun syncFromServer() {
+    init {
         viewModelScope.launch {
             flashcardRepository.syncFromServer()
+            categoryRepository.syncCategories()
         }
+        observeFolders()
+        observeCounts(null)
     }
 
-    private fun observeFlashcards() {
+    // ── Folders ──────────────────────────────────────────────────────────────
+
+    private fun observeFolders() {
         viewModelScope.launch {
-            combine(
-                flashcardRepository.dueCount,
-                flashcardRepository.totalCount
-            ) { due, total ->
-                Pair(due, total)
-            }.collect { (due, total) ->
-                _state.update { currentState ->
-                    currentState.copy(
-                        dueCount = due,
-                        totalCount = total
+            categoryRepository.categories.collect { categories ->
+                // Only folders the server knows can filter a server-built session; a folder
+                // created offline has no id the API would recognise yet.
+                val synced = categories.mapNotNull { category ->
+                    category.serverId?.let { FolderOption(it, category.name) }
+                }
+                _state.update { current ->
+                    val options = buildList {
+                        add(FolderOption(null, "Все"))
+                        addAll(synced)
+                        add(FolderOption(FolderOption.UNCATEGORIZED, "Без папки"))
+                    }
+                    // A folder that disappeared must not leave the screen filtering by nothing.
+                    val stillThere = options.any { it.id == current.selectedFolder }
+                    current.copy(
+                        folders = options,
+                        selectedFolder = if (stillThere) current.selectedFolder else null
                     )
                 }
             }
         }
     }
 
-    fun startSession() {
-        viewModelScope.launch {
-            flashcardRepository.getFlashcardsForSession(10)
-                .firstOrNull()
-                ?.let { cards ->
-                    if (cards.isNotEmpty()) {
-                        _state.update { currentState ->
-                            currentState.copy(
-                                isSessionActive = true,
-                                sessionFlashcards = cards,
-                                currentCardIndex = 0
-                            )
-                        }
-                    }
+    fun selectFolder(folderId: Int?) {
+        if (_state.value.selectedFolder == folderId) return
+        _state.update { it.copy(selectedFolder = folderId, bulkMessage = null) }
+        observeCounts(folderId)
+        loadKinds()
+    }
+
+    private fun observeCounts(folderId: Int?) {
+        countsJob?.cancel()
+        countsJob = viewModelScope.launch {
+            combine(
+                flashcardRepository.dueCountIn(folderId),
+                flashcardRepository.totalCountIn(folderId)
+            ) { due, total -> due to total }
+                .collect { (due, total) ->
+                    _state.update { it.copy(dueCount = due, totalCount = total) }
                 }
         }
     }
 
-    fun markCorrect() {
-        viewModelScope.launch {
-            val currentState = _state.value
-            val currentCard = currentState.sessionFlashcards.getOrNull(currentState.currentCardIndex)
+    // ── Flashcard session ────────────────────────────────────────────────────
 
-            if (currentCard != null) {
-                flashcardRepository.markAsCorrect(currentCard)
-                moveToNextCard()
+    fun startSession() {
+        viewModelScope.launch {
+            val folder = _state.value.selectedFolder
+            val cards = flashcardRepository.getFlashcardsForSession(folder, 10).firstOrNull()
+            if (cards.isNullOrEmpty()) return@launch
+            _state.update {
+                it.copy(
+                    mode = TasksMode.CARD_SESSION,
+                    sessionFlashcards = cards,
+                    currentCardIndex = 0
+                )
             }
         }
     }
 
-    fun markIncorrect() {
+    fun markCorrect() = reviewCurrentCard(correct = true)
+
+    fun markIncorrect() = reviewCurrentCard(correct = false)
+
+    private fun reviewCurrentCard(correct: Boolean) {
         viewModelScope.launch {
-            val currentState = _state.value
-            val currentCard = currentState.sessionFlashcards.getOrNull(currentState.currentCardIndex)
-
-            if (currentCard != null) {
-                flashcardRepository.markAsIncorrect(currentCard)
-                moveToNextCard()
-            }
-        }
-    }
-
-    private fun moveToNextCard() {
-        _state.update { currentState ->
-            currentState.copy(
-                currentCardIndex = currentState.currentCardIndex + 1
-            )
+            val current = _state.value
+            val card = current.sessionFlashcards.getOrNull(current.currentCardIndex) ?: return@launch
+            if (correct) flashcardRepository.markAsCorrect(card)
+            else flashcardRepository.markAsIncorrect(card)
+            _state.update { it.copy(currentCardIndex = it.currentCardIndex + 1) }
         }
     }
 
     fun exitSession() {
-        _state.update { currentState ->
-            currentState.copy(
-                isSessionActive = false,
+        _state.update {
+            it.copy(
+                mode = TasksMode.OVERVIEW,
                 sessionFlashcards = emptyList(),
                 currentCardIndex = 0
             )
         }
     }
 
-    // ── Multiple Choice mode ──────────────────────────────────────────────────
+    // ── Editing a card ───────────────────────────────────────────────────────
 
-    fun startMultipleChoice() {
-        _state.update { it.copy(isMultipleChoiceActive = true) }
-        loadNextMultipleChoice()
+    fun editCard(card: FlashcardEntity) {
+        _state.update { it.copy(editingCard = card) }
     }
 
-    fun exitMultipleChoice() {
-        _state.update { it.copy(isMultipleChoiceActive = false, multipleChoiceQuestion = null, selectedChoiceIndex = null, choiceAnswered = false) }
+    /** Edits the card the session is currently showing, which is where a mistake is noticed. */
+    fun editCurrentCard() {
+        val current = _state.value
+        current.sessionFlashcards.getOrNull(current.currentCardIndex)?.let { editCard(it) }
     }
 
-    fun selectChoice(index: Int) {
-        if (_state.value.choiceAnswered) return
-        _state.update { it.copy(selectedChoiceIndex = index, choiceAnswered = true) }
+    fun dismissEditor() {
+        _state.update { it.copy(editingCard = null) }
     }
 
-    fun loadNextMultipleChoice() {
+    fun saveCard(word: String, translation: String, definition: String, example: String) {
+        val card = _state.value.editingCard ?: return
         viewModelScope.launch {
-            val allCards = flashcardRepository.allFlashcards.firstOrNull() ?: emptyList()
-            if (allCards.size < 2) {
-                _state.update { it.copy(isMultipleChoiceActive = false) }
+            val result = flashcardRepository.updateContent(
+                card = card,
+                word = word.trim().ifBlank { card.word },
+                translation = translation.trim().ifBlank { null },
+                definition = definition.trim(),
+                example = example.trim().ifBlank { null }
+            )
+            if (result is Resource.Error) {
+                _state.update { it.copy(error = result.message, editingCard = null) }
                 return@launch
             }
-            // Randomly pick word-first or definition-first mode
-            val wordFirst = (0..1).random() == 0
-            val correct = allCards.random()
-            val distractors = allCards.filter { it.id != correct.id }.shuffled().take(3)
-            val allOptions = (listOf(correct) + distractors).shuffled()
-            val correctIdx = allOptions.indexOf(correct)
-
-            val question = if (wordFirst) {
-                MultipleChoiceQuestion(
-                    questionText = correct.word,
-                    options = allOptions.map { it.definition },
-                    correctIndex = correctIdx,
-                    wordFirst = true
-                )
-            } else {
-                MultipleChoiceQuestion(
-                    questionText = correct.definition,
-                    options = allOptions.map { it.word },
-                    correctIndex = correctIdx,
-                    wordFirst = false
+            // The open session holds its own copy of the card, so it has to be told.
+            _state.update { current ->
+                current.copy(
+                    editingCard = null,
+                    sessionFlashcards = current.sessionFlashcards.map { existing ->
+                        if (existing.id != card.id) existing
+                        else existing.copy(
+                            word = word.trim().ifBlank { existing.word },
+                            translation = translation.trim().ifBlank { null },
+                            definition = definition.trim(),
+                            example = example.trim().ifBlank { null },
+                            customized = true
+                        )
+                    }
                 )
             }
-            _state.update { it.copy(multipleChoiceQuestion = question, selectedChoiceIndex = null, choiceAnswered = false) }
         }
     }
 
-    // ── AI Exercise mode ──────────────────────────────────────────────────────
+    // ── Filling a folder with cards ──────────────────────────────────────────
 
-    fun startExerciseMode() {
-        _state.update { it.copy(isExerciseModeActive = true) }
-        loadNextExercise()
+    fun createCardsFromFolder() {
+        viewModelScope.launch {
+            _state.update { it.copy(isBulkCreating = true, bulkMessage = null) }
+            when (val result = flashcardRepository.createFromFolder(_state.value.selectedFolder)) {
+                is Resource.Success -> {
+                    val (created, skipped) = result.data ?: (0 to 0)
+                    _state.update {
+                        it.copy(
+                            isBulkCreating = false,
+                            bulkMessage = when {
+                                created > 0 -> "Создано карточек: $created"
+                                skipped > 0 -> "Карточки для этих слов уже есть"
+                                else -> "В этой папке нет сохранённых слов"
+                            }
+                        )
+                    }
+                }
+                else -> _state.update {
+                    it.copy(isBulkCreating = false, bulkMessage = result.message ?: "Не удалось создать карточки")
+                }
+            }
+            loadKinds()
+        }
     }
 
-    fun exitExerciseMode() {
+    // ── Exercise setup ───────────────────────────────────────────────────────
+
+    fun openExerciseSetup() {
+        _state.update { it.copy(mode = TasksMode.EXERCISE_SETUP, error = null) }
+        loadKinds()
+    }
+
+    fun setScope(scope: ExerciseScope) {
+        if (_state.value.scope == scope) return
+        _state.update { it.copy(scope = scope) }
+        loadKinds()
+    }
+
+    fun setCount(count: Int) {
+        _state.update { it.copy(count = count) }
+    }
+
+    fun toggleKind(kind: ExerciseKind) {
+        _state.update { current ->
+            val next = current.selectedKinds.toMutableSet()
+            if (!next.remove(kind)) next.add(kind)
+            current.copy(selectedKinds = next)
+        }
+    }
+
+    fun toggleAllKinds() {
+        _state.update { current ->
+            val all = current.availableKinds.map { it.kind }.toSet()
+            current.copy(selectedKinds = if (current.selectedKinds == all) emptySet() else all)
+        }
+    }
+
+    private fun loadKinds() {
+        viewModelScope.launch {
+            _state.update { it.copy(isKindsLoading = true) }
+            val current = _state.value
+            when (val result = exerciseRepository.kinds(current.selectedFolder, current.scope)) {
+                is Resource.Success -> {
+                    val kinds = result.data?.kinds.orEmpty()
+                    _state.update {
+                        it.copy(
+                            isKindsLoading = false,
+                            kinds = kinds,
+                            wordsAvailable = result.data?.wordsAvailable ?: 0,
+                            // Everything the selection supports is on by default: a mixed
+                            // session is the point, and a picker that starts empty makes the
+                            // learner configure before they can practise.
+                            selectedKinds = kinds.filter { info -> info.available > 0 }
+                                .map { info -> info.kind }.toSet(),
+                            error = null
+                        )
+                    }
+                }
+                else -> _state.update {
+                    it.copy(isKindsLoading = false, kinds = emptyList(), error = result.message)
+                }
+            }
+        }
+    }
+
+    // ── Exercise session ─────────────────────────────────────────────────────
+
+    fun startExercises() {
+        viewModelScope.launch {
+            val current = _state.value
+            _state.update { it.copy(isExerciseLoading = true, error = null) }
+
+            val result = exerciseRepository.generate(
+                ExerciseRequest(
+                    categoryId = current.selectedFolder,
+                    scope = current.scope,
+                    kinds = current.selectedKinds.toList(),
+                    count = current.count
+                )
+            )
+
+            when (result) {
+                is Resource.Success -> {
+                    val batch = result.data
+                    val exercises = batch?.exercises.orEmpty()
+                    _state.update {
+                        it.copy(
+                            isExerciseLoading = false,
+                            exercises = exercises,
+                            exerciseIndex = 0,
+                            results = emptyList(),
+                            verdict = null,
+                            given = "",
+                            typed = "",
+                            notice = batch?.noticeRu,
+                            wordsAvailable = batch?.wordsAvailable ?: it.wordsAvailable,
+                            mode = if (exercises.isEmpty()) TasksMode.EXERCISE_SETUP
+                                   else TasksMode.EXERCISE_SESSION
+                        )
+                    }
+                }
+                else -> _state.update {
+                    it.copy(isExerciseLoading = false, error = result.message)
+                }
+            }
+        }
+    }
+
+    fun onTypedChange(value: String) {
+        _state.update { it.copy(typed = value) }
+    }
+
+    fun submitTyped() {
+        val current = _state.value
+        if (current.typed.isBlank()) return
+        answer(current.typed)
+    }
+
+    fun chooseOption(index: Int) {
+        val exercise = _state.value.currentExercise ?: return
+        answer(exercise.options.getOrNull(index).orEmpty())
+    }
+
+    private fun answer(userAnswer: String) {
+        val current = _state.value
+        val exercise = current.currentExercise ?: return
+        if (current.answered) return
+
+        val verdict = ExerciseGrading.grade(exercise, userAnswer)
         _state.update {
             it.copy(
-                isExerciseModeActive = false,
-                exerciseSentence = null,
-                exerciseAnswer = null,
-                userAnswer = "",
-                exerciseChecked = false,
-                exerciseIsCorrect = false,
-                exerciseError = null
+                verdict = verdict,
+                given = userAnswer,
+                results = it.results + ExerciseResult(exercise, verdict, userAnswer)
+            )
+        }
+
+        exercise.cardId?.let { cardId ->
+            viewModelScope.launch { flashcardRepository.recordPracticeResult(cardId, verdict) }
+        }
+    }
+
+    fun nextExercise() {
+        _state.update { current ->
+            val nextIndex = current.exerciseIndex + 1
+            current.copy(
+                exerciseIndex = nextIndex,
+                verdict = null,
+                given = "",
+                typed = "",
+                mode = if (nextIndex >= current.exercises.size) TasksMode.EXERCISE_RESULT
+                       else current.mode
             )
         }
     }
 
-    fun onUserAnswerChange(answer: String) {
-        _state.update { it.copy(userAnswer = answer) }
-    }
-
-    fun checkAnswer() {
-        val state = _state.value
-        val correct = state.userAnswer.trim().equals(state.exerciseAnswer?.trim(), ignoreCase = true)
-        _state.update { it.copy(exerciseChecked = true, exerciseIsCorrect = correct) }
-    }
-
-    fun loadNextExercise() {
-        viewModelScope.launch {
-            _state.update {
-                it.copy(
-                    isExerciseLoading = true,
-                    exerciseSentence = null,
-                    exerciseAnswer = null,
-                    userAnswer = "",
-                    exerciseChecked = false,
-                    exerciseIsCorrect = false,
-                    exerciseError = null
-                )
-            }
-            val allCards = flashcardRepository.allFlashcards.firstOrNull() ?: emptyList()
-            if (allCards.isEmpty()) {
-                _state.update { it.copy(isExerciseLoading = false, exerciseError = "Нет сохранённых слов") }
-                return@launch
-            }
-            val word = allCards.random().word
-            when (val result = aiRepository.getExercise(word)) {
-                is Resource.Success -> _state.update {
-                    it.copy(
-                        isExerciseLoading = false,
-                        exerciseSentence = result.data?.sentence,
-                        exerciseAnswer = result.data?.answer
-                    )
-                }
-                is Resource.Error -> _state.update {
-                    it.copy(isExerciseLoading = false, exerciseError = result.message)
-                }
-                else -> {}
-            }
+    /** Skipping is not failing, but it is not knowing either — the question comes back later. */
+    fun skipExercise() {
+        _state.update { current ->
+            val exercise = current.currentExercise ?: return@update current
+            val rest = current.exercises.toMutableList()
+            rest.removeAt(current.exerciseIndex)
+            rest.add(exercise)
+            current.copy(exercises = rest, verdict = null, given = "", typed = "")
         }
     }
+
+    fun exitExercises() {
+        _state.update {
+            it.copy(
+                mode = TasksMode.OVERVIEW,
+                exercises = emptyList(),
+                exerciseIndex = 0,
+                results = emptyList(),
+                verdict = null,
+                given = "",
+                typed = ""
+            )
+        }
+    }
+
+    fun backToSetup() {
+        _state.update { it.copy(mode = TasksMode.EXERCISE_SETUP) }
+        loadKinds()
+    }
+
+    fun dismissError() {
+        _state.update { it.copy(error = null) }
+    }
+
+    /** Used by the result screen to show only what is worth looking at again. */
+    fun mistakes(): List<ExerciseResult> =
+        _state.value.results.filter { it.verdict != ExerciseVerdict.CORRECT }
 }

@@ -24,6 +24,9 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.ResendVerificationR
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.SimpleMessageResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.UserWrapperResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.auth.VerifyEmailRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseBatchResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseKindsResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.*
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoriesResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoryResponse
@@ -117,14 +120,62 @@ interface ApiService {
     ): DeleteResponse
 
     // Flashcard endpoints (require auth token)
+    //
+    // `categoryId` reads the same way everywhere: omitted = every folder, -1 = the cards in
+    // no folder, anything else = that folder's server id.
     @GET("api/flashcards")
-    suspend fun getFlashcards(@Header("Authorization") token: String): FlashcardsListResponse
+    suspend fun getFlashcards(
+        @Header("Authorization") token: String,
+        @Query("categoryId") categoryId: Int? = null
+    ): FlashcardsListResponse
 
     @GET("api/flashcards/due")
-    suspend fun getDueFlashcards(@Header("Authorization") token: String): DueFlashcardsResponse
+    suspend fun getDueFlashcards(
+        @Header("Authorization") token: String,
+        @Query("categoryId") categoryId: Int? = null
+    ): DueFlashcardsResponse
 
     @GET("api/flashcards/statistics")
-    suspend fun getFlashcardStatistics(@Header("Authorization") token: String): FlashcardStatisticsResponse
+    suspend fun getFlashcardStatistics(
+        @Header("Authorization") token: String,
+        @Query("categoryId") categoryId: Int? = null
+    ): FlashcardStatisticsResponse
+
+    /** One card for every saved word in a folder, in a single request. */
+    @POST("api/flashcards/bulk")
+    suspend fun bulkCreateFlashcards(
+        @Header("Authorization") token: String,
+        @Body request: BulkCreateFlashcardsRequest
+    ): BulkCreateFlashcardsResponse
+
+    /** Replaces what the card says. Marks it hand-edited, so the corpus stops rewriting it. */
+    @PUT("api/flashcards/{id}/content")
+    suspend fun updateFlashcardContent(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body request: UpdateFlashcardContentRequest
+    ): FlashcardResponse
+
+    @PUT("api/flashcards/{id}/category")
+    suspend fun setFlashcardCategory(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body request: SetFlashcardCategoryRequest
+    ): FlashcardResponse
+
+    // Exercises — the server owns the questions, so both clients show the same practice.
+    @GET("api/exercises/kinds")
+    suspend fun getExerciseKinds(
+        @Header("Authorization") token: String,
+        @Query("categoryId") categoryId: Int? = null,
+        @Query("scope") scope: String = "SAVED"
+    ): ExerciseKindsResponse
+
+    @POST("api/exercises/generate")
+    suspend fun generateExercises(
+        @Header("Authorization") token: String,
+        @Body request: ExerciseRequest
+    ): ExerciseBatchResponse
 
     @POST("api/flashcards")
     suspend fun createFlashcard(

@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -38,6 +40,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.wordwaverise.wordwaveriseapp.data.local.entity.FlashcardEntity
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseFormat
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseKind
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseKindInfoDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseScope
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseSource
+import com.wordwaverise.wordwaveriseapp.util.ExerciseVerdict
 import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
@@ -54,71 +63,90 @@ fun TasksScreen(
             .waveSurface()
             .padding(16.dp)
     ) {
-        when {
-            state.isMultipleChoiceActive -> {
-                MultipleChoiceMode(
-                    question = state.multipleChoiceQuestion,
-                    selectedIndex = state.selectedChoiceIndex,
-                    answered = state.choiceAnswered,
-                    onSelect = viewModel::selectChoice,
-                    onNext = viewModel::loadNextMultipleChoice,
-                    onExit = viewModel::exitMultipleChoice
-                )
-            }
-            state.isExerciseModeActive -> {
-                ExerciseMode(
-                    isLoading = state.isExerciseLoading,
-                    sentence = state.exerciseSentence,
-                    userAnswer = state.userAnswer,
-                    checked = state.exerciseChecked,
-                    isCorrect = state.exerciseIsCorrect,
-                    correctAnswer = state.exerciseAnswer,
-                    error = state.exerciseError,
-                    onAnswerChange = viewModel::onUserAnswerChange,
-                    onCheck = { viewModel.checkAnswer() },
-                    onNext = { viewModel.loadNextExercise() },
-                    onExit = { viewModel.exitExerciseMode() }
-                )
-            }
-            state.isSessionActive -> {
-                FlashcardSession(
-                    flashcards = state.sessionFlashcards,
-                    currentIndex = state.currentCardIndex,
-                    onCorrect = { viewModel.markCorrect() },
-                    onIncorrect = { viewModel.markIncorrect() },
-                    onExit = { viewModel.exitSession() }
-                )
-            }
-            else -> {
-                TasksOverview(
-                    dueCount = state.dueCount,
-                    totalCount = state.totalCount,
-                    hasWords = state.totalCount > 0,
-                    onStartSession = { viewModel.startSession() },
-                    onStartExercise = { viewModel.startExerciseMode() },
-                    onStartMultipleChoice = { viewModel.startMultipleChoice() }
-                )
-            }
+        when (state.mode) {
+            TasksMode.CARD_SESSION -> FlashcardSession(
+                flashcards = state.sessionFlashcards,
+                currentIndex = state.currentCardIndex,
+                onCorrect = viewModel::markCorrect,
+                onIncorrect = viewModel::markIncorrect,
+                onEdit = viewModel::editCurrentCard,
+                onExit = viewModel::exitSession
+            )
+
+            TasksMode.EXERCISE_SETUP -> ExerciseSetup(
+                state = state,
+                onSelectFolder = viewModel::selectFolder,
+                onSelectScope = viewModel::setScope,
+                onToggleKind = viewModel::toggleKind,
+                onToggleAll = viewModel::toggleAllKinds,
+                onSetCount = viewModel::setCount,
+                onStart = viewModel::startExercises,
+                onExit = viewModel::exitExercises
+            )
+
+            TasksMode.EXERCISE_SESSION -> ExerciseSession(
+                state = state,
+                onChoose = viewModel::chooseOption,
+                onTypedChange = viewModel::onTypedChange,
+                onSubmit = viewModel::submitTyped,
+                onSkip = viewModel::skipExercise,
+                onNext = viewModel::nextExercise,
+                onExit = viewModel::exitExercises
+            )
+
+            TasksMode.EXERCISE_RESULT -> ExerciseResultView(
+                state = state,
+                mistakes = viewModel.mistakes(),
+                onAgain = viewModel::startExercises,
+                onSetup = viewModel::backToSetup
+            )
+
+            TasksMode.OVERVIEW -> TasksOverview(
+                state = state,
+                onSelectFolder = viewModel::selectFolder,
+                onStartSession = viewModel::startSession,
+                onOpenExercises = viewModel::openExerciseSetup,
+                onCreateCards = viewModel::createCardsFromFolder
+            )
         }
+    }
+
+    state.editingCard?.let { card ->
+        EditCardDialog(
+            card = card,
+            onDismiss = viewModel::dismissEditor,
+            onSave = viewModel::saveCard
+        )
     }
 }
 
+// ── Overview ─────────────────────────────────────────────────────────────────
+
 @Composable
 private fun TasksOverview(
-    dueCount: Int,
-    totalCount: Int,
-    hasWords: Boolean,
+    state: TasksState,
+    onSelectFolder: (Int?) -> Unit,
     onStartSession: () -> Unit,
-    onStartExercise: () -> Unit,
-    onStartMultipleChoice: () -> Unit = {}
+    onOpenExercises: () -> Unit,
+    onCreateCards: () -> Unit
 ) {
     val colors = WaveTheme.colors
 
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Eyebrow(stringResource(R.string.segodnya), modifier = Modifier.padding(top = 4.dp))
+
+        // The folder decides what the whole tab is about, so it sits above the numbers it
+        // changes rather than inside one of the modes.
+        FolderChips(
+            folders = state.folders,
+            selected = state.selectedFolder,
+            onSelect = onSelectFolder
+        )
 
         // Counters. A hairline splits them instead of a second card, so the two
         // numbers read as one instrument.
@@ -140,8 +168,8 @@ private fun TasksOverview(
                 StatItem(
                     modifier = Modifier.weight(1f),
                     label = stringResource(R.string.k_povtoreniyu),
-                    value = "$dueCount",
-                    accent = if (dueCount > 0) colors.brass else colors.textMuted
+                    value = "${state.dueCount}",
+                    accent = if (state.dueCount > 0) colors.brass else colors.textMuted
                 )
                 Box(
                     Modifier
@@ -152,7 +180,7 @@ private fun TasksOverview(
                 StatItem(
                     modifier = Modifier.weight(1f),
                     label = stringResource(R.string.vsego_kartochek),
-                    value = "$totalCount",
+                    value = "${state.totalCount}",
                     accent = colors.secondary
                 )
             }
@@ -160,7 +188,7 @@ private fun TasksOverview(
 
         // The one filled control on the screen — the signature gradient is
         // spent here and nowhere else.
-        val sessionEnabled = dueCount > 0
+        val sessionEnabled = state.dueCount > 0
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -201,28 +229,37 @@ private fun TasksOverview(
             }
         }
 
-        if (hasWords) {
-            PracticeRow(
-                icon = Icons.Default.AutoAwesome,
-                title = stringResource(R.string.ai_uprazhneniya),
-                subtitle = stringResource(R.string.propuschennoe_slovo_v_zhivom_predlozhenii),
-                onClick = onStartExercise
-            )
-            PracticeRow(
-                icon = Icons.Default.GpsFixed,
-                title = stringResource(R.string.vybor_otveta),
-                subtitle = stringResource(R.string.chetyre_opredeleniya_odno_vashe),
-                onClick = onStartMultipleChoice
+        PracticeRow(
+            icon = Icons.Default.AutoAwesome,
+            title = stringResource(R.string.uprazhneniya),
+            subtitle = stringResource(R.string.zadaniya_iz_slovarnyh_statey_vashih_slov),
+            onClick = onOpenExercises
+        )
+
+        PracticeRow(
+            icon = Icons.Default.LibraryAdd,
+            title = stringResource(R.string.sozdat_kartochki_iz_papki),
+            subtitle = stringResource(R.string.sohranyayte_novye_slova_iz_poiska_i_oni),
+            enabled = !state.isBulkCreating,
+            onClick = onCreateCards
+        )
+
+        state.bulkMessage?.let {
+            Text(
+                text = it,
+                style = ApparatusStyle,
+                color = TextSecondary,
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
 
-        if (hasWords) {
-            Spacer(modifier = Modifier.weight(1f))
+        if (state.totalCount > 0) {
+            Spacer(modifier = Modifier.height(8.dp))
             Horizon(modifier = Modifier.padding(bottom = 4.dp))
         }
 
         // Info Card
-        if (dueCount == 0 && totalCount == 0) {
+        if (state.dueCount == 0 && state.totalCount == 0) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
@@ -262,6 +299,71 @@ private fun TasksOverview(
     }
 }
 
+// ── Shared pieces ────────────────────────────────────────────────────────────
+
+/**
+ * The folder filter. `null` is every folder and `-1` is the words in no folder — the same
+ * three-way convention the API and the web use, so "эта папка" means one thing everywhere.
+ */
+@Composable
+private fun FolderChips(
+    folders: List<FolderOption>,
+    selected: Int?,
+    onSelect: (Int?) -> Unit
+) {
+    if (folders.isEmpty()) return
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(folders, key = { it.id ?: Int.MIN_VALUE }) { folder ->
+            ChipButton(
+                text = folder.name,
+                selected = folder.id == selected,
+                onClick = { onSelect(folder.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChipButton(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    val colors = WaveTheme.colors
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .then(
+                if (selected) Modifier.background(colors.secondary.copy(alpha = 0.16f))
+                else Modifier.background(colors.surfaceElevated)
+            )
+            .border(
+                1.dp,
+                if (selected) colors.secondary else colors.border,
+                RoundedCornerShape(10.dp)
+            )
+            .clickable(enabled = enabled) { onClick() }
+            .padding(horizontal = 14.dp, vertical = 9.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = when {
+                !enabled -> colors.textMuted
+                selected -> colors.secondary
+                else -> TextSecondary
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 /**
  * Secondary practice modes. Cards with a leading rule rather than more filled
  * gradients — a screen carrying three saturated slabs stops having a primary
@@ -272,6 +374,7 @@ private fun PracticeRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val colors = WaveTheme.colors
@@ -286,7 +389,7 @@ private fun PracticeRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
-                .clickable { onClick() },
+                .clickable(enabled = enabled) { onClick() },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -332,6 +435,30 @@ private fun PracticeRow(
                     .size(20.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun ModeHeader(title: String, onExit: () -> Unit, trailing: @Composable () -> Unit = {}) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onExit) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.vyhod),
+                tint = TextPrimary
+            )
+        }
+        Text(
+            text = title,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+        )
+        Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) { trailing() }
     }
 }
 
@@ -388,12 +515,683 @@ private fun FlipHint(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+// ── Exercise setup ───────────────────────────────────────────────────────────
+
+@Composable
+private fun ExerciseSetup(
+    state: TasksState,
+    onSelectFolder: (Int?) -> Unit,
+    onSelectScope: (ExerciseScope) -> Unit,
+    onToggleKind: (ExerciseKind) -> Unit,
+    onToggleAll: () -> Unit,
+    onSetCount: (Int) -> Unit,
+    onStart: () -> Unit,
+    onExit: () -> Unit
+) {
+    val colors = WaveTheme.colors
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        ModeHeader(title = stringResource(R.string.uprazhneniya), onExit = onExit)
+
+        Eyebrow(stringResource(R.string.papka))
+        FolderChips(state.folders, state.selectedFolder, onSelectFolder)
+        Text(
+            text = stringResource(R.string.slov_v_podborke, state.wordsAvailable),
+            style = ApparatusStyle,
+            color = TextSecondary
+        )
+
+        Eyebrow(stringResource(R.string.otkuda_brat_slova))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChipButton(
+                text = stringResource(R.string.vse_sohranennye),
+                selected = state.scope == ExerciseScope.SAVED
+            ) { onSelectScope(ExerciseScope.SAVED) }
+            ChipButton(
+                text = stringResource(R.string.tolko_kartochki),
+                selected = state.scope == ExerciseScope.FLASHCARDS
+            ) { onSelectScope(ExerciseScope.FLASHCARDS) }
+            ChipButton(
+                text = stringResource(R.string.k_povtoreniyu),
+                selected = state.scope == ExerciseScope.DUE
+            ) { onSelectScope(ExerciseScope.DUE) }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Eyebrow(stringResource(R.string.tipy_zadaniy))
+            Text(
+                text = if (state.selectedKinds.size == state.availableKinds.size)
+                    stringResource(R.string.snyat_vse) else stringResource(R.string.vybrat_vse),
+                style = ApparatusStyle,
+                color = colors.secondary,
+                modifier = Modifier.clickable { onToggleAll() }
+            )
+        }
+
+        if (state.isKindsLoading && state.kinds.isEmpty()) {
+            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = colors.secondary)
+            }
+        }
+
+        state.kinds.forEach { info ->
+            KindRow(
+                info = info,
+                selected = info.kind in state.selectedKinds,
+                onToggle = { onToggleKind(info.kind) }
+            )
+        }
+
+        Eyebrow(stringResource(R.string.dlina_sessii))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(5, 10, 20).forEach { n ->
+                ChipButton(
+                    text = stringResource(R.string.voprosov_n, n),
+                    selected = state.count == n
+                ) { onSetCount(n) }
+            }
+        }
+
+        val canStart = state.selectedKinds.isNotEmpty() && state.wordsAvailable > 0 &&
+            !state.isExerciseLoading
+        Button(
+            onClick = onStart,
+            enabled = canStart,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            if (state.isExerciseLoading) {
+                CircularProgressIndicator(
+                    color = colors.onAccent,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Text(stringResource(R.string.nachat), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        val message = state.error ?: state.notice ?: setupHint(state)
+        message?.let {
+            Text(
+                text = it,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+                color = if (state.error != null) Error else TextSecondary
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+/** What to say when the selection cannot produce a session, phrased as the next step. */
+@Composable
+private fun setupHint(state: TasksState): String? = when {
+    state.isKindsLoading -> null
+    state.wordsAvailable == 0 -> stringResource(R.string.net_slov_dlya_uprazhneniy)
+    state.availableKinds.isEmpty() ->
+        stringResource(R.string.statya_esche_ne_gotova_otkroyte_vkladku_istochniki)
+    else -> null
+}
+
+@Composable
+private fun KindRow(
+    info: ExerciseKindInfoDto,
+    selected: Boolean,
+    onToggle: () -> Unit
+) {
+    val colors = WaveTheme.colors
+    val enabled = info.available > 0
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled) { onToggle() }
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (selected && enabled) Icons.Default.CheckCircle
+                          else Icons.Default.RadioButtonUnchecked,
+            contentDescription = null,
+            tint = when {
+                !enabled -> colors.textMuted
+                selected -> colors.secondary
+                else -> colors.textMuted
+            },
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = info.titleRu,
+                    fontFamily = Comfortaa,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (enabled) TextPrimary else colors.textMuted
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${info.available}",
+                    style = ApparatusStyle,
+                    color = colors.textMuted
+                )
+            }
+            Text(
+                text = info.descriptionRu,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                color = if (enabled) TextSecondary else colors.textMuted
+            )
+        }
+    }
+}
+
+// ── Exercise session ─────────────────────────────────────────────────────────
+
+/**
+ * Renders any exercise the server can send.
+ *
+ * There is deliberately no branch on [ExerciseKind] beyond [ExerciseFormat]: a kind added on
+ * the backend shows up here without an app release, and — more to the point — the phone and the
+ * browser cannot drift into presenting the same question differently.
+ */
+@Composable
+private fun ExerciseSession(
+    state: TasksState,
+    onChoose: (Int) -> Unit,
+    onTypedChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onSkip: () -> Unit,
+    onNext: () -> Unit,
+    onExit: () -> Unit
+) {
+    val colors = WaveTheme.colors
+    val exercise = state.currentExercise
+
+    if (exercise == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = colors.secondary)
+        }
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        ModeHeader(
+            title = stringResource(
+                R.string.vopros_n_iz_m,
+                state.exerciseIndex + 1,
+                state.exercises.size
+            ),
+            onExit = onExit
+        )
+
+        LinearProgressIndicator(
+            progress = (state.exerciseIndex.toFloat() / state.exercises.size.coerceAtLeast(1)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp),
+            color = PrimaryCyan,
+            trackColor = BackgroundLight
+        )
+
+        // Instruction + provenance
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                text = exercise.promptRu,
+                style = ApparatusStyle,
+                color = TextSecondary,
+                modifier = Modifier.weight(1f)
+            )
+            sourceLabel(exercise.source)?.let {
+                Text(text = it, style = ApparatusStyle, color = colors.textMuted)
+            }
+        }
+
+        QuestionText(exercise)
+
+        when (exercise.format) {
+            ExerciseFormat.CHOICE -> OptionList(
+                exercise = exercise,
+                answered = state.answered,
+                given = state.given,
+                onChoose = onChoose
+            )
+
+            ExerciseFormat.INPUT -> {
+                if (!state.answered) {
+                    OutlinedTextField(
+                        value = state.typed,
+                        onValueChange = onTypedChange,
+                        label = { Text(stringResource(R.string.vash_otvet)) },
+                        placeholder = exercise.hintRu?.let {
+                            { Text(stringResource(R.string.podskazka_s, it)) }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryBlue,
+                            focusedLabelColor = PrimaryBlue
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = onSubmit,
+                            enabled = state.typed.isNotBlank(),
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(stringResource(R.string.proverit), fontSize = 15.sp) }
+                        OutlinedButton(
+                            onClick = onSkip,
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(stringResource(R.string.propustit), fontSize = 15.sp, color = TextSecondary) }
+                    }
+                } else {
+                    Text(
+                        text = state.given.ifBlank { "—" },
+                        fontFamily = JetBrainsMono,
+                        fontSize = 16.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = state.answered,
+            enter = fadeIn(tween(250)) + expandVertically()
+        ) {
+            VerdictBlock(state = state, exercise = exercise, onNext = onNext)
+        }
+
+        Text(
+            text = stringResource(
+                R.string.verno_pochti_mimo,
+                state.correctCount, state.almostCount, state.wrongCount
+            ),
+            style = ApparatusStyle,
+            color = TextTertiary,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun QuestionText(exercise: ExerciseDto) {
+    if (exercise.questionIsSentence) {
+        // The gap is the point of the question, so it is the one thing set apart.
+        val parts = exercise.question.split(ExerciseDto.BLANK)
+        Text(
+            text = buildAnnotatedString {
+                parts.forEachIndexed { i, part ->
+                    append(part)
+                    if (i < parts.size - 1) {
+                        withStyle(SpanStyle(color = PrimaryBlue, fontWeight = FontWeight.Bold)) {
+                            append(ExerciseDto.BLANK)
+                        }
+                    }
+                }
+            },
+            fontSize = 18.sp,
+            lineHeight = 27.sp,
+            fontStyle = FontStyle.Italic,
+            color = TextPrimary
+        )
+    } else {
+        Text(
+            text = exercise.question,
+            fontFamily = Comfortaa,
+            fontSize = 30.sp,
+            lineHeight = 36.sp,
+            letterSpacing = (-1).sp,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+        )
+    }
+}
+
+@Composable
+private fun OptionList(
+    exercise: ExerciseDto,
+    answered: Boolean,
+    given: String,
+    onChoose: (Int) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        exercise.options.forEachIndexed { idx, option ->
+            val isCorrect = idx == exercise.correctIndex
+            val isChosen = answered && option == given
+            val background = when {
+                !answered -> BackgroundSecondary
+                isCorrect -> Success.copy(alpha = 0.18f)
+                isChosen -> Error.copy(alpha = 0.18f)
+                else -> BackgroundSecondary
+            }
+            val outline = when {
+                answered && isCorrect -> Success
+                answered && isChosen -> Error
+                else -> WaveTheme.colors.border
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(background)
+                    .border(1.dp, outline, RoundedCornerShape(12.dp))
+                    .clickable(enabled = !answered) { onChoose(idx) }
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "${('A' + idx)}.",
+                        fontFamily = JetBrainsMono,
+                        fontSize = 13.sp,
+                        color = when {
+                            answered && isCorrect -> Success
+                            answered && isChosen -> Error
+                            else -> TextTertiary
+                        }
+                    )
+                    Text(
+                        text = option,
+                        fontSize = 15.sp,
+                        color = TextPrimary,
+                        lineHeight = 21.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (answered && isCorrect) {
+                        Icon(Icons.Default.Check, contentDescription = null, tint = Success, modifier = Modifier.size(18.dp))
+                    } else if (answered && isChosen) {
+                        Icon(Icons.Default.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VerdictBlock(state: TasksState, exercise: ExerciseDto, onNext: () -> Unit) {
+    val accent = when (state.verdict) {
+        ExerciseVerdict.CORRECT -> Success
+        ExerciseVerdict.ALMOST -> Warning
+        else -> Error
+    }
+    val label = when (state.verdict) {
+        ExerciseVerdict.CORRECT -> stringResource(R.string.pravilno)
+        ExerciseVerdict.ALMOST -> stringResource(R.string.pochti)
+        else -> stringResource(R.string.nepravilno)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = if (state.verdict == ExerciseVerdict.WRONG) Icons.Default.Cancel
+                              else Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(24.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                fontStyle = FontStyle.Italic,
+                color = accent
+            )
+        }
+
+        if (state.verdict != ExerciseVerdict.CORRECT) {
+            Text(
+                text = buildAnnotatedString {
+                    append(
+                        if (state.verdict == ExerciseVerdict.ALMOST)
+                            stringResource(R.string.pravilno_pishetsya)
+                        else stringResource(R.string.pravilnyy_otvet)
+                    )
+                    append(" — ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(exercise.answer) }
+                },
+                fontSize = 15.sp,
+                color = TextSecondary
+            )
+        }
+
+        // The explanation is where the learning actually happens, so it is not optional trim.
+        exercise.explanationRu?.let {
+            Text(text = it, fontSize = 14.sp, lineHeight = 21.sp, color = TextSecondary)
+        }
+
+        Button(
+            onClick = onNext,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(stringResource(R.string.dalshe), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun sourceLabel(source: ExerciseSource): String? = when (source) {
+    ExerciseSource.CORPUS -> stringResource(R.string.iz_slovarya)
+    ExerciseSource.AI -> stringResource(R.string.ii)
+    ExerciseSource.CARD -> null
+}
+
+// ── Result ───────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ExerciseResultView(
+    state: TasksState,
+    mistakes: List<ExerciseResult>,
+    onAgain: () -> Unit,
+    onSetup: () -> Unit
+) {
+    val colors = WaveTheme.colors
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(20.dp))
+        Eyebrow(stringResource(R.string.itog))
+        Text(
+            text = "${state.accuracy}%",
+            fontFamily = Comfortaa,
+            fontSize = 60.sp,
+            lineHeight = 64.sp,
+            letterSpacing = (-2).sp,
+            fontWeight = FontWeight.Bold,
+            color = colors.secondary
+        )
+        Text(
+            text = stringResource(
+                R.string.verno_pochti_mimo,
+                state.correctCount, state.almostCount, state.wrongCount
+            ),
+            style = ApparatusStyle,
+            color = TextSecondary
+        )
+
+        // What went wrong is the only part of a finished session worth reading.
+        if (mistakes.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Eyebrow(stringResource(R.string.stoit_povtorit), modifier = Modifier.fillMaxWidth())
+            mistakes.forEach { result ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        text = result.exercise.word,
+                        fontFamily = Comfortaa,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "${stringResource(R.string.vy_otvetili)}: ${result.given.ifBlank { "—" }} · " +
+                            "${stringResource(R.string.nuzhno)}: ${result.exercise.answer}",
+                        fontFamily = JetBrainsMono,
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
+                RuleFade()
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = onAgain,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+            shape = RoundedCornerShape(12.dp)
+        ) { Text(stringResource(R.string.esche_raz), fontSize = 16.sp) }
+        OutlinedButton(
+            onClick = onSetup,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) { Text(stringResource(R.string.k_nastroykam), fontSize = 16.sp, color = TextSecondary) }
+    }
+}
+
+// ── Editing a card ───────────────────────────────────────────────────────────
+
+/**
+ * The editor sits with the card rather than in a list: a wrong translation is noticed while
+ * looking at it, and a correction that has to wait for another screen is one that never gets
+ * made.
+ */
+@Composable
+private fun EditCardDialog(
+    card: FlashcardEntity,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String) -> Unit
+) {
+    var word by remember(card.id) { mutableStateOf(card.word) }
+    var translation by remember(card.id) { mutableStateOf(card.translation.orEmpty()) }
+    var definition by remember(card.id) { mutableStateOf(card.definition) }
+    var example by remember(card.id) { mutableStateOf(card.example.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = BackgroundSecondary,
+        title = {
+            Text(
+                text = stringResource(R.string.chto_pokazyvaet_kartochka),
+                fontFamily = Comfortaa,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                EditField(stringResource(R.string.pole_slovo), word, singleLine = true) { word = it }
+                EditField(stringResource(R.string.pole_perevod), translation, singleLine = true) { translation = it }
+                EditField(stringResource(R.string.pole_opredelenie), definition) { definition = it }
+                EditField(stringResource(R.string.pole_primer), example) { example = it }
+                Text(
+                    text = stringResource(R.string.posle_pravki_kartochka_perestaet_obnovlyatsya),
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = TextTertiary
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(word, translation, definition, example) },
+                enabled = word.isNotBlank()
+            ) { Text(stringResource(R.string.sohranit), color = PrimaryCyan) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.otmena), color = TextSecondary)
+            }
+        }
+    )
+}
+
+@Composable
+private fun EditField(
+    label: String,
+    value: String,
+    singleLine: Boolean = false,
+    onChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else 2,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = PrimaryBlue,
+            focusedLabelColor = PrimaryBlue
+        ),
+        shape = RoundedCornerShape(12.dp)
+    )
+}
+
+// ── Flashcard session ────────────────────────────────────────────────────────
+
 @Composable
 private fun FlashcardSession(
     flashcards: List<FlashcardEntity>,
     currentIndex: Int,
     onCorrect: () -> Unit,
     onIncorrect: () -> Unit,
+    onEdit: () -> Unit,
     onExit: () -> Unit
 ) {
     if (flashcards.isEmpty() || currentIndex >= flashcards.size) {
@@ -429,13 +1227,22 @@ private fun FlashcardSession(
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
             )
-            // Toggle side order button
-            IconButton(onClick = { wordFirst = !wordFirst; isFlipped = false }) {
-                Icon(
-                    imageVector = Icons.Default.SwapVert,
-                    contentDescription = if (wordFirst) stringResource(R.string.nachat_s_opredeleniya) else stringResource(R.string.nachat_so_slova),
-                    tint = TextSecondary
-                )
+            Row {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = stringResource(R.string.izmenit_kartochku),
+                        tint = TextSecondary
+                    )
+                }
+                // Toggle side order button
+                IconButton(onClick = { wordFirst = !wordFirst; isFlipped = false }) {
+                    Icon(
+                        imageVector = Icons.Default.SwapVert,
+                        contentDescription = if (wordFirst) stringResource(R.string.nachat_s_opredeleniya) else stringResource(R.string.nachat_so_slova),
+                        tint = TextSecondary
+                    )
+                }
             }
         }
 
@@ -759,354 +1566,6 @@ private fun TranslationReveal(
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
-        }
-    }
-}
-
-// ── Multiple Choice mode ──────────────────────────────────────────────────────
-
-@Composable
-private fun MultipleChoiceMode(
-    question: MultipleChoiceQuestion?,
-    selectedIndex: Int?,
-    answered: Boolean,
-    onSelect: (Int) -> Unit,
-    onNext: () -> Unit,
-    onExit: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onExit) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.vyhod), tint = TextPrimary)
-            }
-            Text(
-                text = stringResource(R.string.vybor_otveta),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Box(modifier = Modifier.size(48.dp))
-        }
-
-        if (question == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PrimaryCyan)
-            }
-            return@Column
-        }
-
-        // Question card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
-            border = BorderStroke(1.dp, WaveTheme.colors.border),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = if (question.wordFirst) stringResource(R.string.chto_oznachaet_slovo) else stringResource(R.string.kakoe_eto_slovo),
-                    fontSize = 12.sp,
-                    color = TextTertiary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = question.questionText,
-                    fontFamily = if (question.wordFirst) Comfortaa else Nunito,
-                    letterSpacing = if (question.wordFirst) (-0.8).sp else 0.sp,
-                    fontSize = if (question.wordFirst) 28.sp else 16.sp,
-                    fontWeight = if (question.wordFirst) FontWeight.Bold else FontWeight.Normal,
-                    color = TextPrimary,
-                    lineHeight = 22.sp,
-                    maxLines = 6,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        // Options
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            question.options.forEachIndexed { idx, option ->
-                val isCorrect = idx == question.correctIndex
-                val isSelected = idx == selectedIndex
-                val bgColor = when {
-                    !answered -> BackgroundSecondary
-                    isCorrect -> Success.copy(alpha = 0.18f)
-                    isSelected -> Error.copy(alpha = 0.18f)
-                    else -> BackgroundSecondary
-                }
-                val borderColor = when {
-                    !answered && isSelected -> PrimaryCyan
-                    answered && isCorrect -> Success
-                    answered && isSelected -> Error
-                    else -> Color.Transparent
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(bgColor)
-                        .then(
-                            if (borderColor != Color.Transparent)
-                                Modifier.background(bgColor, RoundedCornerShape(12.dp))
-                            else Modifier
-                        )
-                        .clickable(enabled = !answered) { onSelect(idx) }
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "${('A' + idx)}.",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = when {
-                                answered && isCorrect -> Success
-                                answered && isSelected -> Error
-                                else -> TextTertiary
-                            }
-                        )
-                        Text(
-                            text = option,
-                            fontSize = 14.sp,
-                            color = TextPrimary,
-                            lineHeight = 20.sp,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (answered && isCorrect) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Success, modifier = Modifier.size(18.dp))
-                        }
-                        if (answered && isSelected && !isCorrect) {
-                            Icon(Icons.Default.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                }
-            }
-        }
-
-        // Next button (visible after answering)
-        AnimatedVisibility(
-            visible = answered,
-            enter = fadeIn(tween(300)) + expandVertically()
-        ) {
-            Button(
-                onClick = onNext,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(stringResource(R.string.sleduyuschiy_vopros), fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            }
-        }
-    }
-}
-
-// ── AI Exercise mode ──────────────────────────────────────────────────────────
-
-@Composable
-private fun ExerciseMode(
-    isLoading: Boolean,
-    sentence: String?,
-    userAnswer: String,
-    checked: Boolean,
-    isCorrect: Boolean,
-    correctAnswer: String?,
-    error: String?,
-    onAnswerChange: (String) -> Unit,
-    onCheck: () -> Unit,
-    onNext: () -> Unit,
-    onExit: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onExit) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.vyhod),
-                    tint = TextPrimary
-                )
-            }
-            Text(
-                text = stringResource(R.string.ai_uprazhneniya),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Box(modifier = Modifier.size(48.dp))
-        }
-
-        when {
-            isLoading -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = PrimaryBlue)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(stringResource(R.string.generiruyu_uprazhnenie), fontSize = 14.sp, color = TextTertiary)
-                    }
-                }
-            }
-
-            error != null -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.ErrorOutline,
-                            contentDescription = null,
-                            tint = TextTertiary,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(error, fontSize = 14.sp, color = Error, textAlign = TextAlign.Center)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = onNext,
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text(stringResource(R.string.poprobovat_snova))
-                        }
-                    }
-                }
-            }
-
-            sentence != null -> {
-                // Sentence card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
-                    border = BorderStroke(1.dp, WaveTheme.colors.border),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = stringResource(R.string.vstavte_propuschennoe_slovo),
-                            fontSize = 12.sp,
-                            color = TextTertiary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Highlight the blank in the sentence
-                        val parts = sentence.split("_____")
-                        Text(
-                            text = buildAnnotatedString {
-                                parts.forEachIndexed { i, part ->
-                                    append(part)
-                                    if (i < parts.size - 1) {
-                                        withStyle(SpanStyle(color = PrimaryBlue, fontWeight = FontWeight.Bold)) {
-                                            append("_____")
-                                        }
-                                    }
-                                }
-                            },
-                            fontSize = 17.sp,
-                            color = TextPrimary,
-                            lineHeight = 25.sp
-                        )
-                    }
-                }
-
-                // Answer input
-                OutlinedTextField(
-                    value = userAnswer,
-                    onValueChange = { if (!checked) onAnswerChange(it) },
-                    label = { Text(stringResource(R.string.vash_otvet)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !checked,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { if (!checked) onCheck() }),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryBlue,
-                        focusedLabelColor = PrimaryBlue
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                // Feedback
-                if (checked) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isCorrect) Success.copy(alpha = 0.12f)
-                                            else Error.copy(alpha = 0.12f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                contentDescription = null,
-                                tint = if (isCorrect) Success else Error,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = if (isCorrect) stringResource(R.string.pravilno) else stringResource(R.string.nepravilno),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isCorrect) Success else Error
-                                )
-                                if (!isCorrect && correctAnswer != null) {
-                                    Text(
-                                        text = "Ответ: $correctAnswer",
-                                        fontSize = 13.sp,
-                                        color = TextSecondary
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Action button
-                if (!checked) {
-                    Button(
-                        onClick = onCheck,
-                        enabled = userAnswer.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(stringResource(R.string.proverit), fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    }
-                } else {
-                    Button(
-                        onClick = onNext,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(stringResource(R.string.sleduyuschee_slovo), fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
         }
     }
 }

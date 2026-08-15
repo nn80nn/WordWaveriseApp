@@ -6,9 +6,14 @@ import kotlinx.coroutines.flow.firstOrNull
 import com.wordwaverise.wordwaveriseapp.data.local.dao.FlashcardDao
 import com.wordwaverise.wordwaveriseapp.data.local.entity.FlashcardEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.BulkCreateFlashcardsRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.CreateFlashcardRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.FlashcardDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.SetFlashcardCategoryRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.UpdateFlashcardContentRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.UpdateFlashcardRequest
+import com.wordwaverise.wordwaveriseapp.util.ExerciseVerdict
+import com.wordwaverise.wordwaveriseapp.util.NetworkError
 import com.wordwaverise.wordwaveriseapp.util.Resource
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,6 +36,108 @@ class FlashcardRepository @Inject constructor(
 
     fun getFlashcardsForSession(limit: Int = 10): Flow<List<FlashcardEntity>> =
         flashcardDao.getFlashcardsForSession(limit)
+
+    // -- Folders --------------------------------------------------------------
+    //
+    // `folderId` reads the same way as in the API: null = every folder, -1 = the cards in no
+    // folder, anything else = that folder's server id.
+
+    fun getFlashcardsForSession(folderId: Int?, limit: Int = 10): Flow<List<FlashcardEntity>> =
+        flashcardDao.getFlashcardsForSessionInFolder(folderId, limit)
+
+    fun dueCountIn(folderId: Int?): Flow<Int> = flashcardDao.getDueCountInFolder(folderId)
+
+    fun totalCountIn(folderId: Int?): Flow<Int> = flashcardDao.getTotalCountInFolder(folderId)
+
+    /**
+     * Replaces what a card says, and marks it as hand-edited so the dictionary stops rewriting
+     * it. The server is asked first: it owns the `customized` flag, and a local-only edit would
+     * be undone by the corpus refresh on the very next study session.
+     */
+    suspend fun updateContent(
+        card: FlashcardEntity,
+        word: String,
+        translation: String?,
+        definition: String,
+        example: String?
+    ): Resource<Unit> {
+        return try {
+            val token = authRepository.token.firstOrNull()
+            val serverId = card.serverId
+
+            if (serverId != null && !token.isNullOrEmpty()) {
+                val response = apiService.updateFlashcardContent(
+                    "Bearer $token",
+                    serverId,
+                    UpdateFlashcardContentRequest(
+                        word = word,
+                        translation = translation.orEmpty(),
+                        definition = definition.takeIf { it.isNotBlank() },
+                        example = example?.takeIf { it.isNotBlank() }
+                    )
+                )
+                if (response.status != "ok") {
+                    return Resource.Error(response.message ?: "Не удалось сохранить карточку")
+                }
+            }
+
+            flashcardDao.updateFlashcard(
+                card.copy(
+                    word = word,
+                    translation = translation,
+                    definition = definition,
+                    example = example,
+                    customized = true,
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error editing flashcard", e)
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
+    suspend fun setCategory(card: FlashcardEntity, folderId: Int?): Resource<Unit> {
+        return try {
+            val token = authRepository.token.firstOrNull()
+            val serverId = card.serverId
+            if (serverId != null && !token.isNullOrEmpty()) {
+                apiService.setFlashcardCategory(
+                    "Bearer $token", serverId, SetFlashcardCategoryRequest(folderId)
+                )
+            }
+            flashcardDao.updateFlashcard(card.copy(serverCategoryId = folderId))
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to move card to folder: ${e.message}")
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
+    /**
+     * Creates a card for every saved word in a folder, in one request.
+     *
+     * @return created count to skipped count.
+     */
+    suspend fun createFromFolder(folderId: Int?): Resource<Pair<Int, Int>> {
+        return try {
+            val token = authRepository.token.firstOrNull()
+                ?: return Resource.Error("Не авторизован")
+            val response = apiService.bulkCreateFlashcards(
+                "Bearer $token", BulkCreateFlashcardsRequest(folderId)
+            )
+            if (response.status == "ok" && response.data != null) {
+                syncFromServer()
+                Resource.Success(response.data.created to response.data.skipped)
+            } else {
+                Resource.Error(response.message ?: "Не удалось создать карточки")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Bulk create failed", e)
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
 
     suspend fun createFlashcard(
         word: String,
@@ -143,6 +250,42 @@ class FlashcardRepository @Inject constructor(
         }
     }
 
+    /**
+     * A near miss: the word is known, the spelling was not. The card keeps its level rather
+     * than advancing, so it comes back soon instead of being treated as learned — or as
+     * forgotten, which resetting it would imply.
+     */
+    suspend fun markAsAlmost(flashcard: FlashcardEntity): Resource<Unit> {
+        return try {
+            val updated = flashcard.copy(
+                lastReviewed = System.currentTimeMillis(),
+                nextReviewDate = calculateNextReview(flashcard.repetitionLevel),
+                correctCount = flashcard.correctCount + 1,
+                updatedAt = System.currentTimeMillis()
+            )
+            flashcardDao.updateFlashcard(updated)
+            syncUpdateToServer(updated, "HARD")
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error marking as almost", e)
+            Resource.Error("Ошибка обновления карточки")
+        }
+    }
+
+    /**
+     * Lets an exercise answer move the schedule of the card behind it. Practice that counts
+     * towards nothing is practice people stop doing, and a word repeatedly missed in exercises
+     * is exactly the word that should come back sooner.
+     */
+    suspend fun recordPracticeResult(serverCardId: Int, verdict: ExerciseVerdict) {
+        val card = flashcardDao.getFlashcardByServerId(serverCardId) ?: return
+        when (verdict) {
+            ExerciseVerdict.CORRECT -> markAsCorrect(card)
+            ExerciseVerdict.ALMOST -> markAsAlmost(card)
+            ExerciseVerdict.WRONG -> markAsIncorrect(card)
+        }
+    }
+
     private suspend fun syncUpdateToServer(flashcard: FlashcardEntity, difficulty: String) {
         try {
             val token = authRepository.token.firstOrNull()
@@ -213,8 +356,23 @@ class FlashcardRepository @Inject constructor(
                     val existing = flashcardDao.getFlashcardByWord(dto.word)
                     if (existing == null) {
                         flashcardDao.insertFlashcard(dtoToEntity(dto))
-                    } else if (existing.serverId == null) {
-                        flashcardDao.updateFlashcard(existing.copy(serverId = dto.id))
+                    } else {
+                        // The folder and the hand-edited flag are the server's to state, and a
+                        // card corrected in the browser should read the same here -- but a card
+                        // edited on this device keeps its own wording either way.
+                        val adoptWording = !existing.customized && !dto.customized
+                        flashcardDao.updateFlashcard(
+                            existing.copy(
+                                serverId = existing.serverId ?: dto.id,
+                                serverCategoryId = dto.categoryId,
+                                customized = existing.customized || dto.customized,
+                                translation = if (adoptWording) dto.translation else existing.translation,
+                                definition = if (adoptWording) dto.definition ?: existing.definition
+                                             else existing.definition,
+                                example = if (adoptWording) dto.example ?: existing.example
+                                          else existing.example
+                            )
+                        )
                     }
                 }
                 Log.d(TAG, "Synced ${response.data.size} flashcards from server")
@@ -238,6 +396,8 @@ class FlashcardRepository @Inject constructor(
             definition = dto.definition ?: "",
             example = dto.example,
             translation = dto.translation,
+            serverCategoryId = dto.categoryId,
+            customized = dto.customized,
             nextReviewDate = nextReviewTimestamp
         )
     }

@@ -38,4 +38,47 @@ interface FlashcardDao {
 
     @Query("SELECT * FROM flashcards WHERE repetitionLevel < 5 ORDER BY nextReviewDate ASC LIMIT :limit")
     fun getFlashcardsForSession(limit: Int = 10): Flow<List<FlashcardEntity>>
+
+    // ── Folders ───────────────────────────────────────────────────────────────
+    //
+    // `folderId` reads the same way as it does in the API: null = every folder,
+    // -1 = the cards in no folder, anything else = that folder's *server* id.
+    // Keeping the convention identical is what lets the phone and the browser
+    // agree on what "эта папка" contains.
+
+    @Query(
+        """
+        SELECT * FROM flashcards
+        WHERE repetitionLevel < 5
+          AND (:folderId IS NULL
+               OR (:folderId = -1 AND serverCategoryId IS NULL)
+               OR serverCategoryId = :folderId)
+        ORDER BY nextReviewDate ASC LIMIT :limit
+        """
+    )
+    fun getFlashcardsForSessionInFolder(folderId: Int?, limit: Int = 10): Flow<List<FlashcardEntity>>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM flashcards
+        WHERE nextReviewDate <= :currentTime
+          AND (:folderId IS NULL
+               OR (:folderId = -1 AND serverCategoryId IS NULL)
+               OR serverCategoryId = :folderId)
+        """
+    )
+    fun getDueCountInFolder(folderId: Int?, currentTime: Long = System.currentTimeMillis()): Flow<Int>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM flashcards
+        WHERE :folderId IS NULL
+           OR (:folderId = -1 AND serverCategoryId IS NULL)
+           OR serverCategoryId = :folderId
+        """
+    )
+    fun getTotalCountInFolder(folderId: Int?): Flow<Int>
+
+    @Query("SELECT * FROM flashcards WHERE serverId = :serverId LIMIT 1")
+    suspend fun getFlashcardByServerId(serverId: Int): FlashcardEntity?
 }

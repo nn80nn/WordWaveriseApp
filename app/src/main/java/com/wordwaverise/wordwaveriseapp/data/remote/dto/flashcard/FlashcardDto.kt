@@ -9,8 +9,52 @@ data class FlashcardDto(
     val translation: String? = null,
     val definition: String? = null,
     val example: String? = null,
+    /** Server-side folder id. -1 is never sent here; a card in no folder sends null. */
+    val categoryId: Int? = null,
+    /** Hand-edited: the dictionary refresh leaves this card's wording alone. */
+    val customized: Boolean = false,
+    val repetitions: Int = 0,
     val nextReview: String,
     val daysUntilReview: Int = 0
+)
+
+/**
+ * Replaces what the card says.
+ *
+ * [word] is optional because changing it re-points the card at another headword, which is a
+ * different act from fixing a translation.
+ */
+@Serializable
+data class UpdateFlashcardContentRequest(
+    val word: String? = null,
+    val translation: String,
+    val definition: String? = null,
+    val example: String? = null
+)
+
+@Serializable
+data class SetFlashcardCategoryRequest(
+    /** null removes the card from every folder. */
+    val categoryId: Int? = null
+)
+
+/** Fill a folder with cards in one action, from the words already saved in it. */
+@Serializable
+data class BulkCreateFlashcardsRequest(
+    val categoryId: Int? = null
+)
+
+@Serializable
+data class BulkCreateFlashcardsData(
+    val created: Int = 0,
+    val skipped: Int = 0
+)
+
+@Serializable
+data class BulkCreateFlashcardsResponse(
+    val status: String = "",
+    val data: BulkCreateFlashcardsData? = null,
+    val message: String? = null
 )
 
 @Serializable

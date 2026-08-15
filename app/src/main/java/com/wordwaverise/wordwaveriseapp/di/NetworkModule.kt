@@ -26,6 +26,10 @@ object NetworkModule {
         ignoreUnknownKeys = true
         isLenient = true
         encodeDefaults = true
+        // An enum value this build has never heard of falls back to the property default
+        // instead of throwing. The server ships new exercise kinds without an app release,
+        // and an installed app must degrade to "render it by its format" rather than crash.
+        coerceInputValues = true
     }
 
     @Provides

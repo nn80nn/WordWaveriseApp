@@ -125,4 +125,44 @@
     <string name="zavershit">Завершить</string>
     <string name="znachenie_iz_stati">значение из статьи</string>
     <string name="znayu">Знаю</string>
+
+    <!-- Практика: папки, типы заданий, разбор ошибок -->
+    <string name="papka">Папка</string>
+    <string name="uprazhneniya">Упражнения</string>
+    <string name="zadaniya_iz_slovarnyh_statey_vashih_slov">Задания из словарных статей ваших слов</string>
+    <string name="otkuda_brat_slova">Откуда брать слова</string>
+    <string name="vse_sohranennye">Все сохранённые</string>
+    <string name="tolko_kartochki">Только карточки</string>
+    <string name="tipy_zadaniy">Типы заданий</string>
+    <string name="vybrat_vse">выбрать все</string>
+    <string name="snyat_vse">снять все</string>
+    <string name="dlina_sessii">Длина сессии</string>
+    <string name="voprosov_n">%1$d вопросов</string>
+    <string name="nachat">Начать</string>
+    <string name="slov_v_podborke">Слов в подборке: %1$d</string>
+    <string name="propustit">Пропустить</string>
+    <string name="dalshe">Дальше</string>
+    <string name="pochti">Почти</string>
+    <string name="pravilnyy_otvet">Правильный ответ</string>
+    <string name="pravilno_pishetsya">Правильно пишется</string>
+    <string name="podskazka_s">Подсказка: %1$s</string>
+    <string name="izmenit_kartochku">Изменить карточку</string>
+    <string name="chto_pokazyvaet_kartochka">Что показывает карточка</string>
+    <string name="pole_slovo">Слово</string>
+    <string name="pole_perevod">Перевод</string>
+    <string name="pole_opredelenie">Определение</string>
+    <string name="pole_primer">Пример</string>
+    <string name="posle_pravki_kartochka_perestaet_obnovlyatsya">После правки карточка перестаёт обновляться из словаря — текст остаётся вашим.</string>
+    <string name="sozdat_kartochki_iz_papki">Создать карточки из папки</string>
+    <string name="itog">Итог</string>
+    <string name="stoit_povtorit">Стоит повторить</string>
+    <string name="vy_otvetili">вы</string>
+    <string name="nuzhno">нужно</string>
+    <string name="esche_raz">Ещё раз</string>
+    <string name="k_nastroykam">К настройкам</string>
+    <string name="iz_slovarya">из словаря</string>
+    <string name="vopros_n_iz_m">Вопрос %1$d / %2$d</string>
+    <string name="verno_pochti_mimo">верно %1$d · почти %2$d · мимо %3$d</string>
+    <string name="net_slov_dlya_uprazhneniy">Нет слов для упражнений</string>
+    <string name="sobiraem_uprazhneniya">Собираем упражнения…</string>
 </resources>
