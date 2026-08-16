@@ -13,6 +13,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
@@ -46,6 +51,10 @@ fun SavedScreen(
     onMoveWordToCategory: (word: String, catLocalId: Long?, catServerId: Int?) -> Unit,
     onCreateCategory: () -> Unit,
     onDeleteCategory: (id: Long, serverId: Int?) -> Unit,
+    onRenameCategory: (id: Long, serverId: Int?, name: String) -> Unit,
+    onShareCategory: (serverId: Int?) -> Unit,
+    onImportLinkChange: (String) -> Unit,
+    onImportFolder: () -> Unit,
     onNewCategoryNameChange: (String) -> Unit,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -188,6 +197,11 @@ fun SavedScreen(
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
+                    // Имя правится на месте: папку переименовывают, глядя на соседние, и
+                    // уводить ради одной строки в отдельный диалог незачем.
+                    var renamingId by remember { mutableStateOf<Long?>(null) }
+                    var renameDraft by remember { mutableStateOf("") }
+
                     state.categories.forEach { cat ->
                         Row(
                             modifier = Modifier
@@ -196,11 +210,98 @@ fun SavedScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(cat.name, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { onDeleteCategory(cat.id, cat.serverId) }) {
-                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.udalit), tint = TextTertiary.copy(alpha = 0.6f))
+                            if (renamingId == cat.id) {
+                                OutlinedTextField(
+                                    value = renameDraft,
+                                    onValueChange = { renameDraft = it },
+                                    singleLine = true,
+                                    textStyle = LocalTextStyle.current.copy(fontSize = 15.sp),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = {
+                                    onRenameCategory(cat.id, cat.serverId, renameDraft)
+                                    renamingId = null
+                                }) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = stringResource(R.string.sohranit),
+                                        tint = PrimaryCyan
+                                    )
+                                }
+                                IconButton(onClick = { renamingId = null }) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = stringResource(R.string.otmena),
+                                        tint = TextTertiary
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    cat.name,
+                                    fontSize = 15.sp,
+                                    color = TextPrimary,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { renamingId = cat.id; renameDraft = cat.name }
+                                )
+                                IconButton(onClick = { renamingId = cat.id; renameDraft = cat.name }) {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = stringResource(R.string.pereimenovat_papku),
+                                        tint = TextTertiary.copy(alpha = 0.6f)
+                                    )
+                                }
+                                IconButton(onClick = { onShareCategory(cat.serverId) }) {
+                                    Icon(
+                                        Icons.Default.Share,
+                                        contentDescription = stringResource(R.string.podelitsya_papkoy),
+                                        tint = TextTertiary.copy(alpha = 0.6f)
+                                    )
+                                }
+                                IconButton(onClick = { onDeleteCategory(cat.id, cat.serverId) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.udalit), tint = TextTertiary.copy(alpha = 0.6f))
+                                }
                             }
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = BackgroundLight)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ── Чужая папка по ссылке ────────────────────────────
+                    // Принимается и ссылка целиком, и один код: человек вставляет то, что ему
+                    // прислали, а не то, что удобно разобрать нам.
+                    Text(
+                        stringResource(R.string.dobavit_papku_po_ssylke),
+                        fontSize = 14.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = state.importLink,
+                            onValueChange = onImportLinkChange,
+                            placeholder = { Text(stringResource(R.string.ssylka_na_papku), color = TextTertiary) },
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = onImportFolder,
+                            enabled = state.importLink.isNotBlank() && !state.importing,
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
+                        ) {
+                            Text(stringResource(R.string.dobavit), color = WaveTheme.colors.onAccent)
+                        }
+                    }
+                    state.importMessage?.let { message ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(message, fontSize = 13.sp, color = TextSecondary, lineHeight = 18.sp)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))

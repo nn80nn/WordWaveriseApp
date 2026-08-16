@@ -127,6 +127,79 @@ class SavedWordsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Переименование правит только имя: слова, их привязка к папке и серверный id остаются.
+     * Пустое имя и имя без изменений не отправляются — это не переименование, а способ
+     * оставить папку без подписи.
+     */
+    fun renameCategory(id: Long, serverId: Int?, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            categoryRepository.renameCategory(id, serverId, trimmed)
+        }
+    }
+
+    /**
+     * Готовит ссылку и отдаёт её экрану — дальше системный лист «Поделиться».
+     *
+     * Именно лист, а не буфер обмена: на телефоне папку отправляют в конкретный чат, и
+     * «скопировано» оставляет человека доделывать это руками.
+     */
+    fun shareCategory(serverId: Int?) {
+        viewModelScope.launch {
+            when (val result = categoryRepository.shareCategory(serverId)) {
+                is Resource.Success -> _state.value =
+                    _state.value.copy(pendingShareUrl = result.data)
+                is Resource.Error -> _state.value =
+                    _state.value.copy(importMessage = result.message)
+                else -> {}
+            }
+        }
+    }
+
+    /** Ссылку отдали системе — второй раз лист открываться не должен. */
+    fun shareHandled() {
+        _state.value = _state.value.copy(pendingShareUrl = null)
+    }
+
+    fun setImportLink(value: String) {
+        _state.value = _state.value.copy(importLink = value)
+    }
+
+    fun importSharedFolder() {
+        val link = _state.value.importLink.trim()
+        if (link.isBlank() || _state.value.importing) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(importing = true, importMessage = null)
+            when (val result = categoryRepository.importSharedFolder(link)) {
+                is Resource.Success -> {
+                    val data = result.data
+                    val alreadyHad = data?.alreadyHad ?: 0
+                    // Про слова, которые остались на своих местах, надо сказать прямо: иначе
+                    // «добавил 3 из 10» выглядит как потеря, а не как уважение к своим папкам.
+                    val tail = if (alreadyHad > 0) ", $alreadyHad уже были у вас" else ""
+                    _state.value = _state.value.copy(
+                        importing = false,
+                        importLink = "",
+                        importMessage = "Папка «${data?.name}»: ${data?.added} новых слов$tail"
+                    )
+                    // Слова приехали на сервер — местная копия догоняет их сама.
+                    syncWords()
+                }
+                is Resource.Error -> _state.value = _state.value.copy(
+                    importing = false,
+                    importMessage = result.message
+                )
+                else -> {}
+            }
+        }
+    }
+
+    fun dismissImportMessage() {
+        _state.value = _state.value.copy(importMessage = null)
+    }
+
     fun deleteCategory(id: Long, serverId: Int?) {
         viewModelScope.launch {
             categoryRepository.deleteCategory(id, serverId)

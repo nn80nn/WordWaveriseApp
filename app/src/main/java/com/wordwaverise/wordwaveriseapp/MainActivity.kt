@@ -1,5 +1,6 @@
 package com.wordwaverise.wordwaveriseapp
 
+import android.content.Intent
 import android.os.Bundle
 import javax.inject.Inject
 import androidx.activity.ComponentActivity
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -111,6 +113,23 @@ class MainActivity : ComponentActivity() {
 
                             composable(Screen.Saved.route) {
                                 val viewModel: SavedWordsViewModel = hiltViewModel()
+                                // Ссылка уходит в системный лист «Поделиться»: на телефоне
+                                // папку отправляют в конкретный чат, и «скопировано в буфер»
+                                // оставляет человека доделывать это руками.
+                                val context = LocalContext.current
+                                val shareUrl = viewModel.state.value.pendingShareUrl
+                                LaunchedEffect(shareUrl) {
+                                    val url = shareUrl ?: return@LaunchedEffect
+                                    val send = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, url)
+                                    }
+                                    context.startActivity(
+                                        Intent.createChooser(send, getString(R.string.podelitsya_papkoy_slov))
+                                    )
+                                    viewModel.shareHandled()
+                                }
+
                                 SavedScreen(
                                     state = viewModel.state.value,
                                     onDeleteWord = viewModel::deleteWord,
@@ -124,6 +143,10 @@ class MainActivity : ComponentActivity() {
                                     onMoveWordToCategory = viewModel::moveWordToCategory,
                                     onCreateCategory = viewModel::createCategory,
                                     onDeleteCategory = viewModel::deleteCategory,
+                                    onRenameCategory = viewModel::renameCategory,
+                                    onShareCategory = viewModel::shareCategory,
+                                    onImportLinkChange = viewModel::setImportLink,
+                                    onImportFolder = viewModel::importSharedFolder,
                                     onNewCategoryNameChange = viewModel::setNewCategoryName,
                                     onRefresh = viewModel::refresh
                                 )

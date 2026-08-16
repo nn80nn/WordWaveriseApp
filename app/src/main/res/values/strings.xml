@@ -73,6 +73,12 @@
     <string name="pokazat_parol">Показать пароль</string>
     <string name="pokazat_perevod">Показать перевод</string>
     <string name="proslushat">Прослушать произношение</string>
+    <string name="pereimenovat_papku">Переименовать папку</string>
+    <string name="podelitsya_papkoy">Поделиться папкой</string>
+    <string name="dobavit">Добавить</string>
+    <string name="dobavit_papku_po_ssylke">Добавить папку по ссылке</string>
+    <string name="ssylka_na_papku">Ссылка или код</string>
+    <string name="podelitsya_papkoy_slov">Папка слов в WordWaverise</string>
     <string name="poprobovat_snova">Попробовать снова</string>
     <string name="poprobuyte_otkryt_slovo_esche_raz_chut_pozzhe">Попробуйте открыть слово ещё раз чуть позже.</string>
     <string name="pravilno">Правильно!</string>

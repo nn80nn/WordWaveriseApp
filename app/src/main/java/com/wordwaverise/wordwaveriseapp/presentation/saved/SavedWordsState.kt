@@ -14,7 +14,14 @@ data class SavedWordsState(
     val isOffline: Boolean = false,
     val showCategorySheet: Boolean = false,
     val wordToMove: String? = null,
-    val newCategoryName: String = ""
+    val newCategoryName: String = "",
+    /** Ссылка, которую надо отдать системному листу «Поделиться»; одноразовая. */
+    val pendingShareUrl: String? = null,
+    /** Ссылка на чужую папку, которую человек вставил. */
+    val importLink: String = "",
+    val importing: Boolean = false,
+    /** Итог добавления словами — включая то, что осталось лежать на своих местах. */
+    val importMessage: String? = null
 ) {
     val filteredWords: List<SavedWordEntity>
         get() = if (selectedCategoryId == null) words

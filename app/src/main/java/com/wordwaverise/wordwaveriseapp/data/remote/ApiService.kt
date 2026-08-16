@@ -29,6 +29,9 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseKindsRe
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.*
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoriesResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.ImportResultResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.ShareLinkResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SharedFolderPreviewResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoryResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CreateCategoryRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.RenameCategoryRequest
@@ -162,6 +165,35 @@ interface ApiService {
         @Path("id") id: Int,
         @Body request: UpdateFlashcardContentRequest
     ): FlashcardResponse
+
+    // ── Общие папки ──────────────────────────────────────────────────────
+    @POST("api/categories/{id}/share")
+    suspend fun shareCategory(
+        @Header("Authorization") token: String,
+        @Path("id") categoryId: Int
+    ): ShareLinkResponse
+
+    @GET("api/categories/{id}/share")
+    suspend fun categoryShareLink(
+        @Header("Authorization") token: String,
+        @Path("id") categoryId: Int
+    ): ShareLinkResponse
+
+    @DELETE("api/categories/{id}/share")
+    suspend fun revokeCategoryShare(
+        @Header("Authorization") token: String,
+        @Path("id") categoryId: Int
+    ): SimpleStringResponse
+
+    /** Предпросмотр открыт без токена: ссылка и есть разрешение. */
+    @GET("api/share/{token}")
+    suspend fun sharedFolderPreview(@Path("token") shareToken: String): SharedFolderPreviewResponse
+
+    @POST("api/share/{token}/import")
+    suspend fun importSharedFolder(
+        @Header("Authorization") token: String,
+        @Path("token") shareToken: String
+    ): ImportResultResponse
 
     @PUT("api/flashcards/{id}/category")
     suspend fun setFlashcardCategory(
