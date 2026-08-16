@@ -78,6 +78,8 @@
     <string name="ne_pomnyu">Не помню</string>
     <string name="slozhno">Сложно</string>
     <string name="pomnyu">Помню</string>
+    <string name="udalit_kartochku">Удалить карточку</string>
+    <string name="udalit_tochno">Нажмите ещё раз, чтобы удалить</string>
     <string name="dobavit">Добавить</string>
     <string name="dobavit_papku_po_ssylke">Добавить папку по ссылке</string>
     <string name="ssylka_na_papku">Ссылка или код</string>

@@ -121,7 +121,8 @@ fun TasksScreen(
         EditCardDialog(
             card = card,
             onDismiss = viewModel::dismissEditor,
-            onSave = viewModel::saveCard
+            onSave = viewModel::saveCard,
+            onDelete = viewModel::deleteEditingCard
         )
     }
 }
@@ -1171,8 +1172,12 @@ private fun ExerciseResultView(
 private fun EditCardDialog(
     card: FlashcardEntity,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String) -> Unit
+    onSave: (String, String, String, String) -> Unit,
+    onDelete: () -> Unit
 ) {
+    // Удаление — второе нажатие, а не первое: рядом с «Сохранить» это соседняя кнопка, и
+    // промах стоил бы всей истории повторений.
+    var confirmingDelete by remember(card.id) { mutableStateOf(false) }
     var word by remember(card.id) { mutableStateOf(card.word) }
     var translation by remember(card.id) { mutableStateOf(card.translation.orEmpty()) }
     var definition by remember(card.id) { mutableStateOf(card.definition) }
@@ -1205,6 +1210,18 @@ private fun EditCardDialog(
                     lineHeight = 17.sp,
                     color = TextTertiary
                 )
+                TextButton(
+                    onClick = { if (confirmingDelete) onDelete() else confirmingDelete = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = stringResource(
+                            if (confirmingDelete) R.string.udalit_tochno else R.string.udalit_kartochku
+                        ),
+                        color = Error,
+                        fontSize = 14.sp
+                    )
+                }
             }
         },
         confirmButton = {

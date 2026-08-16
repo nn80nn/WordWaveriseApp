@@ -131,6 +131,29 @@ class TasksViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Убирает карточку насовсем.
+     *
+     * Карточка может пережить своё слово — её заводили прямо из поиска, — и до сих пор от неё
+     * нельзя было избавиться ни на одном экране: она возвращалась в каждую сессию.
+     */
+    fun deleteEditingCard() {
+        val card = _state.value.editingCard ?: return
+        viewModelScope.launch {
+            flashcardRepository.deleteFlashcard(card.word)
+            _state.update { state ->
+                val left = state.sessionFlashcards.filterNot { it.id == card.id }
+                state.copy(
+                    editingCard = null,
+                    sessionFlashcards = left,
+                    // Индекс не двигаем: удалённая карточка ушла из списка, и на её месте
+                    // оказалась следующая. Сдвиг пропустил бы её.
+                    currentCardIndex = state.currentCardIndex.coerceAtMost(left.size)
+                )
+            }
+        }
+    }
+
     fun exitSession() {
         _state.update {
             it.copy(
