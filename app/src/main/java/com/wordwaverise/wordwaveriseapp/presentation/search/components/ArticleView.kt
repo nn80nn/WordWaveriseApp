@@ -296,6 +296,11 @@ fun SenseCard(
         // rides inline at the head of the first line instead of holding a
         // gutter open down the whole card — a reserved column costs width on
         // every line to label the block once.
+        //
+        // The bookmark obeys the same rule from the other side: it floats over the top-right
+        // corner instead of taking a row of its own. A row would cost ~40dp of height on every
+        // sense in the article to show one icon, and the article is already long.
+        Box(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -311,81 +316,58 @@ fun SenseCard(
                 ) { append("$ordinal.  ") }
             }
 
-            if (onToggleSave != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (pinned) {
-                        Text(
-                            text = stringResource(R.string.vashe_znachenie),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = PrimaryCyan,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(Modifier.weight(1f))
-                    }
-                    IconButton(
-                        onClick = onToggleSave,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (pinned) Icons.Filled.Bookmark
-                            else Icons.Outlined.BookmarkBorder,
-                            contentDescription = stringResource(
-                                when {
-                                    !canSave -> R.string.voydite_chtoby_sohranit_znachenie
-                                    pinned -> R.string.ubrat_slovo_iz_sohranennyh
-                                    else -> R.string.sohranit_eto_znachenie
-                                }
-                            ),
-                            tint = if (pinned) PrimaryCyan else TextTertiary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-
             var markerUsed = false
 
+            // Только первый блок отступает под закладку: она висит в углу и мешает лишь ему.
+            // Отступ на всей колонке отнимал бы ширину у каждой строки ради одного значка.
+            fun head(): Modifier =
+                if (!markerUsed && onToggleSave != null) Modifier.padding(end = 36.dp) else Modifier
+
             if (sense.translationsRu.isNotEmpty()) {
+                val headPad = head()
                 markerUsed = true
                 Text(
                     text = marker + AnnotatedString(sense.translationsRu.joinToString(", ")),
                     fontSize = 17.sp,
                     lineHeight = 23.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    modifier = headPad
                 )
                 Spacer(Modifier.height(8.dp))
             }
 
             if (sense.definitionRu.isNotBlank()) {
+                val headPad = head()
                 val body = AnnotatedString(sense.definitionRu)
                 Text(
                     text = if (markerUsed) body else marker + body,
                     fontSize = 14.sp,
                     color = TextSecondary,
-                    lineHeight = 21.sp
+                    lineHeight = 21.sp,
+                    modifier = headPad
                 )
                 markerUsed = true
                 Spacer(Modifier.height(8.dp))
             }
 
             if (sense.definitionEn.isNotBlank()) {
+                val headPad = head()
                 val body = AnnotatedString(sense.definitionEn)
                 Text(
                     text = if (markerUsed) body else marker + body,
                     fontSize = 13.sp,
                     color = TextTertiary,
-                    lineHeight = 19.sp
+                    lineHeight = 19.sp,
+                    modifier = headPad
                 )
             }
 
             // ── Labels ────────────────────────────────────────────────
             val labels = buildList {
+                // Метка выбранного значения идёт в тот же ряд, что и CEFR с регистром: у
+                // карточки уже свой фон и рамка, отдельная строка ради подписи не нужна.
+                if (pinned) add(stringResource(R.string.vashe_znachenie) to PrimaryCyan)
                 sense.cefr?.let { add(it to PrimaryCyan) }
                 registerLabel(sense.register)?.let { add(it to TextTertiary) }
                 sense.domain?.takeIf { it.isNotBlank() }?.let { add(it to TextTertiary) }
@@ -483,6 +465,30 @@ fun SenseCard(
                     color = TextTertiary
                 )
             }
+        }
+
+        if (onToggleSave != null) {
+            IconButton(
+                onClick = onToggleSave,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 6.dp, end = 6.dp)
+                    .size(34.dp)
+            ) {
+                Icon(
+                    imageVector = if (pinned) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    contentDescription = stringResource(
+                        when {
+                            !canSave -> R.string.voydite_chtoby_sohranit_znachenie
+                            pinned -> R.string.ubrat_slovo_iz_sohranennyh
+                            else -> R.string.sohranit_eto_znachenie
+                        }
+                    ),
+                    tint = if (pinned) PrimaryCyan else TextTertiary,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+        }
         }
     }
 }
