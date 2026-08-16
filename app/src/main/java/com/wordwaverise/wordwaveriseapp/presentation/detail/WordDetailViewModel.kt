@@ -37,9 +37,12 @@ class WordDetailViewModel @Inject constructor(
 
     init {
         val word = savedStateHandle.get<String>("word")
+        // Слово из сохранённых открывается ровно тем, чем его сохранили: резолвер по нему
+        // второй раз не ходит, иначе выбранная форма каждый раз уезжала бы на лемму.
+        val exact = savedStateHandle.get<Boolean>("exact") ?: false
         if (word != null) {
             _state.update { it.copy(word = word) }
-            loadWord(word)
+            loadWord(word, exact)
             checkIfWordIsSaved(word)
         }
     }
@@ -57,13 +60,13 @@ class WordDetailViewModel @Inject constructor(
      * and the finished article once the server has written it, so each
      * emission replaces the last on screen.
      */
-    private fun loadWord(word: String) {
+    private fun loadWord(word: String, exact: Boolean = false) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
 
             var gotAnything = false
 
-            searchRepository.lookup(word).collect { result ->
+            searchRepository.lookup(word, exact = exact).collect { result ->
                 when (result) {
                     is Resource.Success -> {
                         val data = result.data ?: return@collect

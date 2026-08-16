@@ -134,7 +134,9 @@ class MainActivity : ComponentActivity() {
                                     state = viewModel.state.value,
                                     onDeleteWord = viewModel::deleteWord,
                                     onWordClick = { word ->
-                                        navController.navigate(Screen.WordDetail.createRoute(word))
+                                        navController.navigate(
+                                            Screen.WordDetail.createRoute(word, exact = true)
+                                        )
                                     },
                                     onSelectCategory = viewModel::selectCategory,
                                     onShowCategorySheet = viewModel::showCategorySheet,
@@ -179,7 +181,11 @@ class MainActivity : ComponentActivity() {
                             composable(
                                 route = Screen.WordDetail.route,
                                 arguments = listOf(
-                                    navArgument("word") { type = NavType.StringType }
+                                    navArgument("word") { type = NavType.StringType },
+                                    navArgument("exact") {
+                                        type = NavType.BoolType
+                                        defaultValue = false
+                                    }
                                 )
                             ) {
                                 val viewModel: WordDetailViewModel = hiltViewModel()

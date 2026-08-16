@@ -42,11 +42,19 @@ sealed class Screen(
     )
 
     data object WordDetail : Screen(
-        route = "word_detail/{word}",
+        route = "word_detail/{word}?exact={exact}",
         title = "Детали слова",
         icon = Icons.Outlined.Search
     ) {
-        fun createRoute(word: String) = "word_detail/$word"
+        /**
+         * [exact] отключает резолвер: ни лемматизации, ни исправлений.
+         *
+         * ⚠️ Обязателен для слова из сохранённых. Оно уже результат чужого решения: человек мог
+         * найти его через «искать точно» именно потому, что резолвер уводил на лемму. Открывать
+         * его обычным поиском значит применять лемматизацию заново — «busker» превращался в
+         * «busk» при каждом нажатии.
+         */
+        fun createRoute(word: String, exact: Boolean = false) = "word_detail/$word?exact=$exact"
     }
 
     companion object {
