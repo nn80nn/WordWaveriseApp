@@ -72,6 +72,7 @@ fun TasksScreen(
                 isAudioPlaying = state.isAudioPlaying,
                 onPlayAudio = viewModel::playCardAudio,
                 onCorrect = viewModel::markCorrect,
+                onHard = viewModel::markHard,
                 onIncorrect = viewModel::markIncorrect,
                 onEdit = viewModel::editCurrentCard,
                 onExit = viewModel::exitSession
@@ -1251,6 +1252,7 @@ private fun FlashcardSession(
     isAudioPlaying: Boolean,
     onPlayAudio: () -> Unit,
     onCorrect: () -> Unit,
+    onHard: () -> Unit,
     onIncorrect: () -> Unit,
     onEdit: () -> Unit,
     onExit: () -> Unit
@@ -1342,60 +1344,41 @@ private fun FlashcardSession(
             enter = fadeIn(animationSpec = tween(300)) + expandVertically(),
             exit = fadeOut(animationSpec = tween(200)) + shrinkVertically()
         ) {
+            // Три оценки, те же и в том же порядке, что в браузере: «сложно» — это не
+            // «вспомнил» и не «забыл», а единственный честный ответ про слово, которое даётся
+            // с усилием, и без него расписание получает неправду в обе стороны.
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = {
-                        onIncorrect()
-                        isFlipped = false
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Error
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                CardVerdictButton(
+                    label = stringResource(R.string.ne_pomnyu),
+                    icon = Icons.Default.Close,
+                    container = Error,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        Text(
-                            stringResource(R.string.ne_znayu),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                    onIncorrect()
+                    isFlipped = false
                 }
 
-                Button(
-                    onClick = {
-                        onCorrect()
-                        isFlipped = false
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Success
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                CardVerdictButton(
+                    label = stringResource(R.string.slozhno),
+                    icon = null,
+                    container = Warning,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        Text(
-                            stringResource(R.string.znayu),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                    onHard()
+                    isFlipped = false
+                }
+
+                CardVerdictButton(
+                    label = stringResource(R.string.pomnyu),
+                    icon = Icons.Default.Check,
+                    container = Success,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    onCorrect()
+                    isFlipped = false
                 }
             }
         }
@@ -1403,6 +1386,43 @@ private fun FlashcardSession(
         // Hint to flip
         if (!isFlipped) {
             FlipHint(text = stringResource(R.string.nazhmite_na_kartochku_chtoby_uvidet_otvet), modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/**
+ * One verdict on a card. Three of them share a row, so the label has to survive being narrow:
+ * one line, ellipsised rather than wrapped, and the icon dropped where it would crowd the word.
+ */
+@Composable
+private fun CardVerdictButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector?,
+    container: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(56.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = container),
+        contentPadding = PaddingValues(horizontal = 8.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            icon?.let {
+                Icon(it, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+            Text(
+                label,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

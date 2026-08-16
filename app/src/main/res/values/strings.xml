@@ -5,7 +5,7 @@
     <string name="ai_uprazhneniya">AI Упражнения</string>
     <string name="akkaunt_i_vse_dannye_budut_udaleny_bezvozvratno">Аккаунт и все данные будут удалены безвозвратно через 30 дней. </string>
     <string name="antonimy">Антонимы</string>
-    <string name="bez_kategorii">Без категории</string>
+    <string name="bez_kategorii">Без папки</string>
     <string name="chetyre_opredeleniya_odno_vashe">Четыре определения, одно ваше</string>
     <string name="chto_oznachaet_slovo">Что означает слово:</string>
     <string name="dopolnitelnye_dannye_nedostupny">Дополнительные данные недоступны</string>
@@ -22,7 +22,7 @@
     <string name="kak_upotreblyaetsya">Как употребляется</string>
     <string name="kakoe_eto_slovo">Какое это слово:</string>
     <string name="kartochek_vsego">Карточек всего</string>
-    <string name="kategorii">Категории</string>
+    <string name="kategorii">Папки</string>
     <string name="kod_podtverzhdeniya">Код подтверждения</string>
     <string name="login">Логин</string>
     <string name="login_nikneym">Логин / Никнейм</string>
@@ -50,7 +50,7 @@
     <string name="net_interneta_pokazany_sohranennye_dannye">Нет интернета — показаны сохранённые данные</string>
     <string name="net_kartochek_k_povtoreniyu">Нет карточек к повторению</string>
     <string name="net_sohranennyh_slov">Нет сохранённых слов</string>
-    <string name="novaya_kategoriya">Новая категория</string>
+    <string name="novaya_kategoriya">Новая папка</string>
     <string name="o_prilozhenii">О приложении</string>
     <string name="obyasnenie">Объяснение</string>
     <string name="obyasnenie_ii">Объяснение ИИ</string>
@@ -75,6 +75,9 @@
     <string name="proslushat">Прослушать произношение</string>
     <string name="pereimenovat_papku">Переименовать папку</string>
     <string name="podelitsya_papkoy">Поделиться папкой</string>
+    <string name="ne_pomnyu">Не помню</string>
+    <string name="slozhno">Сложно</string>
+    <string name="pomnyu">Помню</string>
     <string name="dobavit">Добавить</string>
     <string name="dobavit_papku_po_ssylke">Добавить папку по ссылке</string>
     <string name="ssylka_na_papku">Ссылка или код</string>

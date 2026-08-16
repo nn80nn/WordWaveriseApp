@@ -256,6 +256,33 @@ class FlashcardRepository @Inject constructor(
     }
 
     /**
+     * Recalled without effort.
+     *
+     * Sent as EASY rather than GOOD so that a card session grades the same here as in the
+     * browser — the three buttons mean the same three things, or the same deck drifts apart
+     * between devices. Exercises keep mapping a correct answer to GOOD on both clients: an
+     * answer typed into an exercise is not a claim about how easy the word felt.
+     */
+    suspend fun markAsEasy(flashcard: FlashcardEntity): Resource<Unit> {
+        return try {
+            val newLevel = min(flashcard.repetitionLevel + 1, 5)
+            val updated = flashcard.copy(
+                repetitionLevel = newLevel,
+                lastReviewed = System.currentTimeMillis(),
+                nextReviewDate = calculateNextReview(newLevel),
+                correctCount = flashcard.correctCount + 1,
+                updatedAt = System.currentTimeMillis()
+            )
+            flashcardDao.updateFlashcard(updated)
+            syncUpdateToServer(updated, "EASY")
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error marking as easy", e)
+            Resource.Error("Ошибка обновления карточки")
+        }
+    }
+
+    /**
      * A near miss: the word is known, the spelling was not. The card keeps its level rather
      * than advancing, so it comes back soon instead of being treated as learned — or as
      * forgotten, which resetting it would imply.

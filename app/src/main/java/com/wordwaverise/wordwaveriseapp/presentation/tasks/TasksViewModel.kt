@@ -109,16 +109,24 @@ class TasksViewModel @Inject constructor(
         }
     }
 
-    fun markCorrect() = reviewCurrentCard(correct = true)
+    /** Те же три оценки, что и в браузере: иначе одна колода расходится между устройствами. */
+    fun markCorrect() = reviewCurrentCard(CardVerdict.EASY)
 
-    fun markIncorrect() = reviewCurrentCard(correct = false)
+    fun markHard() = reviewCurrentCard(CardVerdict.HARD)
 
-    private fun reviewCurrentCard(correct: Boolean) {
+    fun markIncorrect() = reviewCurrentCard(CardVerdict.AGAIN)
+
+    private enum class CardVerdict { AGAIN, HARD, EASY }
+
+    private fun reviewCurrentCard(verdict: CardVerdict) {
         viewModelScope.launch {
             val current = _state.value
             val card = current.sessionFlashcards.getOrNull(current.currentCardIndex) ?: return@launch
-            if (correct) flashcardRepository.markAsCorrect(card)
-            else flashcardRepository.markAsIncorrect(card)
+            when (verdict) {
+                CardVerdict.AGAIN -> flashcardRepository.markAsIncorrect(card)
+                CardVerdict.HARD -> flashcardRepository.markAsAlmost(card)
+                CardVerdict.EASY -> flashcardRepository.markAsEasy(card)
+            }
             _state.update { it.copy(currentCardIndex = it.currentCardIndex + 1) }
         }
     }

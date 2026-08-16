@@ -14,6 +14,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -163,13 +167,23 @@ fun SavedScreen(
     if (state.showCategorySheet) {
         ModalBottomSheet(
             onDismissRequest = onHideCategorySheet,
-            containerColor = BackgroundSecondary
+            containerColor = BackgroundSecondary,
+            // ⚠️ Лист должен уступать клавиатуре, а не оставаться под ней. Поля ввода здесь
+            // внизу — без этого человек печатал вслепую: клавиатура закрывала и само поле, и
+            // кнопку рядом с ним, а понять, что лист вообще прокручивается, было неоткуда.
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
             if (state.wordToMove != null) {
                 // Move word mode
-                Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 32.dp)
+                ) {
                     Text(
-                        "Переместить «${state.wordToMove}» в категорию",
+                        "Переместить «${state.wordToMove}» в папку",
                         fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
@@ -191,7 +205,13 @@ fun SavedScreen(
                 }
             } else {
                 // Manage categories mode
-                Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 32.dp)
+                ) {
                     Text(
                         stringResource(R.string.kategorii),
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
