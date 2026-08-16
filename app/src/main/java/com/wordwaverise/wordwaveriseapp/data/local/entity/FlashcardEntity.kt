@@ -25,6 +25,9 @@ data class FlashcardEntity(
     /** Hand-edited: the dictionary refresh must leave this card's wording alone. */
     val customized: Boolean = false,
 
+    /** Which sense of the article this card is about, when the user pinned one. */
+    val senseId: String? = null,
+
     // Spaced repetition fields (local)
     val repetitionLevel: Int = 0,
     val lastReviewed: Long? = null,

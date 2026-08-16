@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
@@ -293,6 +294,16 @@ private fun WordCard(
                     if (categoryName != null) {
                         Text("·", fontSize = 12.sp, color = TextTertiary)
                         Text(categoryName, fontSize = 11.sp, color = PrimaryCyan)
+                    }
+                    // Слово сохранено с выбранным значением: при открытии статья начнётся с него.
+                    if (word.senseId != null) {
+                        Text("·", fontSize = 12.sp, color = TextTertiary)
+                        Icon(
+                            imageVector = Icons.Default.Bookmark,
+                            contentDescription = stringResource(R.string.vashe_znachenie),
+                            tint = PrimaryCyan,
+                            modifier = Modifier.size(11.dp)
+                        )
                     }
                 }
             }

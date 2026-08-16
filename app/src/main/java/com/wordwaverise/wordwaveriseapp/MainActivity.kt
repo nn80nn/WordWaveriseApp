@@ -103,7 +103,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onSelectSuggestion = viewModel::selectSuggestion,
                                     onSearchOriginal = viewModel::searchOriginalQuery,
-                                    onTokenClick = viewModel::analyzeToken
+                                    onTokenClick = viewModel::analyzeToken,
+                                    pinnedSenseId = viewModel.pinnedSenseId.value,
+                                    onToggleSense = viewModel::toggleSense
                                 )
                             }
 
@@ -171,6 +173,8 @@ class MainActivity : ComponentActivity() {
                                     isSavedLoading = state.isSavedLoading,
                                     onSaveWord = viewModel::saveWord,
                                     onUnsaveWord = viewModel::unsaveWord,
+                                    pinnedSenseId = state.pinnedSenseId,
+                                    onToggleSense = viewModel::toggleSense,
                                     isPlayingAudio = state.isPlayingAudio,
                                     playingAudioUrl = state.playingAudioUrl,
                                     onPlayAudio = viewModel::playAudio,

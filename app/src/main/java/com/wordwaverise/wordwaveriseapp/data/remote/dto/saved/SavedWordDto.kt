@@ -8,5 +8,8 @@ data class SavedWordDto(
     val word: String,
     val translation: String? = null,
     val definition: String? = null,
+    val example: String? = null,
+    /** Which sense of the article the user pinned, or null when they saved the whole word. */
+    val senseId: String? = null,
     val savedAt: String
 )

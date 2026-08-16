@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -41,7 +44,12 @@ import com.wordwaverise.wordwaveriseapp.ui.theme.*
 fun ArticleView(
     entry: LexicalEntryDto,
     onWordClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** The sense this user saved, if any — it leads the article instead of hiding in it. */
+    pinnedSenseId: String? = null,
+    /** Saving needs an account; without one the bookmark explains itself instead of vanishing. */
+    canSave: Boolean = false,
+    onToggleSense: (String) -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -61,8 +69,15 @@ fun ArticleView(
             Spacer(Modifier.height(12.dp))
         }
 
-        entry.posGroups.forEach { group ->
-            PosGroupSection(group = group, entry = entry, onWordClick = onWordClick)
+        orderedGroups(entry, pinnedSenseId).forEach { group ->
+            PosGroupSection(
+                group = group,
+                entry = entry,
+                onWordClick = onWordClick,
+                pinnedSenseId = pinnedSenseId,
+                canSave = canSave,
+                onToggleSense = onToggleSense
+            )
             Spacer(Modifier.height(20.dp))
         }
 
@@ -89,11 +104,46 @@ fun ArticleView(
     }
 }
 
+/**
+ * The article's groups, with the one holding the saved sense brought to the front.
+ *
+ * Opening a word from the saved list and having to hunt for the meaning you chose — sometimes
+ * a whole part of speech down — is the entire reason the choice is recorded.
+ *
+ * ⚠️ Only the *order* changes. Sense numbers keep their real place in the entry (see
+ * [PosGroupSection]); renumbering to match would quietly claim the dictionary lists the chosen
+ * sense first, and the article has to stay checkable against its sources.
+ */
+/**
+ * The senses of one group, chosen sense first, each paired with its real number in the entry.
+ *
+ * ⚠️ The number is worked out *before* the reordering and travels with its sense. Renumbering to
+ * match what is on screen would claim the dictionary lists the chosen sense first, and the
+ * article has to stay checkable against its sources.
+ */
+internal fun orderedSenses(group: PosGroupDto, pinnedSenseId: String?): List<Pair<Int, SenseDto>> {
+    val numbered = group.senses.mapIndexed { index, sense -> (index + 1) to sense }
+    if (pinnedSenseId.isNullOrBlank()) return numbered
+    return numbered.filter { it.second.id == pinnedSenseId } +
+        numbered.filter { it.second.id != pinnedSenseId }
+}
+
+internal fun orderedGroups(entry: LexicalEntryDto, pinnedSenseId: String?): List<PosGroupDto> {
+    if (pinnedSenseId.isNullOrBlank()) return entry.posGroups
+    val holder = entry.posGroups.indexOfFirst { group -> group.senses.any { it.id == pinnedSenseId } }
+    if (holder < 0) return entry.posGroups
+    return listOf(entry.posGroups[holder]) +
+        entry.posGroups.filterIndexed { index, _ -> index != holder }
+}
+
 @Composable
 private fun PosGroupSection(
     group: PosGroupDto,
     entry: LexicalEntryDto,
-    onWordClick: (String) -> Unit
+    onWordClick: (String) -> Unit,
+    pinnedSenseId: String? = null,
+    canSave: Boolean = false,
+    onToggleSense: (String) -> Unit = {}
 ) {
     Column {
         Row(
@@ -123,12 +173,15 @@ private fun PosGroupSection(
 
         Spacer(Modifier.height(10.dp))
 
-        group.senses.forEachIndexed { index, sense ->
+        orderedSenses(group, pinnedSenseId).forEach { (ordinal, sense) ->
             SenseCard(
                 sense = sense,
-                ordinal = index + 1,
+                ordinal = ordinal,
                 entry = entry,
-                onWordClick = onWordClick
+                onWordClick = onWordClick,
+                pinned = sense.id == pinnedSenseId,
+                canSave = canSave,
+                onToggleSave = { onToggleSense(sense.id) }
             )
             Spacer(Modifier.height(10.dp))
         }
@@ -213,6 +266,11 @@ fun Badge(text: String, color: Color, modifier: Modifier = Modifier) {
 
 /**
  * One sense: its Russian first, then the English definition, then evidence.
+ *
+ * The bookmark lives here rather than only on the headword for the same reason the translation
+ * does: saving `resolve` said nothing about whether you meant "решать" or "разлагать". Saving
+ * *this sense* says exactly that, and it is what the saved list, the card and the exercises
+ * then use.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -220,13 +278,18 @@ fun SenseCard(
     sense: SenseDto,
     ordinal: Int,
     entry: LexicalEntryDto,
-    onWordClick: (String) -> Unit
+    onWordClick: (String) -> Unit,
+    pinned: Boolean = false,
+    canSave: Boolean = false,
+    onToggleSave: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
-        border = BorderStroke(1.dp, WaveTheme.colors.border),
+        colors = CardDefaults.cardColors(
+            containerColor = if (pinned) PrimaryCyan.copy(alpha = 0.10f) else BackgroundSecondary
+        ),
+        border = BorderStroke(1.dp, if (pinned) PrimaryCyan.copy(alpha = 0.45f) else WaveTheme.colors.border),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         // Every part of the sense starts on the same left edge, and the ordinal
@@ -246,6 +309,43 @@ fun SenseCard(
                         fontWeight = FontWeight.Bold
                     )
                 ) { append("$ordinal.  ") }
+            }
+
+            if (onToggleSave != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (pinned) {
+                        Text(
+                            text = stringResource(R.string.vashe_znachenie),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PrimaryCyan,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    IconButton(
+                        onClick = onToggleSave,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (pinned) Icons.Filled.Bookmark
+                            else Icons.Outlined.BookmarkBorder,
+                            contentDescription = stringResource(
+                                when {
+                                    !canSave -> R.string.voydite_chtoby_sohranit_znachenie
+                                    pinned -> R.string.ubrat_slovo_iz_sohranennyh
+                                    else -> R.string.sohranit_eto_znachenie
+                                }
+                            ),
+                            tint = if (pinned) PrimaryCyan else TextTertiary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
 
             var markerUsed = false

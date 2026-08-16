@@ -79,6 +79,13 @@
     <string name="primery_ispolzovaniya">Примеры использования</string>
     <string name="primery_ot_ii">Примеры от ИИ</string>
     <string name="proishozhdenie">Происхождение</string>
+    <!-- Закладка на конкретном значении статьи -->
+    <string name="vashe_znachenie">Ваше значение</string>
+    <string name="sohranit_eto_znachenie">Сохранить это значение</string>
+    <string name="ubrat_slovo_iz_sohranennyh">Убрать слово из сохранённых</string>
+    <string name="voydite_chtoby_sohranit_znachenie">Войдите, чтобы сохранить это значение</string>
+    <string name="znachenie_sohraneno">Значение сохранено</string>
+    <string name="znachenie_obnovleno">Значение обновлено</string>
     <string name="propuschennoe_slovo_v_zhivom_predlozhenii">Пропущенное слово в живом предложении</string>
     <string name="proslushat_proiznoshenie">Прослушать произношение</string>
     <string name="proverit">Проверить</string>

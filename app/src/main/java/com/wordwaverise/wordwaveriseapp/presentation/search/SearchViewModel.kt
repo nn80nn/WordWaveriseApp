@@ -36,6 +36,10 @@ class SearchViewModel @Inject constructor(
     private val _isSaved = mutableStateOf(false)
     val isSaved: State<Boolean> = _isSaved
 
+    /** Значение статьи, к которому привязано слово: статья открывает его первым. */
+    private val _pinnedSenseId = mutableStateOf<String?>(null)
+    val pinnedSenseId: State<String?> = _pinnedSenseId
+
     private var mediaPlayer: MediaPlayer? = null
     private var suggestJob: Job? = null
 
@@ -220,6 +224,7 @@ class SearchViewModel @Inject constructor(
         stopAudio()
         _state.value = SearchState()
         _isSaved.value = false
+        _pinnedSenseId.value = null
     }
 
     fun playAudio(url: String) {
@@ -306,12 +311,65 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The bookmark on one sense of the article.
+     *
+     * Three outcomes, and the third is the one worth stating: tapping the sense that is already
+     * chosen removes the word from saved altogether, because "saved, but no sense" is a state
+     * with nothing to show. Tapping a different sense re-pins — the folder and the card stay,
+     * only the meaning changes.
+     *
+     * The definition travelling with the request is a fallback for a word whose article the
+     * server has not written yet; when the corpus knows the sense, the server's own text wins.
+     */
+    fun toggleSense(senseId: String) {
+        val entry = _state.value.entry ?: return
+        val word = entry.lemma.takeIf { it.isNotBlank() } ?: _state.value.wordData?.word ?: return
+
+        if (_pinnedSenseId.value == senseId) {
+            unsaveWord()
+            return
+        }
+
+        val sense = entry.posGroups.flatMap { it.senses }.firstOrNull { it.id == senseId } ?: return
+        val group = entry.posGroups.firstOrNull { g -> g.senses.any { it.id == senseId } }
+        val translation = sense.translationsRu.firstOrNull()
+        val definition = sense.definitionEn.takeIf { it.isNotBlank() }
+            ?: sense.definitionRu.takeIf { it.isNotBlank() }
+        val example = sense.examples.firstOrNull()?.en
+
+        viewModelScope.launch {
+            when (savedWordsRepository.saveWord(word, translation, definition, senseId)) {
+                is Resource.Success -> {
+                    _isSaved.value = true
+                    _pinnedSenseId.value = senseId
+                    if (definition != null) {
+                        flashcardRepository.createFlashcard(
+                            word = word,
+                            definition = definition,
+                            example = example,
+                            translation = translation,
+                            phonetic = entry.phonetic ?: _state.value.wordData?.phonetic,
+                            partOfSpeech = group?.pos,
+                            senseId = senseId
+                        )
+                    }
+                }
+                is Resource.Error -> Log.e(TAG, "Failed to pin sense")
+                else -> {}
+            }
+        }
+    }
+
     fun unsaveWord() {
         val word = _state.value.entry?.lemma?.takeIf { it.isNotBlank() }
             ?: _state.value.wordData?.word ?: return
         viewModelScope.launch {
             when (savedWordsRepository.deleteWord(word)) {
-                is Resource.Success -> _isSaved.value = false
+                is Resource.Success -> {
+                    _isSaved.value = false
+                    _pinnedSenseId.value = null
+                }
                 is Resource.Error -> Log.e(TAG, "Failed to remove word")
                 else -> {}
             }
@@ -321,6 +379,7 @@ class SearchViewModel @Inject constructor(
     private fun checkIfWordIsSaved(word: String) {
         viewModelScope.launch {
             _isSaved.value = savedWordsRepository.isWordSaved(word)
+            _pinnedSenseId.value = savedWordsRepository.pinnedSenseId(word)
         }
     }
 }

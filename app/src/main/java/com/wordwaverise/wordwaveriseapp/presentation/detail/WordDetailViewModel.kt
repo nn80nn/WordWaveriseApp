@@ -105,8 +105,15 @@ class WordDetailViewModel @Inject constructor(
                 val token = authRepository.token.firstOrNull()
                 if (token != null) {
                     val savedWords = apiService.getSavedWords("Bearer $token")
-                    val isSaved = savedWords.data?.words?.any { it.word.equals(word, ignoreCase = true) } == true
-                    _state.update { it.copy(isSaved = isSaved, isSavedLoading = false) }
+                    val saved = savedWords.data?.words
+                        ?.firstOrNull { it.word.equals(word, ignoreCase = true) }
+                    _state.update {
+                        it.copy(
+                            isSaved = saved != null,
+                            pinnedSenseId = saved?.senseId,
+                            isSavedLoading = false
+                        )
+                    }
                 } else {
                     _state.update { it.copy(isSavedLoading = false) }
                 }
@@ -137,13 +144,50 @@ class WordDetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The bookmark on one sense of the article.
+     *
+     * Tapping the sense already chosen removes the word from saved altogether — "saved, but no
+     * sense" is a state with nothing to show. Tapping a different one re-pins it, which the
+     * server treats as a change of meaning rather than a second save, so the folder and the
+     * card survive.
+     */
+    fun toggleSense(senseId: String) {
+        if (_state.value.pinnedSenseId == senseId) {
+            unsaveWord()
+            return
+        }
+
+        val entry = _state.value.entry ?: return
+        val sense = entry.posGroups.flatMap { it.senses }.firstOrNull { it.id == senseId } ?: return
+
+        viewModelScope.launch {
+            try {
+                val token = authRepository.token.firstOrNull() ?: return@launch
+                apiService.saveWord(
+                    token = "Bearer $token",
+                    request = SaveWordRequest(
+                        word = _state.value.word,
+                        // Запасной вариант на случай слова, статью которого сервер ещё не
+                        // написал: когда корпус значение знает, побеждает его собственный текст.
+                        translation = sense.translationsRu.firstOrNull(),
+                        definition = sense.definitionEn.takeIf { it.isNotBlank() }
+                            ?: sense.definitionRu.takeIf { it.isNotBlank() },
+                        senseId = senseId
+                    )
+                )
+                _state.update { it.copy(isSaved = true, pinnedSenseId = senseId) }
+            } catch (_: Exception) { }
+        }
+    }
+
     fun unsaveWord() {
         viewModelScope.launch {
             try {
                 val token = authRepository.token.firstOrNull()
                 if (token != null) {
                     apiService.deleteSavedWord(token = "Bearer $token", word = _state.value.word)
-                    _state.update { it.copy(isSaved = false) }
+                    _state.update { it.copy(isSaved = false, pinnedSenseId = null) }
                 }
             } catch (_: Exception) { }
         }

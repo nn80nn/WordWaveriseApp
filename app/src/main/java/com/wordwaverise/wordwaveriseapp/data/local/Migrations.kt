@@ -145,3 +145,17 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `customized` INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/**
+ * A saved word remembers which sense of the article it is about.
+ *
+ * A word has no single translation — `resolve` is "решать" and "разлагать" — so the meaning the
+ * user picked is the only thing that makes the saved word, the card and the exercises agree
+ * with each other.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `saved_words` ADD COLUMN `senseId` TEXT")
+        db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `senseId` TEXT")
+    }
+}

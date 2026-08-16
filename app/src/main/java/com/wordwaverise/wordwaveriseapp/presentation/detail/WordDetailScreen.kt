@@ -64,6 +64,8 @@ fun WordDetailScreen(
     isLoadingFull: Boolean = false,
     onSaveWord: () -> Unit,
     onUnsaveWord: () -> Unit,
+    pinnedSenseId: String? = null,
+    onToggleSense: (String) -> Unit = {},
     isPlayingAudio: Boolean = false,
     playingAudioUrl: String? = null,
     onPlayAudio: (String) -> Unit = {},
@@ -211,7 +213,13 @@ fun WordDetailScreen(
                     when {
                         tab.sourceFilter == "ARTICLE" -> {
                             if (entry != null) {
-                                ArticleView(entry = entry, onWordClick = onWordClick)
+                                ArticleView(
+                                    entry = entry,
+                                    onWordClick = onWordClick,
+                                    pinnedSenseId = pinnedSenseId,
+                                    canSave = true,
+                                    onToggleSense = onToggleSense
+                                )
                             }
                         }
                         tab.sourceFilter == "AI" -> {

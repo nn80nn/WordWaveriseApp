@@ -18,7 +18,7 @@ import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
         CategoryEntity::class,
         ArticleCacheEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

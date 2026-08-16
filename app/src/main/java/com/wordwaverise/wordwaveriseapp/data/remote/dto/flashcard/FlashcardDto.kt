@@ -64,7 +64,15 @@ data class CreateFlashcardRequest(
     val word: String,
     val translation: String? = null,
     val definition: String? = null,
-    val example: String? = null
+    val example: String? = null,
+    /**
+     * The sense the card is about.
+     *
+     * Without it the card is born unpinned, and the server's corpus refresh rewrites it from
+     * the article's first sense on the next study session — undoing the choice the user made
+     * moments earlier.
+     */
+    val senseId: String? = null
 )
 
 @Serializable

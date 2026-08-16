@@ -15,6 +15,8 @@ data class WordDetailState(
     val error: String? = null,
     val isSaved: Boolean = false,
     val isSavedLoading: Boolean = true,
+    /** Значение статьи, к которому привязано слово — статья открывает его первым. */
+    val pinnedSenseId: String? = null,
     val isPlayingAudio: Boolean = false,
     val playingAudioUrl: String? = null,
     val audioError: String? = null,

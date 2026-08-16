@@ -10,5 +10,12 @@ data class SavedWordEntity(
     val savedAt: Long = System.currentTimeMillis(),
     val serverId: Int? = null,
     val isSynced: Boolean = false,
-    val categoryId: Long? = null
+    val categoryId: Long? = null,
+
+    /**
+     * The sense of the article this word was saved under, as the *server* names senses
+     * ("n1", "v2"). Kept locally so the article can open on the chosen meaning without waiting
+     * for the list to come back from the network.
+     */
+    val senseId: String? = null
 )

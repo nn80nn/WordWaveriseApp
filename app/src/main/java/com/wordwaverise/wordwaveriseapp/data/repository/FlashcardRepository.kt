@@ -147,7 +147,8 @@ class FlashcardRepository @Inject constructor(
         example: String? = null,
         translation: String? = null,
         phonetic: String? = null,
-        partOfSpeech: String? = null
+        partOfSpeech: String? = null,
+        senseId: String? = null
     ): Resource<Long> {
         return try {
             val existing = flashcardDao.getFlashcardByWord(word)
@@ -162,7 +163,8 @@ class FlashcardRepository @Inject constructor(
                 example = example,
                 translation = translation,
                 phonetic = phonetic,
-                partOfSpeech = partOfSpeech
+                partOfSpeech = partOfSpeech,
+                senseId = senseId
             )
             val localId = flashcardDao.insertFlashcard(flashcard)
             Log.d(TAG, "Created local flashcard: $localId")
@@ -185,7 +187,8 @@ class FlashcardRepository @Inject constructor(
                 word = flashcard.word,
                 translation = flashcard.translation,
                 definition = flashcard.definition,
-                example = flashcard.example
+                example = flashcard.example,
+                senseId = flashcard.senseId
             )
 
             val response = apiService.createFlashcard("Bearer $token", request)

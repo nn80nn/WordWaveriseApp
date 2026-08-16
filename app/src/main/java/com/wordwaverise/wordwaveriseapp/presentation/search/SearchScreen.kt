@@ -83,6 +83,9 @@ fun SearchScreen(
     onSelectSuggestion: (String) -> Unit = {},
     onSearchOriginal: (String) -> Unit = {},
     onTokenClick: (Int) -> Unit = {},
+    pinnedSenseId: String? = null,
+    canSave: Boolean = true,
+    onToggleSense: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // The annotated article leads; the per-dictionary tabs stay as a way to check it against
@@ -296,7 +299,13 @@ fun SearchScreen(
                 tab.sourceFilter == "ARTICLE" -> {
                     val entry = state.entry
                     if (entry != null) {
-                        ArticleView(entry = entry, onWordClick = onWordClick)
+                        ArticleView(
+                            entry = entry,
+                            onWordClick = onWordClick,
+                            pinnedSenseId = pinnedSenseId,
+                            canSave = canSave,
+                            onToggleSense = onToggleSense
+                        )
                     } else {
                         // Annotation is still running. The definitions are already on the
                         // sources tab, so this waits for the article rather than for data.

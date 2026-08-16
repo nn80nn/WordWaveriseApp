@@ -27,17 +27,28 @@ class SavedWordsRepository @Inject constructor(
 
     val savedWords: Flow<List<SavedWordEntity>> = savedWordDao.getAllSavedWords()
 
+    /**
+     * Saves a word, optionally pinned to one sense of its article.
+     *
+     * ⚠️ The local row is *merged*, not replaced. `insertWord` is an upsert on the headword, so
+     * building a bare `SavedWordEntity` here threw away the folder and the server id every time
+     * the same word was saved again — which is now an ordinary act, since changing your mind
+     * about which sense you meant is a second save of the same word.
+     */
     suspend fun saveWord(
         word: String,
         translation: String? = null,
-        definition: String? = null
+        definition: String? = null,
+        senseId: String? = null
     ): Resource<Boolean> {
         return try {
-            Log.d(TAG, "Saving word: $word")
+            Log.d(TAG, "Saving word: $word (sense=${senseId ?: "—"})")
 
-            // Save locally first
-            val entity = SavedWordEntity(word = word, isSynced = false)
-            savedWordDao.insertWord(entity)
+            val existing = savedWordDao.getSavedWord(word)
+            savedWordDao.insertWord(
+                existing?.copy(isSynced = false, senseId = senseId ?: existing.senseId)
+                    ?: SavedWordEntity(word = word, isSynced = false, senseId = senseId)
+            )
             Log.d(TAG, "Word saved locally: $word")
 
             // Try to sync with server if user is logged in
@@ -47,12 +58,15 @@ class SavedWordsRepository @Inject constructor(
                     Log.d(TAG, "Syncing word to server: $word")
                     val response = apiService.saveWord(
                         "Bearer $token",
-                        SaveWordRequest(word, translation, definition)
+                        SaveWordRequest(word, translation, definition, senseId)
                     )
 
                     if (response.status == "ok" && response.data != null) {
                         val serverId = response.data.id
                         savedWordDao.updateSyncStatus(word, true, serverId)
+                        // Значение приходит обратно от сервера: он мог отказать в привязке,
+                        // если статьи ещё нет, и локально это не должно выглядеть иначе.
+                        savedWordDao.updateSenseId(word, response.data.senseId ?: senseId)
                         Log.d(TAG, "Word synced successfully: $word (serverId: $serverId)")
                     }
                 } catch (e: Exception) {
@@ -66,6 +80,9 @@ class SavedWordsRepository @Inject constructor(
             Resource.Error(NetworkError.getErrorMessage(e))
         }
     }
+
+    /** Значение статьи, к которому привязано слово, — статья открывает его первым. */
+    suspend fun pinnedSenseId(word: String): String? = savedWordDao.getSavedWord(word)?.senseId
 
     suspend fun deleteWord(word: String): Resource<Boolean> {
         return try {
@@ -114,9 +131,13 @@ class SavedWordsRepository @Inject constructor(
                                 word = serverWord.word,
                                 savedAt = System.currentTimeMillis(),
                                 serverId = serverWord.id,
-                                isSynced = true
+                                isSynced = true,
+                                senseId = serverWord.senseId
                             )
                         )
+                    } else if (existingWord.senseId != serverWord.senseId) {
+                        // Значение могли переставить в браузере — сервер здесь источник правды.
+                        savedWordDao.updateSenseId(serverWord.word, serverWord.senseId)
                     }
                 }
 
@@ -126,7 +147,7 @@ class SavedWordsRepository @Inject constructor(
                     try {
                         val saveResponse = apiService.saveWord(
                             "Bearer $token",
-                            SaveWordRequest(localWord.word)
+                            SaveWordRequest(localWord.word, senseId = localWord.senseId)
                         )
                         if (saveResponse.status == "ok" && saveResponse.data != null) {
                             savedWordDao.updateSyncStatus(
