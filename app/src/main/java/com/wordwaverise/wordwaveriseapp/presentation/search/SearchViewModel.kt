@@ -65,7 +65,10 @@ class SearchViewModel @Inject constructor(
      * The server decides what the query is — a word, a typo, an inflected form, a phrase, a
      * sentence, or Russian — so the client no longer sniffs for Cyrillic or guesses at intent.
      */
-    fun searchWord() {
+    /**
+     * @param exact skip the server's resolver entirely — see [searchOriginalQuery].
+     */
+    fun searchWord(exact: Boolean = false) {
         val query = _state.value.searchQuery.trim()
         if (query.isEmpty()) {
             _state.value = _state.value.copy(error = "Пожалуйста, введите слово для поиска")
@@ -97,7 +100,7 @@ class SearchViewModel @Inject constructor(
 
             // Collected rather than awaited: a cold word streams an immediate raw response and
             // then the finished article, so each emission replaces the last on screen.
-            searchRepository.lookup(query).collect { result ->
+            searchRepository.lookup(query, exact = exact).collect { result ->
                 when (result) {
                     is Resource.Success -> {
                         val data = result.data ?: return@collect
@@ -190,10 +193,16 @@ class SearchViewModel @Inject constructor(
         searchWord()
     }
 
-    /** Re-runs the search for exactly what was typed, overriding a spelling correction. */
+    /**
+     * Re-runs the search for exactly what was typed, overriding whatever the resolver decided.
+     *
+     * Repeating the query was not enough: the same input took the same rungs and produced the
+     * same answer, so «Искать точно» could never override anything. The override has to reach
+     * the server, where the decision is actually made.
+     */
     fun searchOriginalQuery(original: String) {
         _state.value = _state.value.copy(searchQuery = original, notice = null)
-        searchWord()
+        searchWord(exact = true)
     }
 
     private fun fetchSuggestions(query: String, prefix: Boolean = false) {

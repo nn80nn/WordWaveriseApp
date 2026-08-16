@@ -65,7 +65,14 @@ interface ApiService {
      * annotated article. May answer PENDING with the raw data while annotation finishes.
      */
     @GET("api/v2/words/lookup")
-    suspend fun lookup(@Query("query") query: String): LookupApiResponse
+    suspend fun lookup(
+        @Query("query") query: String,
+        /**
+         * Look the query up as typed — no correction, no lemmatisation, no fallback.
+         * Null rather than false so the parameter is simply absent on a normal search.
+         */
+        @Query("exact") exact: Boolean? = null
+    ): LookupApiResponse
 
     /** Explains one word as used in one sentence. */
     @POST("api/v2/context/analyze")

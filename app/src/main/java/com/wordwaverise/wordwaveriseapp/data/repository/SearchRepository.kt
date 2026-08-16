@@ -82,14 +82,19 @@ class SearchRepository @Inject constructor(
      * aggregate widens — the first response carries only the fast API sources, and Cambridge and
      * Oxford arrive once the background job's own fetch completes.
      */
-    fun lookup(query: String): Flow<Resource<LookupResponseDto>> = flow {
+    /**
+     * @param exact override the server's resolver and look the query up character for character.
+     *   This is what «Искать точно» sends; without it the button re-issued the identical request
+     *   and the server, being deterministic, resolved it the identical way.
+     */
+    fun lookup(query: String, exact: Boolean = false): Flow<Resource<LookupResponseDto>> = flow {
         if (query.isBlank()) {
             emit(Resource.Error("Пожалуйста, введите слово для поиска"))
             return@flow
         }
 
         val first = try {
-            apiService.lookup(query.trim())
+            apiService.lookup(query.trim(), exact.takeIf { it })
         } catch (e: Exception) {
             Log.e(TAG, "Lookup failed for '$query': ${e.message}", e)
             // A finished article never changes, so an unreachable network is no
@@ -119,7 +124,7 @@ class SearchRepository @Inject constructor(
         while (System.currentTimeMillis() < deadline && shouldKeepPolling(current)) {
             delay(pollDelay(current))
             try {
-                val next = apiService.lookup(query.trim())
+                val next = apiService.lookup(query.trim(), exact.takeIf { it })
                 if (next.status == "ok" && next.data != null) {
                     current = next.data!!
                     writeCache(query, current)
