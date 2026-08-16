@@ -159,3 +159,16 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `senseId` TEXT")
     }
 }
+
+/**
+ * A card learns how its word sounds.
+ *
+ * The front of a card is the one place the word is met without its article, and English
+ * spelling hides precisely the sound — so the recording has to sit on the card itself rather
+ * than be looked up when it is needed, which offline it cannot be.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `audioUrl` TEXT")
+    }
+}

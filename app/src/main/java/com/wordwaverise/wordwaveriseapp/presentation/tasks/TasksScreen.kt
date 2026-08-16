@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -67,6 +69,8 @@ fun TasksScreen(
             TasksMode.CARD_SESSION -> FlashcardSession(
                 flashcards = state.sessionFlashcards,
                 currentIndex = state.currentCardIndex,
+                isAudioPlaying = state.isAudioPlaying,
+                onPlayAudio = viewModel::playCardAudio,
                 onCorrect = viewModel::markCorrect,
                 onIncorrect = viewModel::markIncorrect,
                 onEdit = viewModel::editCurrentCard,
@@ -1244,6 +1248,8 @@ private fun EditField(
 private fun FlashcardSession(
     flashcards: List<FlashcardEntity>,
     currentIndex: Int,
+    isAudioPlaying: Boolean,
+    onPlayAudio: () -> Unit,
     onCorrect: () -> Unit,
     onIncorrect: () -> Unit,
     onEdit: () -> Unit,
@@ -1317,6 +1323,9 @@ private fun FlashcardSession(
         FlippableCard(
             word = currentCard.word,
             phonetic = currentCard.phonetic,
+            audioUrl = currentCard.audioUrl,
+            isAudioPlaying = isAudioPlaying,
+            onPlayAudio = onPlayAudio,
             definition = currentCard.definition,
             example = currentCard.example,
             translation = currentCard.translation,
@@ -1402,6 +1411,9 @@ private fun FlashcardSession(
 private fun FlippableCard(
     word: String,
     phonetic: String?,
+    audioUrl: String?,
+    isAudioPlaying: Boolean,
+    onPlayAudio: () -> Unit,
     definition: String,
     example: String?,
     translation: String?,
@@ -1461,16 +1473,41 @@ private fun FlippableCard(
                             textAlign = TextAlign.Center,
                             letterSpacing = (-1.2).sp
                         )
-                        phonetic?.let {
+                        if (phonetic != null || audioUrl != null) {
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = it,
-                                fontFamily = JetBrainsMono,
-                                fontSize = 16.sp,
-                                color = TextSecondary,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.Center
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                phonetic?.let {
+                                    Text(
+                                        text = it,
+                                        fontFamily = JetBrainsMono,
+                                        fontSize = 16.sp,
+                                        color = TextSecondary,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                                if (audioUrl != null) {
+                                    // Слушать слово и сдаться, перевернув карточку, — разные
+                                    // действия, поэтому нажатие сюда до карточки не доходит.
+                                    IconButton(
+                                        onClick = onPlayAudio,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .border(1.dp, WaveTheme.colors.border, CircleShape)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                            contentDescription = stringResource(R.string.proslushat),
+                                            tint = if (isAudioPlaying) PrimaryCyan else TextSecondary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                         Spacer(modifier = Modifier.height(24.dp))
                         FlipHint(text = stringResource(R.string.nazhmite_chtoby_uvidet_opredelenie))

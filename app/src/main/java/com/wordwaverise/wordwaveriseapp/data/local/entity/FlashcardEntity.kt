@@ -13,6 +13,8 @@ data class FlashcardEntity(
     val example: String? = null,
     val translation: String? = null,
     val phonetic: String? = null,
+    /** The recording for this card's sense; the front plays it. */
+    val audioUrl: String? = null,
     val partOfSpeech: String? = null,
 
     /**

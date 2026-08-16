@@ -375,7 +375,13 @@ class FlashcardRepository @Inject constructor(
                                 definition = if (adoptWording) dto.definition ?: existing.definition
                                              else existing.definition,
                                 example = if (adoptWording) dto.example ?: existing.example
-                                          else existing.example
+                                          else existing.example,
+                                // Произношение и привязка к значению — не «формулировка»:
+                                // их правит только корпус, поэтому они приходят и на карточку,
+                                // которую здесь редактировали руками.
+                                phonetic = dto.phonetic ?: existing.phonetic,
+                                audioUrl = dto.audioUrl ?: existing.audioUrl,
+                                senseId = dto.senseId ?: existing.senseId
                             )
                         )
                     }
@@ -401,6 +407,9 @@ class FlashcardRepository @Inject constructor(
             definition = dto.definition ?: "",
             example = dto.example,
             translation = dto.translation,
+            phonetic = dto.phonetic,
+            audioUrl = dto.audioUrl,
+            senseId = dto.senseId,
             serverCategoryId = dto.categoryId,
             customized = dto.customized,
             nextReviewDate = nextReviewTimestamp

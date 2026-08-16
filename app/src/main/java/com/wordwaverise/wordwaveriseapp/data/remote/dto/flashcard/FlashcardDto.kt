@@ -9,6 +9,14 @@ data class FlashcardDto(
     val translation: String? = null,
     val definition: String? = null,
     val example: String? = null,
+    /**
+     * How the word sounds *in this card's sense* — homographs differ, so the server resolves it
+     * per part of speech rather than per headword.
+     */
+    val phonetic: String? = null,
+    val audioUrl: String? = null,
+    /** Which sense of the article the card is about, when the user pinned one. */
+    val senseId: String? = null,
     /** Server-side folder id. -1 is never sent here; a card in no folder sends null. */
     val categoryId: Int? = null,
     /** Hand-edited: the dictionary refresh leaves this card's wording alone. */

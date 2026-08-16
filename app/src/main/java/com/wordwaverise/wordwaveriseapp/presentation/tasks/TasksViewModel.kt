@@ -331,7 +331,16 @@ class TasksViewModel @Inject constructor(
      * question of that kind. The control stays on screen for replays.
      */
     fun playAudio() {
-        val url = _state.value.currentExercise?.audioUrl ?: return
+        playUrl(_state.value.currentExercise?.audioUrl ?: return)
+    }
+
+    /** The recording on the front of a flashcard, played on request rather than on arrival. */
+    fun playCardAudio() {
+        val card = _state.value.sessionFlashcards.getOrNull(_state.value.currentCardIndex) ?: return
+        playUrl(card.audioUrl ?: return)
+    }
+
+    private fun playUrl(url: String) {
         stopAudio()
         try {
             val player = MediaPlayer()
