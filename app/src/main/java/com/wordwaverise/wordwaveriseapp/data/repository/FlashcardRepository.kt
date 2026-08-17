@@ -413,6 +413,12 @@ class FlashcardRepository @Inject constructor(
                         )
                     }
                 }
+                // Карточка, удалённая в браузере — или удалённая вместе со своим словом, —
+                // должна исчезнуть и здесь, иначе она приходит на повторение вечно.
+                val serverIds = response.data.map { it.id }
+                if (serverIds.isEmpty()) flashcardDao.deleteAllSynced()
+                else flashcardDao.deleteMissingFromServer(serverIds)
+
                 Log.d(TAG, "Synced ${response.data.size} flashcards from server")
                 Resource.Success(Unit)
             } else {

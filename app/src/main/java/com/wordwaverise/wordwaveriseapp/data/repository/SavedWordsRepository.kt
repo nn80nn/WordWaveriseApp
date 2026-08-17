@@ -141,6 +141,13 @@ class SavedWordsRepository @Inject constructor(
                     }
                 }
 
+                // ⚠️ Синхронизация обязана уметь и вычитать. Раньше она только добавляла,
+                // поэтому слово, удалённое в браузере, жило на телефоне вечно и возвращалось
+                // в списки — выглядело как «удаление не работает».
+                val serverKeys = serverWords.map { it.word }
+                if (serverKeys.isEmpty()) savedWordDao.deleteAllSynced()
+                else savedWordDao.deleteMissingFromServer(serverKeys)
+
                 // Sync local unsynced words to server
                 val unsyncedWords = savedWordDao.getUnsyncedWords()
                 unsyncedWords.forEach { localWord ->

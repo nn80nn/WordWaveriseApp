@@ -49,6 +49,13 @@ interface CategoryDao {
     @Query("DELETE FROM categories")
     suspend fun deleteAll()
 
+    /** Папки, удалённые на другом устройстве. Созданные офлайн (`serverId IS NULL`) остаются. */
+    @Query("DELETE FROM categories WHERE serverId IS NOT NULL AND serverId NOT IN (:serverIds)")
+    suspend fun deleteMissingFromServer(serverIds: List<Int>)
+
+    @Query("DELETE FROM categories WHERE serverId IS NOT NULL")
+    suspend fun deleteAllSynced()
+
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deleteById(id: Long)
 

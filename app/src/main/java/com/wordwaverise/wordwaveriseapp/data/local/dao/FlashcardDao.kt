@@ -33,6 +33,18 @@ interface FlashcardDao {
     @Query("DELETE FROM flashcards")
     suspend fun deleteAll()
 
+    /**
+     * Карточки, которых на сервере уже нет: слово удалили, карточку удалили в браузере.
+     *
+     * ⚠️ Только те, у кого есть `serverId`. Карточка, заведённая офлайн, сервером ещё не
+     * виделась, и её отсутствие в ответе ничего не значит.
+     */
+    @Query("DELETE FROM flashcards WHERE serverId IS NOT NULL AND serverId NOT IN (:serverIds)")
+    suspend fun deleteMissingFromServer(serverIds: List<Int>)
+
+    @Query("DELETE FROM flashcards WHERE serverId IS NOT NULL")
+    suspend fun deleteAllSynced()
+
     @Query("DELETE FROM flashcards WHERE word = :word")
     suspend fun deleteByWord(word: String)
 

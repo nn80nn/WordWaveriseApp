@@ -54,6 +54,12 @@ class CategoryRepository @Inject constructor(
 
                 // Clean up copies produced by earlier versions of this sync.
                 categoryDao.remapWordsToOldestDuplicate()
+                // Папка, удалённая на другом устройстве, иначе остаётся здесь навсегда —
+                // с чипом, по которому открывается пустой список.
+                val serverIds = response.data.map { it.id }
+                if (serverIds.isEmpty()) categoryDao.deleteAllSynced()
+                else categoryDao.deleteMissingFromServer(serverIds)
+
                 categoryDao.deleteDuplicateServerCategories()
             }
             Resource.Success(categoryDao.getAll().firstOrNull() ?: emptyList())

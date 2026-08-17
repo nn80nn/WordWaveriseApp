@@ -36,6 +36,18 @@ interface SavedWordDao {
     @Query("DELETE FROM saved_words")
     suspend fun deleteAll()
 
+    /**
+     * Слова, которые сервер больше не отдаёт.
+     *
+     * ⚠️ `isSynced = 1` в условии обязателен: слово, сохранённое офлайн, сервер ещё не видел —
+     * удалить его здесь значит потерять то, что человек только что добавил.
+     */
+    @Query("DELETE FROM saved_words WHERE isSynced = 1 AND word NOT IN (:words)")
+    suspend fun deleteMissingFromServer(words: List<String>)
+
+    @Query("DELETE FROM saved_words WHERE isSynced = 1")
+    suspend fun deleteAllSynced()
+
     @Query("UPDATE saved_words SET categoryId = :categoryId WHERE word = :word")
     suspend fun updateCategory(word: String, categoryId: Long?)
 
