@@ -1,4 +1,5 @@
-"Search exactly" now means it. When the dictionary decides you meant a different word, this button insists on yours, letter for letter.
+The word screen is now one article. The per-dictionary tabs are gone: they restated the same meanings without senses, translations or examples, five times over.
 
-• A word is no longer replaced by a phrasal verb that merely starts with it: "take" is "take", not "take up"
-• Saved words show their translation and short definition again
+• Senses, pronunciation, translated examples and collocations — all at once, no switching
+• While the article is still being written, plain dictionary definitions stand in for it
+• The finished article arrives on its own — no need to search again
