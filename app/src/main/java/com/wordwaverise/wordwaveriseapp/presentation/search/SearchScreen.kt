@@ -300,8 +300,8 @@ private fun RawDefinitions(wordData: WordDto?, annotationPending: Boolean) {
             if (annotationPending) {
                 CircularProgressIndicator(
                     color = PrimaryCyan,
-                    modifier = Modifier.size(12.dp),
-                    strokeWidth = 1.5.dp
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp
                 )
             }
             Text(
