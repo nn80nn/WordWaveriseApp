@@ -209,13 +209,6 @@ class MainActivity : ComponentActivity() {
                                     onPlayAudio = viewModel::playAudio,
                                     onStopAudio = viewModel::stopAudio,
                                     onBack = { navController.popBackStack() },
-                                    aiExplanation = state.aiExplanation,
-                                    isAiExplanationLoading = state.isAiExplanationLoading,
-                                    aiExamples = state.aiExamples,
-                                    isAiExamplesLoading = state.isAiExamplesLoading,
-                                    aiError = state.aiError,
-                                    onLoadAiExplanation = viewModel::loadAiExplanation,
-                                    onLoadAiExamples = viewModel::loadAiExamples,
                                     onWordClick = { word ->
                                         navController.navigate(Screen.WordDetail.createRoute(word))
                                     }

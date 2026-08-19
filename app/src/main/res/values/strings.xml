@@ -57,7 +57,8 @@
     <string name="obyasnit">Объяснить</string>
     <string name="ochistit">Очистить</string>
     <string name="oformlenie">Оформление</string>
-    <string name="opredeleniya_uzhe_dostupny_na_vkladke_istochniki">Определения уже доступны на вкладке «Источники»</string>
+    <string name="statya_sobiraetsya_pokazyvaem_slovar">Статья собирается — пока определения из словаря</string>
+    <string name="opredeleniya_iz_slovarya">Определения из словаря</string>
     <string name="ostanovit_proiznoshenie">Остановить произношение</string>
     <string name="otlichnaya_rabota_prodolzhayte_uchitsya_kazhdyy_den">Отличная работа! Продолжайте учиться каждый день</string>
     <string name="otmena">Отмена</string>

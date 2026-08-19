@@ -1,49 +1,38 @@
 package com.wordwaverise.wordwaveriseapp.presentation.detail
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailResponse
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.ArticleView
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LexicalEntryDto
-import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordEntry
 import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
-private data class DetailTab(val label: String, val sourceFilter: String?)
-
-/** Lightweight display model used inside the pager — avoids coupling to DTO type. */
+/** Lightweight display model for the raw definitions — avoids coupling to DTO type. */
 private data class DisplayDef(
     val partOfSpeech: String,
     val definition: String,
@@ -71,40 +60,9 @@ fun WordDetailScreen(
     onPlayAudio: (String) -> Unit = {},
     onStopAudio: () -> Unit = {},
     onBack: (() -> Unit)? = null,
-    aiExplanation: String? = null,
-    isAiExplanationLoading: Boolean = false,
-    aiExamples: String? = null,
-    isAiExamplesLoading: Boolean = false,
-    aiError: String? = null,
-    onLoadAiExplanation: () -> Unit = {},
-    onLoadAiExamples: () -> Unit = {},
     onWordClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // Build tabs dynamically — only show dict tabs when that source has data
-    val tabs = remember(wordDetail?.word, entry != null) {
-        val sources = wordDetail?.definitions?.mapNotNull { it.source?.uppercase() }?.toSet().orEmpty()
-        buildList {
-            // The article is the primary view of a word, exactly as on search;
-            // the raw per-dictionary pages stay behind it as evidence.
-            if (entry != null) add(DetailTab("Статья", "ARTICLE"))
-            add(DetailTab("Источники", null))
-            if ("WIKTIONARY" in sources) add(DetailTab("Wiktionary", "WIKTIONARY"))
-            if ("CAMBRIDGE" in sources) add(DetailTab("Cambridge", "CAMBRIDGE"))
-            if ("OXFORD" in sources || "OED" in sources) add(DetailTab("Oxford", "OXFORD"))
-            add(DetailTab("Подробнее", "DETAILS"))
-            add(DetailTab("AI", "AI"))
-        }
-    }
-    val pagerState = rememberPagerState(pageCount = { tabs.size })
-    val scope = rememberCoroutineScope()
-
-    // -1 = "All entries"; ≥0 = index into wordDetail.entries
-    var selectedEntryIdx by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(wordDetail?.word) { selectedEntryIdx = -1 }
-
-    val selectedEntry: WordEntry? = wordDetail?.entries?.getOrNull(selectedEntryIdx)
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -162,7 +120,6 @@ fun WordDetailScreen(
                 // ── Word header ────────────────────────────────────────────
                 if (wordDetail != null) WordHeaderCard(
                     wordDetail = wordDetail,
-                    selectedEntry = selectedEntry,
                     isSaved = isSaved,
                     isSavedLoading = isSavedLoading,
                     isPlayingAudio = isPlayingAudio,
@@ -172,18 +129,6 @@ fun WordDetailScreen(
                     onPlayAudio = onPlayAudio,
                     onStopAudio = onStopAudio
                 )
-
-                // ── Entry chips (only when word has 2+ entries / POS groups) ──
-                // They filter the raw source pages, so on the article they are
-                // a control with nothing to act on.
-                val onArticleTab = tabs.getOrNull(pagerState.currentPage)?.sourceFilter == "ARTICLE"
-                if (!onArticleTab && wordDetail != null && wordDetail.entries.size > 1) {
-                    EntrySelector(
-                        entries = wordDetail.entries,
-                        selectedIdx = selectedEntryIdx,
-                        onSelect = { selectedEntryIdx = it }
-                    )
-                }
 
                 // ── Full-data loading indicator ────────────────────────────
                 // Also runs while the article is still being written server-side.
@@ -197,279 +142,86 @@ fun WordDetailScreen(
                     )
                 }
 
-                // ── Source tab row ─────────────────────────────────────────
-                DictTabRow(
-                    tabs = tabs,
-                    selectedIndex = pagerState.currentPage,
-                    onTabClick = { idx -> scope.launch { pagerState.animateScrollToPage(idx) } }
-                )
-
-                // ── Pager ─────────────────────────────────────────────────
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    val tab = tabs[page]
-                    when {
-                        tab.sourceFilter == "ARTICLE" -> {
-                            if (entry != null) {
-                                ArticleView(
-                                    entry = entry,
-                                    onWordClick = onWordClick,
-                                    pinnedSenseId = pinnedSenseId,
-                                    canSave = true,
-                                    onToggleSense = onToggleSense
-                                )
-                            }
-                        }
-                        tab.sourceFilter == "AI" -> {
-                            AiPage(
-                                aiExplanation = aiExplanation,
-                                isAiExplanationLoading = isAiExplanationLoading,
-                                aiExamples = aiExamples,
-                                isAiExamplesLoading = isAiExamplesLoading,
-                                aiError = aiError,
-                                onLoadExplanation = onLoadAiExplanation,
-                                onLoadExamples = onLoadAiExamples
-                            )
-                        }
-                        tab.sourceFilter == "DETAILS" -> {
-                            DetailsPage(
-                                wordDetail = wordDetail ?: return@HorizontalPager,
-                                selectedEntry = selectedEntry,
-                                aiExplanation = aiExplanation,
-                                isAiExplanationLoading = isAiExplanationLoading,
-                                aiExamples = aiExamples,
-                                isAiExamplesLoading = isAiExamplesLoading,
-                                aiError = aiError,
-                                onLoadExplanation = onLoadAiExplanation,
-                                onLoadExamples = onLoadAiExamples,
-                                onWordClick = onWordClick
-                            )
-                        }
-                        else -> {
-                            fun matchesTab(source: String?): Boolean {
-                                val s = source?.uppercase() ?: return tab.sourceFilter == null
-                                return when (tab.sourceFilter) {
-                                    null -> true
-                                    "OXFORD" -> s == "OXFORD" || s == "OED"
-                                    else -> s == tab.sourceFilter
-                                }
-                            }
-                            val defs: List<DisplayDef> = if (selectedEntry != null) {
-                                // Entry selected: show only that entry's meanings
-                                selectedEntry.meanings
-                                    .filter { tab.sourceFilter == null || matchesTab(it.source) }
-                                    .map { m ->
-                                        DisplayDef(
-                                            partOfSpeech = selectedEntry.partOfSpeech ?: "",
-                                            definition = m.definition,
-                                            example = m.example,
-                                            source = m.source
-                                        )
-                                    }
-                            } else {
-                                // All entries: use flat definitions list
-                                wordDetail?.definitions.orEmpty()
-                                    .filter { tab.sourceFilter == null || matchesTab(it.source) }
-                                    .map { def ->
-                                        DisplayDef(
-                                            partOfSpeech = def.partOfSpeech,
-                                            definition = def.definition,
-                                            example = def.example,
-                                            source = def.source
-                                        )
-                                    }
-                            }
-
-                            if (defs.isEmpty()) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "Нет данных от ${tab.label}",
-                                        fontSize = 14.sp,
-                                        color = TextTertiary,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            } else {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
-                                        .padding(horizontal = 16.dp)
-                                ) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    if (tab.sourceFilter == null) {
-                                        // "All" tab — compact rows grouped by source
-                                        val grouped = defs.groupBy { it.source?.uppercase() ?: "API" }
-                                        grouped.forEach { (sourceKey, sourceDefs) ->
-                                            val label = SOURCE_LABELS[sourceKey] ?: sourceKey
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                HorizontalDivider(
-                                                    modifier = Modifier.weight(1f),
-                                                    color = BackgroundLight
-                                                )
-                                                Text(
-                                                    text = label,
-                                                    fontSize = 11.sp,
-                                                    color = TextTertiary,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                                HorizontalDivider(
-                                                    modifier = Modifier.weight(1f),
-                                                    color = BackgroundLight
-                                                )
-                                            }
-                                            sourceDefs.forEach { def ->
-                                                CompactDefinitionRow(def = def)
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                            }
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                        }
-                                        // AI section at bottom of All tab
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        AiInlineSection(
-                                            aiExplanation = aiExplanation,
-                                            isAiExplanationLoading = isAiExplanationLoading,
-                                            aiExamples = aiExamples,
-                                            isAiExamplesLoading = isAiExamplesLoading,
-                                            aiError = aiError,
-                                            onLoadExplanation = onLoadAiExplanation,
-                                            onLoadExamples = onLoadAiExamples
-                                        )
-                                        // Thesaurus — collapsible at bottom of All tab
-                                        val allSyns = wordDetail?.synonyms.orEmpty().filter { it.isNotBlank() }
-                                        val allAnts = wordDetail?.antonyms.orEmpty().filter { it.isNotBlank() }
-                                        if (allSyns.isNotEmpty() || allAnts.isNotEmpty()) {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            ThesaurusSection(
-                                                synonyms = allSyns,
-                                                antonyms = allAnts,
-                                                collapsible = true,
-                                                onWordClick = onWordClick
-                                            )
-                                        }
-                                    } else {
-                                        // Dictionary-specific tabs — full cards with examples, no synonyms
-                                        defs.forEach { def ->
-                                            DefinitionCard(def = def)
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                }
-                            }
-                        }
-                    }
+                // ── The article, and nothing beside it ─────────────────────
+                // The tabs that used to stand here — one per dictionary, plus «Подробнее»
+                // and «AI» — all restated the article: the same meanings, unsorted and
+                // untranslated, or written again by a model with nothing to check it
+                // against. Two descriptions of one word on one screen eventually
+                // contradict each other, which is corrosive in a dictionary.
+                if (entry != null) {
+                    ArticleView(
+                        entry = entry,
+                        onWordClick = onWordClick,
+                        pinnedSenseId = pinnedSenseId,
+                        canSave = true,
+                        onToggleSense = onToggleSense
+                    )
+                } else {
+                    RawDefinitions(
+                        wordDetail = wordDetail,
+                        annotationPending = annotationPending
+                    )
                 }
             }
         }
     }
 }
 
-// ── Dictionary tab row ───────────────────────────────────────────────────────
+// ── Raw definitions: what stands in until the article exists ─────────────────
 
+/**
+ * FreeDictionary only, when it has anything.
+ *
+ * The other sources repeat the same meanings without senses, translations or examples, and
+ * stacking all of them was the old «Источники» page — five spellings of one meaning, which
+ * reads as a worse dictionary rather than a fuller one. A bare spinner is worse still: it
+ * hides definitions already in hand while the annotation runs for minutes.
+ */
 @Composable
-private fun DictTabRow(
-    tabs: List<DetailTab>,
-    selectedIndex: Int,
-    onTabClick: (Int) -> Unit
-) {
-    ScrollableTabRow(
-        selectedTabIndex = selectedIndex,
-        containerColor = BackgroundPrimary,
-        contentColor = PrimaryCyan,
-        edgePadding = 8.dp,
-        indicator = { tabPositions ->
-            if (selectedIndex < tabPositions.size) {
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedIndex]),
-                    height = 2.dp,
-                    color = PrimaryCyan
-                )
-            }
-        },
-        divider = { HorizontalDivider(color = BackgroundLight.copy(alpha = 0.6f)) }
-    ) {
-        tabs.forEachIndexed { idx, tab ->
-            Tab(
-                selected = idx == selectedIndex,
-                onClick = { onTabClick(idx) },
-                selectedContentColor = PrimaryCyan,
-                unselectedContentColor = TextTertiary
-            ) {
-                Text(
-                    text = tab.label,
-                    fontSize = 13.sp,
-                    fontWeight = if (idx == selectedIndex) FontWeight.SemiBold else FontWeight.Normal,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
-                )
-            }
-        }
-    }
-}
-
-// ── Entry selector row ────────────────────────────────────────────────────────
-
-@Composable
-private fun EntrySelector(
-    entries: List<WordEntry>,
-    selectedIdx: Int,
-    onSelect: (Int) -> Unit   // -1 = All
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        EntryChip(label = stringResource(R.string.vse), selected = selectedIdx == -1, onClick = { onSelect(-1) })
-        entries.forEachIndexed { idx, entry ->
-            val label = buildString {
-                entry.partOfSpeech?.let { append(it) }
-                entry.phonetic?.let { ipa ->
-                    if (isNotEmpty()) append(" ")
-                    append(ipa)
-                }
-                if (isEmpty()) append("entry ${idx + 1}")
-            }
-            EntryChip(
-                label = label,
-                selected = selectedIdx == idx,
-                onClick = { onSelect(idx) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun EntryChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                if (selected) PrimaryCyan.copy(alpha = 0.18f) else BackgroundSecondary
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) PrimaryCyan else TextSecondary
+private fun RawDefinitions(wordDetail: WordDetailResponse?, annotationPending: Boolean) {
+    val all = wordDetail?.definitions.orEmpty().map { def ->
+        DisplayDef(
+            partOfSpeech = def.partOfSpeech,
+            definition = def.definition,
+            example = def.example,
+            source = def.source
         )
+    }
+    val defs = all.filter { it.source?.uppercase() == "FREEDICTIONARY" }.ifEmpty { all }
+
+    if (defs.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                stringResource(R.string.sobiraem_statyu),
+                fontSize = 14.sp,
+                color = TextTertiary,
+                textAlign = TextAlign.Center
+            )
+        }
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(
+                if (annotationPending) R.string.statya_sobiraetsya_pokazyvaem_slovar
+                else R.string.opredeleniya_iz_slovarya
+            ),
+            fontSize = 12.sp,
+            color = TextTertiary,
+            modifier = Modifier.padding(bottom = 10.dp)
+        )
+        defs.forEach { def ->
+            DefinitionCard(def = def)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -479,7 +231,6 @@ private fun EntryChip(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun WordHeaderCard(
     wordDetail: WordDetailResponse,
-    selectedEntry: WordEntry?,
     isSaved: Boolean,
     isSavedLoading: Boolean,
     isPlayingAudio: Boolean,
@@ -489,8 +240,7 @@ private fun WordHeaderCard(
     onPlayAudio: (String) -> Unit,
     onStopAudio: () -> Unit
 ) {
-    val prons = selectedEntry?.pronunciations?.takeIf { it.isNotEmpty() }
-        ?: wordDetail.pronunciations
+    val prons = wordDetail.pronunciations
     val ukPron = prons.firstOrNull { it.region == "uk" }
     val usPron = prons.firstOrNull { it.region == "us" }
     val ukAudio = ukPron?.audioMp3Url
@@ -586,19 +336,15 @@ private fun WordHeaderCard(
                     }
                 }
             } else {
-                val phonetic = selectedEntry?.phonetic ?: wordDetail.phonetic
-                phonetic?.let {
+                wordDetail.phonetic?.let {
                     Text(text = it, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp))
                 }
             }
 
-            // Show per-entry translation when one is selected; otherwise all distinct translations
-            val translationText = if (selectedEntry != null) {
-                selectedEntry.translation ?: wordDetail.translation
-            } else {
-                val entryTranslations = wordDetail.entries.mapNotNull { it.translation }.distinct().take(3)
-                entryTranslations.joinToString(" | ").ifBlank { null } ?: wordDetail.translation
-            }
+            // All distinct translations the entries carry, falling back to the word's own
+            val entryTranslations = wordDetail.entries.mapNotNull { it.translation }.distinct().take(3)
+            val translationText = entryTranslations.joinToString(" | ").ifBlank { null }
+                ?: wordDetail.translation
             translationText?.let {
                 Text(
                     text = it,
@@ -691,479 +437,6 @@ private fun DefinitionCard(def: DisplayDef) {
                     fontStyle = FontStyle.Italic,
                     lineHeight = 19.sp
                 )
-            }
-        }
-    }
-}
-
-// ── Compact definition row (used in "All" tab) ────────────────────────────────
-
-@Composable
-private fun CompactDefinitionRow(def: DisplayDef) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(BackgroundSecondary, RoundedCornerShape(10.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        if (def.partOfSpeech.isNotBlank()) {
-            Text(
-                text = def.partOfSpeech,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = PrimaryCyan,
-                modifier = Modifier
-                    .background(PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            )
-        }
-        Text(
-            text = def.definition,
-            fontSize = 14.sp,
-            color = TextPrimary,
-            lineHeight = 19.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        def.source?.let { src ->
-            Text(
-                text = src.take(3).uppercase(),
-                fontSize = 9.sp,
-                color = TextTertiary,
-                modifier = Modifier
-                    .background(BackgroundLight, RoundedCornerShape(4.dp))
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-            )
-        }
-    }
-}
-
-// ── Details page ─────────────────────────────────────────────────────────────
-
-private val SOURCE_LABELS = mapOf(
-    "LDOCE" to "Longman",
-    "WIKTIONARY" to "Wiktionary",
-    "CAMBRIDGE" to "Cambridge",
-    "OXFORD" to "Oxford",
-    "OED" to "Oxford"
-)
-
-@Composable
-private fun DetailsPage(
-    wordDetail: WordDetailResponse,
-    selectedEntry: WordEntry?,
-    aiExplanation: String? = null,
-    isAiExplanationLoading: Boolean = false,
-    aiExamples: String? = null,
-    isAiExamplesLoading: Boolean = false,
-    aiError: String? = null,
-    onLoadExplanation: () -> Unit = {},
-    onLoadExamples: () -> Unit = {},
-    onWordClick: (String) -> Unit = {}
-) {
-    // Always use global synonyms/antonyms — not per-entry duplicates
-    val synonyms = wordDetail.synonyms.filter { it.isNotBlank() }
-    val antonyms = wordDetail.antonyms.filter { it.isNotBlank() }
-
-    // Group definitions by source for this tab
-    val defsBySource = wordDetail.definitions
-        .filter { if (selectedEntry != null) selectedEntry.meanings.any { m -> m.definition == it.definition } else true }
-        .groupBy { it.source?.uppercase() ?: "API" }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
-    ) {
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Definitions grouped by source
-        defsBySource.forEach { (sourceKey, defs) ->
-            val sourceLabel = SOURCE_LABELS[sourceKey] ?: sourceKey
-            SectionCard(title = sourceLabel) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    defs.forEach { def ->
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (def.partOfSpeech.isNotBlank()) {
-                                Text(
-                                    text = def.partOfSpeech,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = PrimaryCyan,
-                                    modifier = Modifier
-                                        .background(PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                            Text(
-                                text = def.definition,
-                                fontSize = 14.sp,
-                                color = TextPrimary,
-                                lineHeight = 20.sp
-                            )
-                            def.example?.let { ex ->
-                                Text(
-                                    text = "\"$ex\"",
-                                    fontSize = 13.sp,
-                                    color = TextSecondary,
-                                    fontStyle = FontStyle.Italic,
-                                    lineHeight = 18.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // Synonyms / antonyms — single global section
-        if (synonyms.isNotEmpty() || antonyms.isNotEmpty()) {
-            ThesaurusSection(
-                synonyms = synonyms,
-                antonyms = antonyms,
-                collapsible = false,
-                onWordClick = onWordClick
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // All examples
-        val examples = wordDetail.examples.filter { it.isNotBlank() }
-        if (examples.isNotEmpty()) {
-            SectionCard(title = stringResource(R.string.primery_ispolzovaniya)) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    examples.forEach { ex ->
-                        Text(
-                            text = "• $ex",
-                            fontSize = 14.sp,
-                            color = TextSecondary,
-                            fontStyle = FontStyle.Italic,
-                            lineHeight = 20.sp
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        if (defsBySource.isEmpty() && synonyms.isEmpty() && antonyms.isEmpty() && examples.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    stringResource(R.string.dopolnitelnye_dannye_nedostupny),
-                    fontSize = 14.sp,
-                    color = TextTertiary,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        // AI section inline
-        AiInlineSection(
-            aiExplanation = aiExplanation,
-            isAiExplanationLoading = isAiExplanationLoading,
-            aiExamples = aiExamples,
-            isAiExamplesLoading = isAiExamplesLoading,
-            aiError = aiError,
-            onLoadExplanation = onLoadExplanation,
-            onLoadExamples = onLoadExamples
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-    }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-@Composable
-private fun SectionCard(title: String, content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
-        border = BorderStroke(1.dp, WaveTheme.colors.border),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = title,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextTertiary
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            content()
-        }
-    }
-}
-
-// ── AI page ────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun AiPage(
-    aiExplanation: String?,
-    isAiExplanationLoading: Boolean,
-    aiExamples: String?,
-    isAiExamplesLoading: Boolean,
-    aiError: String?,
-    onLoadExplanation: () -> Unit,
-    onLoadExamples: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
-    ) {
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Explanation section
-        AiSection(
-            title = stringResource(R.string.obyasnenie_ii),
-            content = aiExplanation,
-            isLoading = isAiExplanationLoading,
-            buttonLabel = stringResource(R.string.obyasnit),
-            error = if (aiExplanation == null && !isAiExplanationLoading) aiError else null,
-            onLoad = onLoadExplanation
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Examples section
-        AiSection(
-            title = stringResource(R.string.primery_ot_ii),
-            content = aiExamples,
-            isLoading = isAiExamplesLoading,
-            buttonLabel = stringResource(R.string.generirovat_primery),
-            error = if (aiExamples == null && !isAiExamplesLoading) aiError else null,
-            onLoad = onLoadExamples
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-    }
-}
-
-@Composable
-private fun AiSection(
-    title: String,
-    content: String?,
-    isLoading: Boolean,
-    buttonLabel: String,
-    error: String? = null,
-    onLoad: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
-        border = BorderStroke(1.dp, WaveTheme.colors.border),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextTertiary
-                )
-                if (!isLoading && content == null) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(PrimaryCyan.copy(alpha = 0.12f))
-                            .clickable { onLoad() }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = buttonLabel,
-                            fontSize = 12.sp,
-                            color = PrimaryCyan,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-            when {
-                isLoading -> {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = PrimaryCyan,
-                            strokeWidth = 2.dp
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                content != null -> {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = content,
-                        fontSize = 14.sp,
-                        color = TextPrimary,
-                        lineHeight = 21.sp
-                    )
-                }
-                error != null -> {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = error,
-                        fontSize = 12.sp,
-                        color = Error
-                    )
-                }
-                else -> {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = stringResource(R.string.nazhmite_knopku_chtoby_zagruzit),
-                        fontSize = 13.sp,
-                        color = TextTertiary,
-                        fontStyle = FontStyle.Italic
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** Compact AI block shown at the bottom of All and Подробнее tabs. */
-@Composable
-private fun AiInlineSection(
-    aiExplanation: String?,
-    isAiExplanationLoading: Boolean,
-    aiExamples: String?,
-    isAiExamplesLoading: Boolean,
-    aiError: String?,
-    onLoadExplanation: () -> Unit,
-    onLoadExamples: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
-            Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = null,
-                tint = TextTertiary,
-                modifier = Modifier.size(14.dp)
-            )
-            Text("AI", fontSize = 11.sp, color = TextTertiary, fontWeight = FontWeight.Medium)
-            HorizontalDivider(modifier = Modifier.weight(1f), color = BackgroundLight)
-        }
-        AiSection(
-            title = stringResource(R.string.obyasnenie),
-            content = aiExplanation,
-            isLoading = isAiExplanationLoading,
-            buttonLabel = stringResource(R.string.obyasnit),
-            error = if (aiExplanation == null && !isAiExplanationLoading) aiError else null,
-            onLoad = onLoadExplanation
-        )
-        AiSection(
-            title = stringResource(R.string.primery_ot_ii),
-            content = aiExamples,
-            isLoading = isAiExamplesLoading,
-            buttonLabel = stringResource(R.string.generirovat),
-            error = if (aiExamples == null && !isAiExamplesLoading) aiError else null,
-            onLoad = onLoadExamples
-        )
-    }
-}
-
-// ── Thesaurus section (synonyms + antonyms, optionally collapsible) ───────────
-
-@Composable
-private fun ThesaurusSection(
-    synonyms: List<String>,
-    antonyms: List<String>,
-    collapsible: Boolean = false,
-    onWordClick: (String) -> Unit = {}
-) {
-    var expanded by remember { mutableStateOf(!collapsible) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
-        border = BorderStroke(1.dp, WaveTheme.colors.border),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(if (collapsible) Modifier.clickable { expanded = !expanded } else Modifier),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.tezaurus),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextTertiary
-                )
-                if (collapsible) {
-                    Text(
-                        text = if (expanded) "▲" else "▼",
-                        fontSize = 11.sp,
-                        color = TextTertiary
-                    )
-                }
-            }
-            AnimatedVisibility(visible = expanded) {
-                Column(
-                    modifier = Modifier.padding(top = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (synonyms.isNotEmpty()) {
-                        Text(stringResource(R.string.sinonimy), fontSize = 11.sp, color = TextTertiary)
-                        FlowChips(items = synonyms, color = PrimaryBlue, onItemClick = onWordClick)
-                    }
-                    if (antonyms.isNotEmpty()) {
-                        Text(stringResource(R.string.antonimy), fontSize = 11.sp, color = TextTertiary)
-                        FlowChips(items = antonyms, color = Error, onItemClick = onWordClick)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun FlowChips(
-    items: List<String>,
-    color: Color,
-    onItemClick: ((String) -> Unit)? = null
-) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        items.forEach { item ->
-            Box(
-                modifier = Modifier
-                    .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                    .then(
-                        if (onItemClick != null) Modifier.clickable { onItemClick(item) }
-                        else Modifier
-                    )
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(text = item, fontSize = 13.sp, color = color)
             }
         }
     }
