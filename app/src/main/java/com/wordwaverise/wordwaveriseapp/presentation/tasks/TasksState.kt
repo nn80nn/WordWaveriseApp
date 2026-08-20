@@ -5,6 +5,8 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseKind
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseKindInfoDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseScope
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.AttemptDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.StudentAssignmentDto
 import com.wordwaverise.wordwaveriseapp.util.ExerciseVerdict
 
 /** Which part of the tab is on screen. One value, so two of them can never both be true. */
@@ -15,7 +17,12 @@ enum class TasksMode { OVERVIEW, CARD_SESSION, EXERCISE_SETUP, EXERCISE_SESSION,
  * and the same one `CategoryEntity.serverId` carries — with `null` meaning every folder and
  * [UNCATEGORIZED] meaning the words filed in none.
  */
-data class FolderOption(val id: Int?, val name: String) {
+data class FolderOption(
+    val id: Int?,
+    val name: String,
+    /** Заполнено, если папку одолжила группа. Учить можно, менять — нет. */
+    val groupName: String? = null
+) {
     companion object {
         const val UNCATEGORIZED = -1
     }
@@ -64,7 +71,19 @@ data class TasksState(
     val isAudioPlaying: Boolean = false,
     val results: List<ExerciseResult> = emptyList(),
     val notice: String? = null,
-    val error: String? = null
+    val error: String? = null,
+
+    // ── Задания преподавателя ─────────────────────────────────────────────
+    val assignments: List<StudentAssignmentDto> = emptyList(),
+    /** Задание, по которому идёт текущая сессия. */
+    val activeAssignmentId: Int? = null,
+    /**
+     * Куда отчитаться о сессии. Приходит от сервера вместе с батчем: относится ли ответ к
+     * классу — вопрос о членстве, и решать его на клиенте незачем.
+     */
+    val activeGroupId: Int? = null,
+    /** Ответы этой сессии; ключ каждого создан в момент ответа. */
+    val pendingAttempts: List<AttemptDto> = emptyList()
 ) {
     val currentExercise: ExerciseDto? get() = exercises.getOrNull(exerciseIndex)
     val answered: Boolean get() = verdict != null

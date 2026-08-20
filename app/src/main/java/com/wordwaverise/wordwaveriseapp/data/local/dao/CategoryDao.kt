@@ -18,8 +18,23 @@ interface CategoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(category: CategoryEntity): Long
 
-    @Query("UPDATE categories SET serverId = :serverId, name = :name, color = :color WHERE id = :id")
-    suspend fun linkToServer(id: Long, serverId: Int, name: String, color: String?)
+    @Query(
+        """
+        UPDATE categories
+        SET serverId = :serverId, name = :name, color = :color,
+            groupServerId = :groupServerId, groupName = :groupName, readOnly = :readOnly
+        WHERE id = :id
+        """
+    )
+    suspend fun linkToServer(
+        id: Long,
+        serverId: Int,
+        name: String,
+        color: String?,
+        groupServerId: Int? = null,
+        groupName: String? = null,
+        readOnly: Boolean = false
+    )
 
     /**
      * Repairs rows left behind by the old sync, which inserted a fresh local row for

@@ -11,5 +11,10 @@ data class SavedWordDto(
     val example: String? = null,
     /** Which sense of the article the user pinned, or null when they saved the whole word. */
     val senseId: String? = null,
-    val savedAt: String
+    val savedAt: String,
+
+    /** Группа, из чьей папки пришло слово, или null — если слово своё. */
+    val groupId: Int? = null,
+    /** У слова из папки группы нет ни удаления, ни переноса — см. `SavedWordEntity`. */
+    val readOnly: Boolean = false
 )

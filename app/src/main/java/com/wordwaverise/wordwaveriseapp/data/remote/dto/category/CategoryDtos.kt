@@ -7,7 +7,13 @@ data class CategoryDto(
     val id: Int,
     val name: String,
     val color: String? = null,
-    val wordCount: Int = 0
+    val wordCount: Int = 0,
+
+    /** Заполнено, когда папку одолжила группа: слова в ней принадлежат преподавателю. */
+    val groupId: Int? = null,
+    val groupName: String? = null,
+    /** Папка группы: переименовать, удалить и класть в неё слова нельзя. */
+    val readOnly: Boolean = false
 )
 
 @Serializable

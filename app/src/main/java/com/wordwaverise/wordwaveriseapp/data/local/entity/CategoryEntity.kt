@@ -23,5 +23,16 @@ data class CategoryEntity(
     val serverId: Int? = null,
     val name: String,
     val color: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+
+    /**
+     * Группа, которая одолжила эту папку, или null — если папка своя.
+     *
+     * Хранится **серверный** id группы: локального у групп нет, они не заводятся офлайн.
+     */
+    val groupServerId: Int? = null,
+    val groupName: String? = null,
+
+    /** Папка группы: учить и делать карточки можно, менять — нет. */
+    val readOnly: Boolean = false
 )

@@ -121,7 +121,11 @@ class SavedWordsRepository @Inject constructor(
 
             val response = apiService.getSavedWords("Bearer $token")
             if (response.status == "ok" && response.data != null) {
-                val serverWords = response.data.words
+                // ⚠️ Первичный ключ здесь — само написание слова, а `insertWord` это upsert.
+                // Сервер обещает не возвращать один заголовок дважды; если обещание когда-нибудь
+                // нарушится, вторая строка не встанет рядом с первой, а затрёт её — вместе с
+                // папкой. Дешевле отбросить дубль здесь, чем разбираться потом.
+                val serverWords = response.data.words.distinctBy { it.word }
 
                 serverWords.forEach { serverWord ->
                     val existingWord = savedWordDao.getSavedWord(serverWord.word)
@@ -132,12 +136,24 @@ class SavedWordsRepository @Inject constructor(
                                 savedAt = System.currentTimeMillis(),
                                 serverId = serverWord.id,
                                 isSynced = true,
-                                senseId = serverWord.senseId
+                                senseId = serverWord.senseId,
+                                groupServerId = serverWord.groupId,
+                                readOnly = serverWord.readOnly
                             )
                         )
-                    } else if (existingWord.senseId != serverWord.senseId) {
-                        // Значение могли переставить в браузере — сервер здесь источник правды.
-                        savedWordDao.updateSenseId(serverWord.word, serverWord.senseId)
+                    } else if (
+                        existingWord.senseId != serverWord.senseId ||
+                        existingWord.groupServerId != serverWord.groupId ||
+                        existingWord.readOnly != serverWord.readOnly
+                    ) {
+                        // Всё это меняется в браузере: значение переставляют, папку выдают
+                        // группе и снимают с неё. Сервер здесь источник правды.
+                        savedWordDao.updateFromServer(
+                            serverWord.word,
+                            serverWord.senseId,
+                            serverWord.groupId,
+                            serverWord.readOnly
+                        )
                     }
                 }
 

@@ -27,6 +27,21 @@ interface SavedWordDao {
     @Query("UPDATE saved_words SET senseId = :senseId WHERE word = :word")
     suspend fun updateSenseId(word: String, senseId: String?)
 
+    /** То, что о слове знает сервер и не знает телефон: значение и происхождение из группы. */
+    @Query(
+        """
+        UPDATE saved_words
+        SET senseId = :senseId, groupServerId = :groupServerId, readOnly = :readOnly
+        WHERE word = :word
+        """
+    )
+    suspend fun updateFromServer(
+        word: String,
+        senseId: String?,
+        groupServerId: Int?,
+        readOnly: Boolean
+    )
+
     @Query("SELECT COUNT(*) FROM saved_words")
     fun getCount(): Flow<Int>
 

@@ -3,6 +3,7 @@ package com.wordwaverise.wordwaveriseapp.presentation.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,7 +34,19 @@ sealed class Screen(
         route = "tasks",
         title = "Задания",
         icon = Icons.Outlined.Checklist
-    )
+    ) {
+        /**
+         * Тот же экран, открытый по заданию преподавателя.
+         *
+         * Аргумент необязательный, поэтому переход на голый `tasks` из нижней вкладки по-прежнему
+         * подходит под этот шаблон — второй вкладки не появляется.
+         */
+        const val ROUTE_WITH_ASSIGNMENT = "tasks?assignment={assignment}"
+
+        fun createAssignmentRoute(assignmentId: Int) = "tasks?assignment=$assignmentId"
+
+        const val NO_ASSIGNMENT = -1
+    }
 
     data object Profile : Screen(
         route = "profile",
@@ -56,6 +69,17 @@ sealed class Screen(
          */
         fun createRoute(word: String, exact: Boolean = false) = "word_detail/$word?exact=$exact"
     }
+
+    /**
+     * Классы ученика. **Вне** [bottomNavigationScreens] намеренно: четыре вкладки — общий
+     * каркас с сайтом, и пятая сжала бы подписи ради экрана, который открывают не каждый день.
+     * Открывается из Профиля.
+     */
+    data object Groups : Screen(
+        route = "groups",
+        title = "Группы",
+        icon = Icons.Outlined.Group
+    )
 
     companion object {
         val bottomNavigationScreens = listOf(Search, Saved, Tasks, Profile)

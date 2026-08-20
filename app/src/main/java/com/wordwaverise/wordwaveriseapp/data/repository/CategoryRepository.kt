@@ -44,11 +44,20 @@ class CategoryRepository @Inject constructor(
                             CategoryEntity(
                                 serverId = dto.id,
                                 name = dto.name,
-                                color = dto.color
+                                color = dto.color,
+                                groupServerId = dto.groupId,
+                                groupName = dto.groupName,
+                                readOnly = dto.readOnly
                             )
                         )
                     } else {
-                        categoryDao.linkToServer(existing.id, dto.id, dto.name, dto.color)
+                        // Пометку группы надо переписывать на каждой синхронизации, а не только
+                        // при вставке: папка становится «от группы» и перестаёт ею быть уже после
+                        // того, как строка на телефоне появилась.
+                        categoryDao.linkToServer(
+                            existing.id, dto.id, dto.name, dto.color,
+                            dto.groupId, dto.groupName, dto.readOnly
+                        )
                     }
                 }
 
@@ -95,6 +104,7 @@ class CategoryRepository @Inject constructor(
     }
 
     suspend fun renameCategory(id: Long, serverId: Int?, name: String): Resource<Unit> {
+        readOnlyRefusal(id)?.let { return it }
         return try {
             categoryDao.rename(id, name)
             val token = tokenDataStore.token.firstOrNull()
@@ -119,6 +129,8 @@ class CategoryRepository @Inject constructor(
      */
     suspend fun shareCategory(serverId: Int?): Resource<String> {
         if (serverId == null) return Resource.Error("Папка ещё не синхронизирована")
+        val borrowed = categoryDao.getByServerId(serverId)?.readOnly == true
+        if (borrowed) return Resource.Error("Папкой группы делится преподаватель")
         return try {
             val token = tokenDataStore.token.firstOrNull()
                 ?: return Resource.Error("Не авторизован")
@@ -171,6 +183,7 @@ class CategoryRepository @Inject constructor(
     }
 
     suspend fun deleteCategory(id: Long, serverId: Int?): Resource<Unit> {
+        readOnlyRefusal(id)?.let { return it }
         return try {
             categoryDao.unassignWords(id)
             categoryDao.deleteById(id)
@@ -186,6 +199,20 @@ class CategoryRepository @Inject constructor(
         } catch (e: Exception) {
             Resource.Error(NetworkError.getErrorMessage(e))
         }
+    }
+
+    /**
+     * Отказ, если папка одолжена группой.
+     *
+     * ⚠️ Проверять надо **до** правки: и переименование, и удаление меняют локальную строку
+     * раньше, чем спрашивают сервер, а сервер такую папку менять откажется. Без этой проверки
+     * папка просто исчезала бы с телефона до следующей синхронизации — без слова на экране.
+     */
+    private suspend fun readOnlyRefusal(id: Long): Resource<Unit>? {
+        val borrowed = categoryDao.getAll().firstOrNull()
+            ?.firstOrNull { it.id == id }
+            ?.readOnly == true
+        return if (borrowed) Resource.Error("Папка группы доступна только для чтения") else null
     }
 
     suspend fun setWordCategory(word: String, categoryLocalId: Long?, categoryServerId: Int?): Resource<Unit> {

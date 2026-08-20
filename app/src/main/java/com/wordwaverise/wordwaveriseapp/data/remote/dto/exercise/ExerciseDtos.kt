@@ -70,7 +70,11 @@ data class ExerciseBatchDto(
     val exercises: List<ExerciseDto> = emptyList(),
     val wordsAvailable: Int = 0,
     val kindsUsed: List<ExerciseKind> = emptyList(),
-    val noticeRu: String? = null
+    val noticeRu: String? = null,
+
+    /** Куда отчитаться, если сессия идёт по материалу класса. Решает сервер, не клиент. */
+    val groupId: Int? = null,
+    val assignmentId: Int? = null
 )
 
 @Serializable
@@ -95,7 +99,13 @@ data class ExerciseRequest(
     val scope: ExerciseScope = ExerciseScope.SAVED,
     val kinds: List<ExerciseKind> = emptyList(),
     val count: Int = 10,
-    val useAi: Boolean = true
+    val useAi: Boolean = true,
+
+    /**
+     * Задание преподавателя. Папку и типы вопросов сервер возьмёт из него сам — ради того,
+     * чтобы одно и то же задание давало одинаковую сессию в браузере и на телефоне.
+     */
+    val assignmentId: Int? = null
 )
 
 @Serializable

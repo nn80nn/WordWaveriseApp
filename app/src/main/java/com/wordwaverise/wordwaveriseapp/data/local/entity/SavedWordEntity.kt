@@ -17,5 +17,16 @@ data class SavedWordEntity(
      * ("n1", "v2"). Kept locally so the article can open on the chosen meaning without waiting
      * for the list to come back from the network.
      */
-    val senseId: String? = null
+    val senseId: String? = null,
+
+    /** Группа, из чьей папки пришло слово, или null — если слово своё. */
+    val groupServerId: Int? = null,
+
+    /**
+     * Слово из папки группы.
+     *
+     * ⚠️ У такого слова не должно быть ни «удалить», ни «переместить в папку»: обе операции
+     * сервер ключует по написанию, и они попали бы в собственную строку ученика с тем же словом.
+     */
+    val readOnly: Boolean = false
 )

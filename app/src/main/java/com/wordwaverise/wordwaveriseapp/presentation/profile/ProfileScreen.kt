@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Info
@@ -52,6 +53,7 @@ fun ProfileScreen(
     onRequestDeletion: (String) -> Unit = {},
     onCancelDeletion: () -> Unit = {},
     onClearDeletionError: () -> Unit = {},
+    onOpenGroups: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -152,6 +154,51 @@ fun ProfileScreen(
             value = state.dueFlashcards.toString(),
             label = stringResource(R.string.k_povtoreniyu_segodnya)
         )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Сообщество. Здесь, а не пятой нижней вкладкой: четыре вкладки — общий каркас с
+        // сайтом, и пятая сжала бы подписи ради экрана, который открывают не каждый день.
+        Eyebrow("Сообщество", modifier = Modifier.padding(bottom = 12.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { onOpenGroups() },
+            colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
+            border = BorderStroke(1.dp, WaveTheme.colors.border),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Group,
+                    contentDescription = null,
+                    tint = WaveTheme.colors.brass,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Мои группы",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = when {
+                            state.openAssignments > 0 ->
+                                "незакрытых заданий: ${state.openAssignments}"
+                            state.groupCount > 0 -> "групп: ${state.groupCount}"
+                            else -> "вступите по коду преподавателя"
+                        },
+                        fontSize = 12.sp,
+                        color = TextTertiary
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 

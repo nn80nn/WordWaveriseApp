@@ -37,6 +37,12 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CreateCategoryR
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.RenameCategoryRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SetWordCategoryRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SimpleStringResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.AssignmentsResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.GroupResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.JoinByCodeRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.MyGroupsResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.ReportAttemptsRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.ReportAttemptsResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SavedWordsResponse
@@ -194,6 +200,44 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("token") shareToken: String
     ): ImportResultResponse
+
+    // ── Группы ───────────────────────────────────────────────────────────
+    // Администрирование целиком в вебе: здесь только то, что нужно ученику — увидеть свои
+    // классы, вступить, выйти, посмотреть задания и отчитаться о сессии.
+
+    @GET("api/groups")
+    suspend fun getMyGroups(@Header("Authorization") token: String): MyGroupsResponse
+
+    @POST("api/groups/join")
+    suspend fun joinGroupByCode(
+        @Header("Authorization") token: String,
+        @Body request: JoinByCodeRequest
+    ): GroupResponse
+
+    @POST("api/g/{token}/join")
+    suspend fun joinGroupByInvite(
+        @Header("Authorization") token: String,
+        @Path("token") inviteToken: String
+    ): GroupResponse
+
+    @DELETE("api/groups/{id}/membership")
+    suspend fun leaveGroup(
+        @Header("Authorization") token: String,
+        @Path("id") groupId: Int
+    ): SimpleStringResponse
+
+    @GET("api/assignments")
+    suspend fun getAssignments(
+        @Header("Authorization") token: String,
+        @Query("groupId") groupId: Int? = null
+    ): AssignmentsResponse
+
+    /** Одна отправка на законченную сессию, а не на ответ. */
+    @POST("api/practice/attempts")
+    suspend fun reportAttempts(
+        @Header("Authorization") token: String,
+        @Body request: ReportAttemptsRequest
+    ): ReportAttemptsResponse
 
     @PUT("api/flashcards/{id}/category")
     suspend fun setFlashcardCategory(

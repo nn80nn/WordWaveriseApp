@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
@@ -111,6 +112,18 @@ fun SavedScreen(
                         selected = state.selectedCategoryId == cat.id,
                         onClick = { onSelectCategory(cat.id) },
                         label = { Text(cat.name, fontSize = 13.sp) },
+                        // Папка от класса подписана значком: цветом в чипе уже сказано,
+                        // выбран он или нет, и второго смысла та же краска не выдержит.
+                        leadingIcon = if (cat.groupServerId != null) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Outlined.Group,
+                                    contentDescription = null,
+                                    tint = WaveTheme.colors.brass,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        } else null,
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = PrimaryCyan.copy(alpha = 0.2f),
                             selectedLabelColor = PrimaryCyan
@@ -151,9 +164,16 @@ fun SavedScreen(
                             WordCard(
                                 word = word,
                                 categoryName = state.categories.find { it.id == word.categoryId }?.name,
-                                onDelete = { onDeleteWord(word.word) },
+                                // Слово из папки класса не наше: и удаление, и перенос сервер
+                                // ключует по написанию, поэтому они попали бы в собственную
+                                // строку ученика с тем же словом.
+                                onDelete = if (word.readOnly) null else {
+                                    { onDeleteWord(word.word) }
+                                },
                                 onClick = { onWordClick(word.word) },
-                                onLongClick = { onSetWordToMove(word.word) }
+                                onLongClick = if (word.readOnly) null else {
+                                    { onSetWordToMove(word.word) }
+                                }
                             )
                         }
                         item { Spacer(modifier = Modifier.height(8.dp)) }
@@ -366,9 +386,9 @@ fun SavedScreen(
 private fun WordCard(
     word: SavedWordEntity,
     categoryName: String?,
-    onDelete: () -> Unit,
+    onDelete: (() -> Unit)?,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: (() -> Unit)?
 ) {
     Card(
         modifier = Modifier
@@ -414,7 +434,13 @@ private fun WordCard(
                     }
                     if (categoryName != null) {
                         Text("·", fontSize = 12.sp, color = TextTertiary)
-                        Text(categoryName, fontSize = 11.sp, color = PrimaryCyan)
+                        // Слово из папки класса подписано другим цветом: бирюзовым уже названа
+                        // своя папка, и одной краской это читалось бы как «две папки».
+                        Text(
+                            text = categoryName,
+                            fontSize = 11.sp,
+                            color = if (word.readOnly) WaveTheme.colors.brass else PrimaryCyan
+                        )
                     }
                     // Слово сохранено с выбранным значением: при открытии статья начнётся с него.
                     if (word.senseId != null) {
@@ -428,8 +454,15 @@ private fun WordCard(
                     }
                 }
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.udalit), tint = TextTertiary.copy(alpha = 0.6f))
+            // Слово из папки класса удалить нельзя — см. вызов выше.
+            if (onDelete != null) {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.udalit),
+                        tint = TextTertiary.copy(alpha = 0.6f)
+                    )
+                }
             }
         }
     }

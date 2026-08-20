@@ -172,3 +172,21 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `audioUrl` TEXT")
     }
 }
+
+/**
+ * Папка может прийти на телефон от группы, а не быть своей.
+ *
+ * `readOnly` — не украшение к бейджу: без него папка преподавателя неотличима от собственной
+ * после первой же синхронизации, и приложение предложит переименовать и удалить то, что сервер
+ * всё равно откажется менять. Отдельное поле, а не вывод из `groupServerId`, потому что читать
+ * его приходится в списках, где группы под рукой нет.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `categories` ADD COLUMN `groupServerId` INTEGER")
+        db.execSQL("ALTER TABLE `categories` ADD COLUMN `groupName` TEXT")
+        db.execSQL("ALTER TABLE `categories` ADD COLUMN `readOnly` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `saved_words` ADD COLUMN `groupServerId` INTEGER")
+        db.execSQL("ALTER TABLE `saved_words` ADD COLUMN `readOnly` INTEGER NOT NULL DEFAULT 0")
+    }
+}

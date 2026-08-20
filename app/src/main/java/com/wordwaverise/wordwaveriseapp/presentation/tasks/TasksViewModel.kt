@@ -13,18 +13,23 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseKind
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.exercise.ExerciseScope
 import com.wordwaverise.wordwaveriseapp.data.repository.CategoryRepository
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.AttemptDto
 import com.wordwaverise.wordwaveriseapp.data.repository.ExerciseRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.FlashcardRepository
+import com.wordwaverise.wordwaveriseapp.data.repository.GroupRepository
 import com.wordwaverise.wordwaveriseapp.util.ExerciseGrading
 import com.wordwaverise.wordwaveriseapp.util.ExerciseVerdict
 import com.wordwaverise.wordwaveriseapp.util.Resource
+import java.time.Instant
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
 class TasksViewModel @Inject constructor(
     private val flashcardRepository: FlashcardRepository,
     private val exerciseRepository: ExerciseRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val groupRepository: GroupRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TasksState())
@@ -53,7 +58,9 @@ class TasksViewModel @Inject constructor(
                 // Only folders the server knows can filter a server-built session; a folder
                 // created offline has no id the API would recognise yet.
                 val synced = categories.mapNotNull { category ->
-                    category.serverId?.let { FolderOption(it, category.name) }
+                    category.serverId?.let {
+                        FolderOption(it, category.name, category.groupName)
+                    }
                 }
                 _state.update { current ->
                     val options = buildList {
@@ -310,6 +317,27 @@ class TasksViewModel @Inject constructor(
 
     // ── Exercise session ─────────────────────────────────────────────────────
 
+    /** Задания класса. Тихо: пустой список — обычное состояние, а не сбой. */
+    fun loadAssignments() {
+        viewModelScope.launch {
+            val result = groupRepository.assignments()
+            if (result is Resource.Success) {
+                _state.update { it.copy(assignments = result.data.orEmpty()) }
+            }
+        }
+    }
+
+    /**
+     * Практика по заданию преподавателя.
+     *
+     * Папку и типы вопросов подставляет сервер по `assignmentId` — ровно тем же способом, что и
+     * для браузера, чтобы одно задание давало одинаковую сессию на обеих площадках.
+     */
+    fun startAssignment(assignmentId: Int) {
+        _state.update { it.copy(activeAssignmentId = assignmentId) }
+        startExercises()
+    }
+
     fun startExercises() {
         viewModelScope.launch {
             val current = _state.value
@@ -320,7 +348,8 @@ class TasksViewModel @Inject constructor(
                     categoryId = current.selectedFolder,
                     scope = current.scope,
                     kinds = current.selectedKinds.toList(),
-                    count = current.count
+                    count = current.count,
+                    assignmentId = current.activeAssignmentId
                 )
             )
 
@@ -339,6 +368,9 @@ class TasksViewModel @Inject constructor(
                             typed = "",
                             notice = batch?.noticeRu,
                             wordsAvailable = batch?.wordsAvailable ?: it.wordsAvailable,
+                            activeGroupId = batch?.groupId,
+                            activeAssignmentId = batch?.assignmentId,
+                            pendingAttempts = emptyList(),
                             mode = if (exercises.isEmpty()) TasksMode.EXERCISE_SETUP
                                    else TasksMode.EXERCISE_SESSION
                         )
@@ -441,6 +473,24 @@ class TasksViewModel @Inject constructor(
         exercise.cardId?.let { cardId ->
             viewModelScope.launch { flashcardRepository.recordPracticeResult(cardId, verdict) }
         }
+
+        // Ключ создаётся здесь, а не при отправке: тогда повтор — это «дубликат» на сервере,
+        // а не «плюс один» к прогрессу.
+        _state.value.activeGroupId?.let {
+            _state.update { current ->
+                current.copy(
+                    pendingAttempts = current.pendingAttempts + AttemptDto(
+                        clientAttemptId = UUID.randomUUID().toString(),
+                        activity = "EXERCISE",
+                        kind = exercise.kind.name,
+                        word = exercise.word,
+                        cardId = exercise.cardId,
+                        verdict = verdict.name,
+                        answeredAt = Instant.now().toString()
+                    )
+                )
+            }
+        }
     }
 
     fun nextExercise() {
@@ -472,7 +522,32 @@ class TasksViewModel @Inject constructor(
         playIfListening()
     }
 
+    /**
+     * Отправляет то, что человек успел ответить.
+     *
+     * Одним запросом на сессию. Брошенная сессия с ответами тоже отправляется — иначе бросивший
+     * на восьмом вопросе из десяти получает ноль и перестаёт верить прогрессу.
+     */
+    fun reportAttempts() {
+        val current = _state.value
+        val groupId = current.activeGroupId ?: return
+        val attempts = current.pendingAttempts
+        if (attempts.isEmpty()) return
+
+        _state.update { it.copy(pendingAttempts = emptyList()) }
+        viewModelScope.launch {
+            groupRepository.reportAttempts(
+                groupId = groupId,
+                assignmentId = current.activeAssignmentId,
+                categoryId = current.selectedFolder,
+                attempts = attempts
+            )
+            loadAssignments()
+        }
+    }
+
     fun exitExercises() {
+        reportAttempts()
         stopAudio()
         _state.update {
             it.copy(

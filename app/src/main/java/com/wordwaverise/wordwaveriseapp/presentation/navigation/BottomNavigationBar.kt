@@ -24,7 +24,10 @@ fun BottomNavigationBar(
     navController: NavController,
     modifier: Modifier = Modifier
 ) {
-    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    // Часть после «?» — необязательные аргументы (см. Screen.Tasks): по полной строке
+    // вкладка «Задания» перестала бы подсвечиваться, как только её открыли по заданию.
+    val currentRoute = navController.currentBackStackEntryAsState().value
+        ?.destination?.route?.substringBefore('?')
     val screens = listOf(
         Screen.Search,
         Screen.Saved,

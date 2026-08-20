@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,10 +55,17 @@ import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 @Composable
 fun TasksScreen(
+    startAssignmentId: Int? = null,
     modifier: Modifier = Modifier,
     viewModel: TasksViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+
+    // Пришли из «Групп» по конкретному заданию — начинаем сразу: настраивать нечего, папку
+    // и типы вопросов задал преподаватель.
+    LaunchedEffect(startAssignmentId) {
+        if (startAssignmentId != null) viewModel.startAssignment(startAssignmentId)
+    }
 
     Column(
         modifier = modifier
@@ -327,6 +335,9 @@ private fun FolderChips(
             ChipButton(
                 text = folder.name,
                 selected = folder.id == selected,
+                // Папка от класса подписана значком, а не цветом: цветом в чипе уже сказано,
+                // выбран он или нет, и второго смысла та же краска не выдержит.
+                leadingIcon = if (folder.groupName != null) Icons.Outlined.Group else null,
                 onClick = { onSelect(folder.id) }
             )
         }
@@ -338,6 +349,7 @@ private fun ChipButton(
     text: String,
     selected: Boolean,
     enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
     onClick: () -> Unit
 ) {
     val colors = WaveTheme.colors
@@ -356,18 +368,31 @@ private fun ChipButton(
             .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
-        Text(
-            text = text,
-            fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = when {
-                !enabled -> colors.textMuted
-                selected -> colors.secondary
-                else -> TextSecondary
-            },
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (leadingIcon != null) {
+                Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = null,
+                    tint = colors.brass,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+            Text(
+                text = text,
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = when {
+                    !enabled -> colors.textMuted
+                    selected -> colors.secondary
+                    else -> TextSecondary
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

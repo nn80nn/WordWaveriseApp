@@ -24,6 +24,7 @@ import com.wordwaverise.wordwaveriseapp.presentation.auth.AuthScreen
 import com.wordwaverise.wordwaveriseapp.presentation.auth.AuthViewModel
 import com.wordwaverise.wordwaveriseapp.presentation.detail.WordDetailScreen
 import com.wordwaverise.wordwaveriseapp.presentation.detail.WordDetailViewModel
+import com.wordwaverise.wordwaveriseapp.presentation.groups.GroupsScreen
 import com.wordwaverise.wordwaveriseapp.presentation.navigation.BottomNavigationBar
 import com.wordwaverise.wordwaveriseapp.presentation.navigation.Screen
 import com.wordwaverise.wordwaveriseapp.presentation.profile.ProfileScreen
@@ -54,7 +55,8 @@ class MainActivity : ComponentActivity() {
                 val authViewModel: AuthViewModel = hiltViewModel()
                 val authState by authViewModel.state
 
-                val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+                val currentRoute = navController.currentBackStackEntryAsState().value
+                    ?.destination?.route?.substringBefore('?')
                 val showBottomBar = authState.isLoggedIn &&
                     currentRoute != Screen.WordDetail.route
 
@@ -154,8 +156,19 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            composable(Screen.Tasks.route) {
-                                TasksScreen()
+                            composable(
+                                route = Screen.Tasks.ROUTE_WITH_ASSIGNMENT,
+                                arguments = listOf(
+                                    navArgument("assignment") {
+                                        type = NavType.IntType
+                                        defaultValue = Screen.Tasks.NO_ASSIGNMENT
+                                    }
+                                )
+                            ) { entry ->
+                                val assignmentId = entry.arguments
+                                    ?.getInt("assignment")
+                                    ?.takeIf { it != Screen.Tasks.NO_ASSIGNMENT }
+                                TasksScreen(startAssignmentId = assignmentId)
                             }
 
                             composable(Screen.Profile.route) {
@@ -174,7 +187,22 @@ class MainActivity : ComponentActivity() {
                                     deletionError = authState.deletionError,
                                     onRequestDeletion = { authViewModel.requestAccountDeletion(it) },
                                     onCancelDeletion = { authViewModel.cancelAccountDeletion() },
-                                    onClearDeletionError = { authViewModel.clearDeletionError() }
+                                    onClearDeletionError = { authViewModel.clearDeletionError() },
+                                    onOpenGroups = { navController.navigate(Screen.Groups.route) }
+                                )
+                            }
+
+                            composable(Screen.Groups.route) {
+                                GroupsScreen(
+                                    onBack = { navController.popBackStack() },
+                                    onPractise = { assignmentId ->
+                                        // Задание выполняется там же, где обычная практика:
+                                        // сессия та же, отличается только откуда взялись
+                                        // папка и типы вопросов.
+                                        navController.navigate(
+                                            Screen.Tasks.createAssignmentRoute(assignmentId)
+                                        )
+                                    }
                                 )
                             }
 
