@@ -23,7 +23,13 @@ data class SavedWordsState(
     /** Итог добавления словами — включая то, что осталось лежать на своих местах. */
     val importMessage: String? = null
 ) {
+    /**
+     * ⚠️ «Все» показывает **свой** словарь, без слов преподавателя.
+     *
+     * Их там может быть в разы больше, чем своих, и тогда собственный список перестаёт быть
+     * своим. Папка класса открывается своим чипом — там они и нужны.
+     */
     val filteredWords: List<SavedWordEntity>
-        get() = if (selectedCategoryId == null) words
+        get() = if (selectedCategoryId == null) words.filter { !it.readOnly }
                 else words.filter { it.categoryId == selectedCategoryId }
 }

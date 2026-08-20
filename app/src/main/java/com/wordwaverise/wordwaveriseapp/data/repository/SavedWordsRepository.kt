@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import com.wordwaverise.wordwaveriseapp.data.local.TokenDataStore
+import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.SavedWordDao
 import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
@@ -19,6 +20,7 @@ import javax.inject.Singleton
 class SavedWordsRepository @Inject constructor(
     private val apiService: ApiService,
     private val savedWordDao: SavedWordDao,
+    private val categoryDao: CategoryDao,
     private val tokenDataStore: TokenDataStore
 ) {
     companion object {
@@ -129,6 +131,13 @@ class SavedWordsRepository @Inject constructor(
 
                 serverWords.forEach { serverWord ->
                     val existingWord = savedWordDao.getSavedWord(serverWord.word)
+                    // Папку слово тоже приносит с сервера — и только так о ней вообще можно
+                    // узнать: локальный id ставился раньше лишь при переносе на этом устройстве,
+                    // поэтому слово из папки класса оказывалось «без папки» и под её чипом не
+                    // показывалось. Папка, до которой синхронизация категорий ещё не дошла,
+                    // оставляет null — следующий проход поправит.
+                    val localCategoryId = serverWord.categoryId
+                        ?.let { categoryDao.getByServerId(it)?.id }
                     if (existingWord == null) {
                         savedWordDao.insertWord(
                             SavedWordEntity(
@@ -137,6 +146,7 @@ class SavedWordsRepository @Inject constructor(
                                 serverId = serverWord.id,
                                 isSynced = true,
                                 senseId = serverWord.senseId,
+                                categoryId = localCategoryId,
                                 groupServerId = serverWord.groupId,
                                 readOnly = serverWord.readOnly
                             )
@@ -144,7 +154,8 @@ class SavedWordsRepository @Inject constructor(
                     } else if (
                         existingWord.senseId != serverWord.senseId ||
                         existingWord.groupServerId != serverWord.groupId ||
-                        existingWord.readOnly != serverWord.readOnly
+                        existingWord.readOnly != serverWord.readOnly ||
+                        existingWord.categoryId != localCategoryId
                     ) {
                         // Всё это меняется в браузере: значение переставляют, папку выдают
                         // группе и снимают с неё. Сервер здесь источник правды.
@@ -152,7 +163,8 @@ class SavedWordsRepository @Inject constructor(
                             serverWord.word,
                             serverWord.senseId,
                             serverWord.groupId,
-                            serverWord.readOnly
+                            serverWord.readOnly,
+                            localCategoryId
                         )
                     }
                 }

@@ -56,8 +56,14 @@ class SavedWordsViewModel @Inject constructor(
             authRepository.token.collectLatest { token ->
                 _state.value = _state.value.copy(isLoggedIn = !token.isNullOrEmpty())
                 if (!token.isNullOrEmpty()) {
-                    syncWords()
-                    viewModelScope.launch { categoryRepository.syncCategories() }
+                    // ⚠️ Папки первыми и до конца: слово приносит с сервера **серверный** id
+                    // своей папки, и превратить его в локальный можно только когда строка папки
+                    // уже есть. Иначе слово из папки класса ляжет без папки и под её чипом не
+                    // покажется — до следующей синхронизации.
+                    viewModelScope.launch {
+                        categoryRepository.syncCategories()
+                        syncWords()
+                    }
                 }
             }
         }
@@ -82,8 +88,8 @@ class SavedWordsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isRefreshing = true)
-            val result = savedWordsRepository.syncWords()
             categoryRepository.syncCategories()
+            val result = savedWordsRepository.syncWords()
             _state.value = _state.value.copy(
                 isRefreshing = false,
                 isOffline = result == SyncResult.OFFLINE

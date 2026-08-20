@@ -31,7 +31,8 @@ interface SavedWordDao {
     @Query(
         """
         UPDATE saved_words
-        SET senseId = :senseId, groupServerId = :groupServerId, readOnly = :readOnly
+        SET senseId = :senseId, groupServerId = :groupServerId, readOnly = :readOnly,
+            categoryId = :categoryId
         WHERE word = :word
         """
     )
@@ -39,7 +40,8 @@ interface SavedWordDao {
         word: String,
         senseId: String?,
         groupServerId: Int?,
-        readOnly: Boolean
+        readOnly: Boolean,
+        categoryId: Long?
     )
 
     @Query("SELECT COUNT(*) FROM saved_words")

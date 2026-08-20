@@ -13,6 +13,12 @@ data class SavedWordDto(
     val senseId: String? = null,
     val savedAt: String,
 
+    /**
+     * **Серверный** id папки. Без него телефон не знал о папке слова вовсе: локальный
+     * `categoryId` ставился только когда слово перекладывали руками на этом же устройстве.
+     */
+    val categoryId: Int? = null,
+
     /** Группа, из чьей папки пришло слово, или null — если слово своё. */
     val groupId: Int? = null,
     /** У слова из папки группы нет ни удаления, ни переноса — см. `SavedWordEntity`. */
