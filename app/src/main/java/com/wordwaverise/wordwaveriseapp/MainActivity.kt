@@ -108,7 +108,7 @@ class MainActivity : ComponentActivity() {
                                     onSelectSuggestion = viewModel::selectSuggestion,
                                     onSearchOriginal = viewModel::searchOriginalQuery,
                                     onTokenClick = viewModel::analyzeToken,
-                                    pinnedSenseId = viewModel.pinnedSenseId.value,
+                                    pinnedSenseIds = viewModel.pinnedSenseIds.value,
                                     onToggleSense = viewModel::toggleSense
                                 )
                             }
@@ -134,7 +134,7 @@ class MainActivity : ComponentActivity() {
 
                                 SavedScreen(
                                     state = viewModel.state.value,
-                                    onDeleteWord = viewModel::deleteWord,
+                                    onDeleteWord = viewModel::deleteEntry,
                                     onWordClick = { word ->
                                         navController.navigate(
                                             Screen.WordDetail.createRoute(word, exact = true)
@@ -143,8 +143,9 @@ class MainActivity : ComponentActivity() {
                                     onSelectCategory = viewModel::selectCategory,
                                     onShowCategorySheet = viewModel::showCategorySheet,
                                     onHideCategorySheet = viewModel::hideCategorySheet,
-                                    onSetWordToMove = viewModel::setWordToMove,
-                                    onMoveWordToCategory = viewModel::moveWordToCategory,
+                                    onSetWordToFile = viewModel::setWordToFile,
+                                    onToggleFolder = viewModel::toggleFolder,
+                                    onSaveFolders = viewModel::saveFolders,
                                     onCreateCategory = viewModel::createCategory,
                                     onDeleteCategory = viewModel::deleteCategory,
                                     onRenameCategory = viewModel::renameCategory,
@@ -230,7 +231,7 @@ class MainActivity : ComponentActivity() {
                                     isSavedLoading = state.isSavedLoading,
                                     onSaveWord = viewModel::saveWord,
                                     onUnsaveWord = viewModel::unsaveWord,
-                                    pinnedSenseId = state.pinnedSenseId,
+                                    pinnedSenseIds = state.pinnedSenseIds,
                                     onToggleSense = viewModel::toggleSense,
                                     isPlayingAudio = state.isPlayingAudio,
                                     playingAudioUrl = state.playingAudioUrl,

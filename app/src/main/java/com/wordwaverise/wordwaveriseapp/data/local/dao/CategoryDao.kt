@@ -36,22 +36,6 @@ interface CategoryDao {
         readOnly: Boolean = false
     )
 
-    /**
-     * Repairs rows left behind by the old sync, which inserted a fresh local row for
-     * every server category on every run. Words are moved onto the surviving (oldest)
-     * row before the copies are dropped, so no word loses its category.
-     */
-    @Query(
-        """
-        UPDATE saved_words SET categoryId = (
-            SELECT MIN(c.id) FROM categories c
-            WHERE c.serverId = (SELECT o.serverId FROM categories o WHERE o.id = saved_words.categoryId)
-        )
-        WHERE categoryId IN (SELECT id FROM categories WHERE serverId IS NOT NULL)
-        """
-    )
-    suspend fun remapWordsToOldestDuplicate()
-
     @Query(
         """
         DELETE FROM categories WHERE serverId IS NOT NULL AND id NOT IN (
@@ -77,6 +61,4 @@ interface CategoryDao {
     @Query("UPDATE categories SET name = :name WHERE id = :id")
     suspend fun rename(id: Long, name: String)
 
-    @Query("UPDATE saved_words SET categoryId = NULL WHERE categoryId = :categoryId")
-    suspend fun unassignWords(categoryId: Long)
 }

@@ -27,21 +27,21 @@ class ArticleOrderTest {
 
     @Test
     fun `an unpinned article keeps the dictionary's own order`() {
-        assertEquals(listOf("noun", "verb"), orderedGroups(entry(), null).map { it.pos })
+        assertEquals(listOf("noun", "verb"), orderedGroups(entry(), emptySet()).map { it.pos })
         assertEquals(
             listOf(1 to "v1", 2 to "v2", 3 to "v3"),
-            orderedSenses(entry().posGroups[1], null).map { it.first to it.second.id }
+            orderedSenses(entry().posGroups[1], emptySet()).map { it.first to it.second.id }
         )
     }
 
     @Test
     fun `the pinned sense brings its part of speech to the front`() {
-        assertEquals(listOf("verb", "noun"), orderedGroups(entry(), "v3").map { it.pos })
+        assertEquals(listOf("verb", "noun"), orderedGroups(entry(), setOf("v3")).map { it.pos })
     }
 
     @Test
     fun `the pinned sense leads its group but keeps its real number`() {
-        val ordered = orderedSenses(entry().posGroups[1], "v3").map { it.first to it.second.id }
+        val ordered = orderedSenses(entry().posGroups[1], setOf("v3")).map { it.first to it.second.id }
 
         // Renumbering to 1 would claim the dictionary lists this sense first.
         assertEquals(listOf(3 to "v3", 1 to "v1", 2 to "v2"), ordered)
@@ -49,10 +49,23 @@ class ArticleOrderTest {
 
     @Test
     fun `a pin the article no longer carries changes nothing`() {
-        assertEquals(listOf("noun", "verb"), orderedGroups(entry(), "v9").map { it.pos })
+        assertEquals(listOf("noun", "verb"), orderedGroups(entry(), setOf("v9")).map { it.pos })
         assertEquals(
             listOf(1 to "v1", 2 to "v2", 3 to "v3"),
-            orderedSenses(entry().posGroups[1], "v9").map { it.first to it.second.id }
+            orderedSenses(entry().posGroups[1], setOf("v9")).map { it.first to it.second.id }
         )
+    }
+
+    @Test
+    fun `two pinned senses both lead, and both keep their real numbers`() {
+        // Отметить два значения — значит завести два слова: закладка стоит на каждом, и
+        // поднять наверх только одно означало бы, что второе сохранение потерялось.
+        val ordered = orderedSenses(entry().posGroups[1], setOf("v2", "v3")).map { it.first to it.second.id }
+        assertEquals(listOf(2 to "v2", 3 to "v3", 1 to "v1"), ordered)
+    }
+
+    @Test
+    fun `pins in two parts of speech leave both groups ahead of the rest`() {
+        assertEquals(listOf("noun", "verb"), orderedGroups(entry(), setOf("n2", "v1")).map { it.pos })
     }
 }

@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import com.wordwaverise.wordwaveriseapp.data.local.TokenDataStore
 import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.SavedWordDao
 import com.wordwaverise.wordwaveriseapp.data.local.entity.CategoryEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CreateCategoryRequest
@@ -20,6 +21,7 @@ import javax.inject.Singleton
 class CategoryRepository @Inject constructor(
     private val apiService: ApiService,
     private val categoryDao: CategoryDao,
+    private val savedWordDao: SavedWordDao,
     private val tokenDataStore: TokenDataStore
 ) {
     companion object {
@@ -68,8 +70,6 @@ class CategoryRepository @Inject constructor(
                     }
                 }
 
-                // Clean up copies produced by earlier versions of this sync.
-                categoryDao.remapWordsToOldestDuplicate()
                 // Папка, удалённая на другом устройстве, иначе остаётся здесь навсегда —
                 // с чипом, по которому открывается пустой список.
                 val serverIds = response.data.map { it.id }
@@ -192,7 +192,13 @@ class CategoryRepository @Inject constructor(
     suspend fun deleteCategory(id: Long, serverId: Int?): Resource<Unit> {
         readOnlyRefusal(id)?.let { return it }
         return try {
-            categoryDao.unassignWords(id)
+            // Папка исчезает из списков всех слов, которые в ней лежали. Одной SQL-командой
+            // это больше не делается — папки слова хранятся списком в одной колонке, — но
+            // строк тут десятки, а не тысячи, и обходить их дешевле, чем заводить таблицу-
+            // связку ради единственного места, которое её бы использовало.
+            savedWordDao.getAllSavedWords().firstOrNull().orEmpty()
+                .filter { id in it.categoryIds }
+                .forEach { savedWordDao.updateCategories(it.id, it.categoryIds - id) }
             categoryDao.deleteById(id)
             val token = tokenDataStore.token.firstOrNull()
             if (!token.isNullOrEmpty() && serverId != null) {

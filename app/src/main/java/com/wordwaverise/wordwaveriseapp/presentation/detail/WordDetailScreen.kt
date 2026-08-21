@@ -53,7 +53,7 @@ fun WordDetailScreen(
     isLoadingFull: Boolean = false,
     onSaveWord: () -> Unit,
     onUnsaveWord: () -> Unit,
-    pinnedSenseId: String? = null,
+    pinnedSenseIds: Set<String> = emptySet(),
     onToggleSense: (String) -> Unit = {},
     isPlayingAudio: Boolean = false,
     playingAudioUrl: String? = null,
@@ -152,7 +152,7 @@ fun WordDetailScreen(
                     ArticleView(
                         entry = entry,
                         onWordClick = onWordClick,
-                        pinnedSenseId = pinnedSenseId,
+                        pinnedSenseIds = pinnedSenseIds,
                         canSave = true,
                         onToggleSense = onToggleSense
                     )

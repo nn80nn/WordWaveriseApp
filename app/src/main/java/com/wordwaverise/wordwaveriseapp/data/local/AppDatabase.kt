@@ -2,6 +2,7 @@ package com.wordwaverise.wordwaveriseapp.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import com.wordwaverise.wordwaveriseapp.data.local.dao.ArticleCacheDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.FlashcardDao
@@ -18,9 +19,10 @@ import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
         CategoryEntity::class,
         ArticleCacheEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun savedWordDao(): SavedWordDao
     abstract fun flashcardDao(): FlashcardDao

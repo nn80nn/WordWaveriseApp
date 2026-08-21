@@ -45,8 +45,11 @@ fun ArticleView(
     entry: LexicalEntryDto,
     onWordClick: (String) -> Unit,
     modifier: Modifier = Modifier,
-    /** The sense this user saved, if any — it leads the article instead of hiding in it. */
-    pinnedSenseId: String? = null,
+    /**
+     * The senses this user saved — each of them is a word in their vocabulary, so each leads
+     * the article instead of hiding in it.
+     */
+    pinnedSenseIds: Set<String> = emptySet(),
     /** Saving needs an account; without one the bookmark explains itself instead of vanishing. */
     canSave: Boolean = false,
     onToggleSense: (String) -> Unit = {}
@@ -69,12 +72,12 @@ fun ArticleView(
             Spacer(Modifier.height(12.dp))
         }
 
-        orderedGroups(entry, pinnedSenseId).forEach { group ->
+        orderedGroups(entry, pinnedSenseIds).forEach { group ->
             PosGroupSection(
                 group = group,
                 entry = entry,
                 onWordClick = onWordClick,
-                pinnedSenseId = pinnedSenseId,
+                pinnedSenseIds = pinnedSenseIds,
                 canSave = canSave,
                 onToggleSense = onToggleSense
             )
@@ -121,19 +124,17 @@ fun ArticleView(
  * match what is on screen would claim the dictionary lists the chosen sense first, and the
  * article has to stay checkable against its sources.
  */
-internal fun orderedSenses(group: PosGroupDto, pinnedSenseId: String?): List<Pair<Int, SenseDto>> {
+internal fun orderedSenses(group: PosGroupDto, pinnedSenseIds: Set<String>): List<Pair<Int, SenseDto>> {
     val numbered = group.senses.mapIndexed { index, sense -> (index + 1) to sense }
-    if (pinnedSenseId.isNullOrBlank()) return numbered
-    return numbered.filter { it.second.id == pinnedSenseId } +
-        numbered.filter { it.second.id != pinnedSenseId }
+    if (pinnedSenseIds.isEmpty()) return numbered
+    return numbered.filter { it.second.id in pinnedSenseIds } +
+        numbered.filter { it.second.id !in pinnedSenseIds }
 }
 
-internal fun orderedGroups(entry: LexicalEntryDto, pinnedSenseId: String?): List<PosGroupDto> {
-    if (pinnedSenseId.isNullOrBlank()) return entry.posGroups
-    val holder = entry.posGroups.indexOfFirst { group -> group.senses.any { it.id == pinnedSenseId } }
-    if (holder < 0) return entry.posGroups
-    return listOf(entry.posGroups[holder]) +
-        entry.posGroups.filterIndexed { index, _ -> index != holder }
+internal fun orderedGroups(entry: LexicalEntryDto, pinnedSenseIds: Set<String>): List<PosGroupDto> {
+    if (pinnedSenseIds.isEmpty()) return entry.posGroups
+    val holds = { group: PosGroupDto -> group.senses.any { it.id in pinnedSenseIds } }
+    return entry.posGroups.filter(holds) + entry.posGroups.filterNot(holds)
 }
 
 @Composable
@@ -141,7 +142,7 @@ private fun PosGroupSection(
     group: PosGroupDto,
     entry: LexicalEntryDto,
     onWordClick: (String) -> Unit,
-    pinnedSenseId: String? = null,
+    pinnedSenseIds: Set<String> = emptySet(),
     canSave: Boolean = false,
     onToggleSense: (String) -> Unit = {}
 ) {
@@ -173,13 +174,13 @@ private fun PosGroupSection(
 
         Spacer(Modifier.height(10.dp))
 
-        orderedSenses(group, pinnedSenseId).forEach { (ordinal, sense) ->
+        orderedSenses(group, pinnedSenseIds).forEach { (ordinal, sense) ->
             SenseCard(
                 sense = sense,
                 ordinal = ordinal,
                 entry = entry,
                 onWordClick = onWordClick,
-                pinned = sense.id == pinnedSenseId,
+                pinned = sense.id in pinnedSenseIds,
                 canSave = canSave,
                 onToggleSave = { onToggleSense(sense.id) }
             )

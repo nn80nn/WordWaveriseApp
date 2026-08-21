@@ -108,12 +108,15 @@ class WordDetailViewModel @Inject constructor(
                 val token = authRepository.token.firstOrNull()
                 if (token != null) {
                     val savedWords = apiService.getSavedWords("Bearer $token")
+                    // Записей на одно написание может быть несколько — по одной на значение.
                     val saved = savedWords.data?.words
-                        ?.firstOrNull { it.word.equals(word, ignoreCase = true) }
+                        ?.filter { it.word.equals(word, ignoreCase = true) }
+                        .orEmpty()
                     _state.update {
                         it.copy(
-                            isSaved = saved != null,
-                            pinnedSenseId = saved?.senseId,
+                            isSaved = saved.isNotEmpty(),
+                            savedEntryIds = saved.associateBy({ e -> e.senseId }, { e -> e.id }),
+                            pinnedSenseIds = saved.mapNotNull { e -> e.senseId }.toSet(),
                             isSavedLoading = false
                         )
                     }
@@ -150,14 +153,14 @@ class WordDetailViewModel @Inject constructor(
     /**
      * The bookmark on one sense of the article.
      *
-     * Tapping the sense already chosen removes the word from saved altogether — "saved, but no
-     * sense" is a state with nothing to show. Tapping a different one re-pins it, which the
-     * server treats as a change of meaning rather than a second save, so the folder and the
-     * card survive.
+     * Каждое значение сохраняется само по себе: отметили два определения — в словаре два
+     * слова, со своим переводом, своим примером и своим расписанием повторения. Снятие
+     * закладки убирает **только** эту запись; другие значения того же слова остаются, они не
+     * про то, от чего человек сейчас отказался.
      */
     fun toggleSense(senseId: String) {
-        if (_state.value.pinnedSenseId == senseId) {
-            unsaveWord()
+        if (senseId in _state.value.pinnedSenseIds) {
+            unsaveSense(senseId)
             return
         }
 
@@ -179,7 +182,37 @@ class WordDetailViewModel @Inject constructor(
                         senseId = senseId
                     )
                 )
-                _state.update { it.copy(isSaved = true, pinnedSenseId = senseId) }
+                _state.update {
+                    it.copy(isSaved = true, pinnedSenseIds = it.pinnedSenseIds + senseId)
+                }
+                // Ответ несёт id новой записи — без него снятие закладки не знало бы, какую
+                // именно строку убирать, и убрало бы слово целиком.
+                checkIfWordIsSaved(_state.value.word)
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Убирает одно значение. Остальные значения того же слова остаются. */
+    private fun unsaveSense(senseId: String) {
+        viewModelScope.launch {
+            try {
+                val token = authRepository.token.firstOrNull() ?: return@launch
+                val entryId = _state.value.savedEntryIds[senseId]
+                if (entryId != null) {
+                    apiService.deleteSavedEntry(token = "Bearer $token", id = entryId)
+                } else {
+                    // Записи, о которой мы не знаем id, нет и на сервере под этим значением —
+                    // остаётся только «слово целиком», что и было единственным вариантом раньше.
+                    apiService.deleteSavedWord(token = "Bearer $token", word = _state.value.word)
+                }
+                _state.update {
+                    val left = it.pinnedSenseIds - senseId
+                    it.copy(
+                        pinnedSenseIds = left,
+                        savedEntryIds = it.savedEntryIds - senseId,
+                        isSaved = entryId != null && (left.isNotEmpty() || it.savedEntryIds.size > 1)
+                    )
+                }
             } catch (_: Exception) { }
         }
     }
@@ -190,7 +223,9 @@ class WordDetailViewModel @Inject constructor(
                 val token = authRepository.token.firstOrNull()
                 if (token != null) {
                     apiService.deleteSavedWord(token = "Bearer $token", word = _state.value.word)
-                    _state.update { it.copy(isSaved = false, pinnedSenseId = null) }
+                    _state.update {
+                        it.copy(isSaved = false, pinnedSenseIds = emptySet(), savedEntryIds = emptyMap())
+                    }
                 }
             } catch (_: Exception) { }
         }

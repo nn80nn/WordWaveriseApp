@@ -9,6 +9,7 @@ import com.wordwaverise.wordwaveriseapp.data.local.dao.SavedWordDao
 import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SetWordFoldersRequest
 import com.wordwaverise.wordwaveriseapp.util.NetworkError
 import com.wordwaverise.wordwaveriseapp.util.Resource
 import com.wordwaverise.wordwaveriseapp.util.SyncResult
@@ -32,10 +33,12 @@ class SavedWordsRepository @Inject constructor(
     /**
      * Saves a word, optionally pinned to one sense of its article.
      *
-     * ⚠️ The local row is *merged*, not replaced. `insertWord` is an upsert on the headword, so
-     * building a bare `SavedWordEntity` here threw away the folder and the server id every time
-     * the same word was saved again — which is now an ordinary act, since changing your mind
-     * about which sense you meant is a second save of the same word.
+     * The same three outcomes the server has, so the phone does not show something the next
+     * sync will contradict: this exact sense already saved → nothing changes; the word is saved
+     * with *no* sense and one is now given → that row is filled in; otherwise → a new record.
+     *
+     * ⚠️ Отметить второе значение — это второе слово, а не смена решения о первом. Раньше
+     * вторая закладка переставляла привязку, то есть выглядела как добавление и была отменой.
      */
     suspend fun saveWord(
         word: String,
@@ -46,11 +49,16 @@ class SavedWordsRepository @Inject constructor(
         return try {
             Log.d(TAG, "Saving word: $word (sense=${senseId ?: "—"})")
 
-            val existing = savedWordDao.getSavedWord(word)
-            savedWordDao.insertWord(
-                existing?.copy(isSynced = false, senseId = senseId ?: existing.senseId)
-                    ?: SavedWordEntity(word = word, isSynced = false, senseId = senseId)
-            )
+            val exact = savedWordDao.getEntry(word, senseId)
+            val unpinned = if (senseId != null) savedWordDao.getEntry(word, null) else null
+            val target = exact ?: unpinned
+
+            val localId = if (target != null) {
+                savedWordDao.insertWord(target.copy(isSynced = false, senseId = senseId ?: target.senseId))
+                target.id
+            } else {
+                savedWordDao.insertWord(SavedWordEntity(word = word, isSynced = false, senseId = senseId))
+            }
             Log.d(TAG, "Word saved locally: $word")
 
             // Try to sync with server if user is logged in
@@ -64,12 +72,25 @@ class SavedWordsRepository @Inject constructor(
                     )
 
                     if (response.status == "ok" && response.data != null) {
-                        val serverId = response.data.id
-                        savedWordDao.updateSyncStatus(word, true, serverId)
+                        val saved = savedWordDao.getEntry(word, senseId ?: response.data.senseId)
                         // Значение приходит обратно от сервера: он мог отказать в привязке,
                         // если статьи ещё нет, и локально это не должно выглядеть иначе.
-                        savedWordDao.updateSenseId(word, response.data.senseId ?: senseId)
-                        Log.d(TAG, "Word synced successfully: $word (serverId: $serverId)")
+                        savedWordDao.insertWord(
+                            (saved ?: savedWordDao.getEntry(word, senseId))
+                                ?.copy(
+                                    isSynced = true,
+                                    serverId = response.data.id,
+                                    senseId = response.data.senseId ?: senseId
+                                )
+                                ?: SavedWordEntity(
+                                    id = localId,
+                                    word = word,
+                                    isSynced = true,
+                                    serverId = response.data.id,
+                                    senseId = response.data.senseId ?: senseId
+                                )
+                        )
+                        Log.d(TAG, "Word synced successfully: $word (serverId: ${response.data.id})")
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to sync word to server: ${e.message}")
@@ -86,6 +107,20 @@ class SavedWordsRepository @Inject constructor(
     /** Значение статьи, к которому привязано слово, — статья открывает его первым. */
     suspend fun pinnedSenseId(word: String): String? = savedWordDao.getSavedWord(word)?.senseId
 
+    /**
+     * Значения этого слова, которые человек сохранил.
+     *
+     * Список, а не одно: закладка стоит на каждом сохранённом значении, и показать её только
+     * на одном означало бы, что второе сохранение потерялось.
+     */
+    suspend fun pinnedSenseIds(word: String): List<String> =
+        savedWordDao.getEntries(word).mapNotNull { it.senseId }
+
+    /** Ровно эта запись: слово плюс значение. */
+    suspend fun entryFor(word: String, senseId: String?): SavedWordEntity? =
+        savedWordDao.getEntry(word, senseId)
+
+    /** Убирает всё написание — все его значения. */
     suspend fun deleteWord(word: String): Resource<Boolean> {
         return try {
             Log.d(TAG, "Deleting word: $word")
@@ -93,7 +128,6 @@ class SavedWordsRepository @Inject constructor(
             val token = tokenDataStore.token.firstOrNull()
             if (!token.isNullOrEmpty()) {
                 try {
-                    Log.d(TAG, "Deleting word from server: $word")
                     apiService.deleteSavedWord("Bearer $token", word)
                     Log.d(TAG, "Word deleted from server: $word")
                 } catch (e: Exception) {
@@ -102,11 +136,35 @@ class SavedWordsRepository @Inject constructor(
             }
 
             savedWordDao.deleteWordByName(word)
-            Log.d(TAG, "Word deleted locally: $word")
-
             Resource.Success(true)
         } catch (e: Exception) {
             Log.e(TAG, "Error deleting word: ${e.message}", e)
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
+    /**
+     * Убирает одну запись — одно значение.
+     *
+     * Слово, о котором сервер ещё не знает, удаляется только локально: без серверного id
+     * рассказать серверу нечего, а держать строку на телефоне ради этого — значит показывать
+     * человеку то, что он уже убрал.
+     */
+    suspend fun deleteEntry(entry: SavedWordEntity): Resource<Boolean> {
+        return try {
+            val token = tokenDataStore.token.firstOrNull()
+            val serverId = entry.serverId
+            if (!token.isNullOrEmpty() && serverId != null) {
+                try {
+                    apiService.deleteSavedEntry("Bearer $token", serverId)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to delete entry from server: ${e.message}")
+                }
+            }
+            savedWordDao.deleteById(entry.id)
+            Resource.Success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting entry: ${e.message}", e)
             Resource.Error(NetworkError.getErrorMessage(e))
         }
     }
@@ -123,58 +181,45 @@ class SavedWordsRepository @Inject constructor(
 
             val response = apiService.getSavedWords("Bearer $token")
             if (response.status == "ok" && response.data != null) {
-                // ⚠️ Первичный ключ здесь — само написание слова, а `insertWord` это upsert.
-                // Сервер обещает не возвращать один заголовок дважды; если обещание когда-нибудь
-                // нарушится, вторая строка не встанет рядом с первой, а затрёт её — вместе с
-                // папкой. Дешевле отбросить дубль здесь, чем разбираться потом.
-                val serverWords = response.data.words.distinctBy { it.word }
+                // ⚠️ Сверка по серверному id, а не по написанию. Одно написание теперь живёт
+                // в стольких записях, сколько значений человек отметил, и «то же слово» больше
+                // не значит «та же строка»: раньше вторая запись затирала первую вместе с
+                // папкой, потому что ключом было само слово.
+                val serverWords = response.data.words.distinctBy { it.id }
 
                 serverWords.forEach { serverWord ->
-                    val existingWord = savedWordDao.getSavedWord(serverWord.word)
                     // Папку слово тоже приносит с сервера — и только так о ней вообще можно
-                    // узнать: локальный id ставился раньше лишь при переносе на этом устройстве,
-                    // поэтому слово из папки класса оказывалось «без папки» и под её чипом не
-                    // показывалось. Папка, до которой синхронизация категорий ещё не дошла,
-                    // оставляет null — следующий проход поправит.
-                    val localCategoryId = serverWord.categoryId
-                        ?.let { categoryDao.getByServerId(it)?.id }
-                    if (existingWord == null) {
-                        savedWordDao.insertWord(
-                            SavedWordEntity(
-                                word = serverWord.word,
-                                savedAt = System.currentTimeMillis(),
-                                serverId = serverWord.id,
-                                isSynced = true,
-                                senseId = serverWord.senseId,
-                                categoryId = localCategoryId,
-                                groupServerId = serverWord.groupId,
-                                readOnly = serverWord.readOnly
-                            )
-                        )
-                    } else if (
-                        existingWord.senseId != serverWord.senseId ||
-                        existingWord.groupServerId != serverWord.groupId ||
-                        existingWord.readOnly != serverWord.readOnly ||
-                        existingWord.categoryId != localCategoryId
-                    ) {
-                        // Всё это меняется в браузере: значение переставляют, папку выдают
-                        // группе и снимают с неё. Сервер здесь источник правды.
-                        savedWordDao.updateFromServer(
-                            serverWord.word,
-                            serverWord.senseId,
-                            serverWord.groupId,
-                            serverWord.readOnly,
-                            localCategoryId
-                        )
-                    }
+                    // узнать: локальный id ставился раньше лишь при переносе на этом устройстве.
+                    // Папка, до которой синхронизация категорий ещё не дошла, просто пропускается
+                    // — следующий проход поправит.
+                    val localCategoryIds = serverWord.categoryIds
+                        .ifEmpty { listOfNotNull(serverWord.categoryId) }
+                        .mapNotNull { categoryDao.getByServerId(it)?.id }
+
+                    val existing = savedWordDao.getByServerId(serverWord.id)
+                        // Слово, сохранённое офлайн, сервера ещё не видело: связываем строку,
+                        // а не заводим рядом вторую такую же.
+                        ?: savedWordDao.getEntry(serverWord.word, serverWord.senseId)
+                            ?.takeIf { it.serverId == null }
+
+                    val row = (existing ?: SavedWordEntity(word = serverWord.word)).copy(
+                        word = serverWord.word,
+                        serverId = serverWord.id,
+                        isSynced = true,
+                        senseId = serverWord.senseId,
+                        categoryIds = localCategoryIds,
+                        groupServerId = serverWord.groupId,
+                        readOnly = serverWord.readOnly
+                    )
+                    if (row != existing) savedWordDao.insertWord(row)
                 }
 
                 // ⚠️ Синхронизация обязана уметь и вычитать. Раньше она только добавляла,
                 // поэтому слово, удалённое в браузере, жило на телефоне вечно и возвращалось
                 // в списки — выглядело как «удаление не работает».
-                val serverKeys = serverWords.map { it.word }
-                if (serverKeys.isEmpty()) savedWordDao.deleteAllSynced()
-                else savedWordDao.deleteMissingFromServer(serverKeys)
+                val serverIds = serverWords.map { it.id }
+                if (serverIds.isEmpty()) savedWordDao.deleteAllSynced()
+                else savedWordDao.deleteMissingFromServer(serverIds)
 
                 // Sync local unsynced words to server
                 val unsyncedWords = savedWordDao.getUnsyncedWords()
@@ -185,11 +230,7 @@ class SavedWordsRepository @Inject constructor(
                             SaveWordRequest(localWord.word, senseId = localWord.senseId)
                         )
                         if (saveResponse.status == "ok" && saveResponse.data != null) {
-                            savedWordDao.updateSyncStatus(
-                                localWord.word,
-                                true,
-                                saveResponse.data.id
-                            )
+                            savedWordDao.updateSyncStatus(localWord.id, true, saveResponse.data.id)
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to sync word ${localWord.word}: ${e.message}")
@@ -212,7 +253,37 @@ class SavedWordsRepository @Inject constructor(
         return savedWordDao.getSavedWord(word) != null
     }
 
-    suspend fun updateWordCategory(word: String, categoryId: Long?) {
-        savedWordDao.updateCategory(word, categoryId)
+    /**
+     * Раскладывает одну запись по папкам — сразу по всем, которые человек отметил.
+     *
+     * Локально пишется в любом случае: без сети раскладка всё равно должна быть видна, а
+     * следующая синхронизация возьмёт правду с сервера.
+     */
+    suspend fun setFolders(
+        entry: SavedWordEntity,
+        localIds: List<Long>,
+        serverIds: List<Int>
+    ): Resource<Boolean> {
+        return try {
+            savedWordDao.updateCategories(entry.id, localIds)
+
+            val token = tokenDataStore.token.firstOrNull()
+            val serverId = entry.serverId
+            if (!token.isNullOrEmpty() && serverId != null) {
+                try {
+                    apiService.setWordFolders(
+                        "Bearer $token",
+                        serverId,
+                        SetWordFoldersRequest(serverIds)
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to set folders for ${entry.word}: ${e.message}")
+                }
+            }
+            Resource.Success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting folders: ${e.message}", e)
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
     }
 }

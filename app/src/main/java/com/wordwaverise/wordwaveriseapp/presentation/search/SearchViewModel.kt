@@ -37,8 +37,9 @@ class SearchViewModel @Inject constructor(
     val isSaved: State<Boolean> = _isSaved
 
     /** Значение статьи, к которому привязано слово: статья открывает его первым. */
-    private val _pinnedSenseId = mutableStateOf<String?>(null)
-    val pinnedSenseId: State<String?> = _pinnedSenseId
+    /** Значения, которые человек сохранил. Каждое — отдельное слово в его словаре. */
+    private val _pinnedSenseIds = mutableStateOf<Set<String>>(emptySet())
+    val pinnedSenseIds: State<Set<String>> = _pinnedSenseIds
 
     private var mediaPlayer: MediaPlayer? = null
     private var suggestJob: Job? = null
@@ -87,7 +88,7 @@ class SearchViewModel @Inject constructor(
         // имеет отношения; а если статья новому слову так и не пришла, звезда продолжала
         // утверждать, что оно сохранено.
         _isSaved.value = false
-        _pinnedSenseId.value = null
+        _pinnedSenseIds.value = emptySet()
 
         viewModelScope.launch {
             _state.value = _state.value.copy(
@@ -233,7 +234,7 @@ class SearchViewModel @Inject constructor(
         stopAudio()
         _state.value = SearchState()
         _isSaved.value = false
-        _pinnedSenseId.value = null
+        _pinnedSenseIds.value = emptySet()
     }
 
     fun playAudio(url: String) {
@@ -323,10 +324,10 @@ class SearchViewModel @Inject constructor(
     /**
      * The bookmark on one sense of the article.
      *
-     * Three outcomes, and the third is the one worth stating: tapping the sense that is already
-     * chosen removes the word from saved altogether, because "saved, but no sense" is a state
-     * with nothing to show. Tapping a different sense re-pins — the folder and the card stay,
-     * only the meaning changes.
+     * Каждое значение сохраняется само по себе: отметили два определения — в словаре два
+     * слова, у каждого свой перевод, свой пример и своя карточка. Раньше вторая закладка
+     * переставляла привязку первой — то есть выглядела как добавление, а была отменой
+     * предыдущего выбора. Снятие закладки убирает только эту запись.
      *
      * The definition travelling with the request is a fallback for a word whose article the
      * server has not written yet; when the corpus knows the sense, the server's own text wins.
@@ -335,8 +336,8 @@ class SearchViewModel @Inject constructor(
         val entry = _state.value.entry ?: return
         val word = entry.lemma.takeIf { it.isNotBlank() } ?: _state.value.wordData?.word ?: return
 
-        if (_pinnedSenseId.value == senseId) {
-            unsaveWord()
+        if (senseId in _pinnedSenseIds.value) {
+            unsaveSense(word, senseId)
             return
         }
 
@@ -351,7 +352,7 @@ class SearchViewModel @Inject constructor(
             when (savedWordsRepository.saveWord(word, translation, definition, senseId)) {
                 is Resource.Success -> {
                     _isSaved.value = true
-                    _pinnedSenseId.value = senseId
+                    _pinnedSenseIds.value = _pinnedSenseIds.value + senseId
                     if (definition != null) {
                         flashcardRepository.createFlashcard(
                             word = word,
@@ -377,9 +378,29 @@ class SearchViewModel @Inject constructor(
             when (savedWordsRepository.deleteWord(word)) {
                 is Resource.Success -> {
                     _isSaved.value = false
-                    _pinnedSenseId.value = null
+                    _pinnedSenseIds.value = emptySet()
                 }
                 is Resource.Error -> Log.e(TAG, "Failed to remove word")
+                else -> {}
+            }
+        }
+    }
+
+    /** Убирает одно значение; остальные значения того же слова остаются сохранёнными. */
+    private fun unsaveSense(word: String, senseId: String) {
+        viewModelScope.launch {
+            val entry = savedWordsRepository.entryFor(word, senseId)
+            val result =
+                if (entry != null) savedWordsRepository.deleteEntry(entry)
+                // Записи под этим значением на телефоне нет — снять можно только слово целиком,
+                // что и было единственным вариантом до появления записей.
+                else savedWordsRepository.deleteWord(word)
+            when (result) {
+                is Resource.Success -> {
+                    _pinnedSenseIds.value = _pinnedSenseIds.value - senseId
+                    _isSaved.value = savedWordsRepository.isWordSaved(word)
+                }
+                is Resource.Error -> Log.e(TAG, "Failed to remove sense")
                 else -> {}
             }
         }
@@ -388,7 +409,7 @@ class SearchViewModel @Inject constructor(
     private fun checkIfWordIsSaved(word: String) {
         viewModelScope.launch {
             _isSaved.value = savedWordsRepository.isWordSaved(word)
-            _pinnedSenseId.value = savedWordsRepository.pinnedSenseId(word)
+            _pinnedSenseIds.value = savedWordsRepository.pinnedSenseIds(word).toSet()
         }
     }
 }

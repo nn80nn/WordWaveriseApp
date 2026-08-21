@@ -8,10 +8,10 @@ import org.junit.Test
 class SavedWordsStateTest {
 
     private val words = listOf(
-        SavedWordEntity(word = "apple", categoryId = 1),
-        SavedWordEntity(word = "orange", categoryId = 1),
-        SavedWordEntity(word = "table", categoryId = null),
-        SavedWordEntity(word = "vigilant", categoryId = 2)
+        SavedWordEntity(word = "apple", categoryIds = listOf(1)),
+        SavedWordEntity(word = "orange", categoryIds = listOf(1)),
+        SavedWordEntity(word = "table"),
+        SavedWordEntity(word = "vigilant", categoryIds = listOf(2))
     )
 
     private val state = SavedWordsState(
@@ -37,5 +37,34 @@ class SavedWordsStateTest {
     fun `words with no folder are not swept into a selected one`() {
         val adjectives = state.copy(selectedCategoryId = 2).filteredWords
         assertEquals(listOf("vigilant"), adjectives.map { it.word })
+    }
+
+    @Test
+    fun `a word filed in two folders is listed by both of them`() {
+        val shared = SavedWordEntity(word = "resolve", categoryIds = listOf(1, 2))
+        val withShared = state.copy(words = words + shared)
+
+        assertEquals(
+            listOf("apple", "orange", "resolve"),
+            withShared.copy(selectedCategoryId = 1).filteredWords.map { it.word }
+        )
+        assertEquals(
+            listOf("vigilant", "resolve"),
+            withShared.copy(selectedCategoryId = 2).filteredWords.map { it.word }
+        )
+        // И ровно один раз в общем списке: лежать в двух папках — не то же самое, что быть
+        // двумя словами.
+        assertEquals(1, withShared.filteredWords.count { it.word == "resolve" })
+    }
+
+    @Test
+    fun `a class folder is not offered as somewhere to put a word`() {
+        // Сервер такую запись отклоняет, и предлагать её значит обещать то, чего не будет.
+        val withClass = state.copy(
+            categories = state.categories + CategoryEntity(
+                id = 9, serverId = 12, name = "Unit 5", groupServerId = 8, readOnly = true
+            )
+        )
+        assertEquals(listOf("Fruits", "Adjectives"), withClass.ownCategories.map { it.name })
     }
 }

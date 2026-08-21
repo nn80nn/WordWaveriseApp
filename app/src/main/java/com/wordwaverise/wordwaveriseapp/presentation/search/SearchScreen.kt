@@ -67,7 +67,7 @@ fun SearchScreen(
     onSelectSuggestion: (String) -> Unit = {},
     onSearchOriginal: (String) -> Unit = {},
     onTokenClick: (Int) -> Unit = {},
-    pinnedSenseId: String? = null,
+    pinnedSenseIds: Set<String> = emptySet(),
     canSave: Boolean = true,
     onToggleSense: (String) -> Unit = {},
     modifier: Modifier = Modifier
@@ -230,7 +230,7 @@ fun SearchScreen(
                     ArticleView(
                         entry = state.entry,
                         onWordClick = onWordClick,
-                        pinnedSenseId = pinnedSenseId,
+                        pinnedSenseIds = pinnedSenseIds,
                         canSave = canSave,
                         onToggleSense = onToggleSense
                     )

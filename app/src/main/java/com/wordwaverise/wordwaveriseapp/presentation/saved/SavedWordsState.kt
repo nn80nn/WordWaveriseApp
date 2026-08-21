@@ -13,7 +13,10 @@ data class SavedWordsState(
     val isLoggedIn: Boolean = false,
     val isOffline: Boolean = false,
     val showCategorySheet: Boolean = false,
-    val wordToMove: String? = null,
+    /** Запись, для которой открыт выбор папок. Строка, а не написание: значений может быть два. */
+    val entryToFile: SavedWordEntity? = null,
+    /** Отмеченные папки, пока лист открыт. */
+    val chosenFolders: Set<Long> = emptySet(),
     val newCategoryName: String = "",
     /** Ссылка, которую надо отдать системному листу «Поделиться»; одноразовая. */
     val pendingShareUrl: String? = null,
@@ -31,5 +34,15 @@ data class SavedWordsState(
      */
     val filteredWords: List<SavedWordEntity>
         get() = if (selectedCategoryId == null) words.filter { !it.readOnly }
-                else words.filter { it.categoryId == selectedCategoryId }
+                else words.filter { selectedCategoryId in it.categoryIds }
+
+    /**
+     * Папки, куда слово действительно можно положить, — только свои.
+     *
+     * ⚠️ Папки класса здесь нет. Сервер и раньше отказывал в записи в чужую папку, а лист её
+     * всё равно предлагал: человек выбирал папку и получал молчаливый отказ. Предлагать то,
+     * что заведомо не сработает, хуже, чем не предлагать.
+     */
+    val ownCategories: List<CategoryEntity>
+        get() = categories.filter { !it.readOnly }
 }

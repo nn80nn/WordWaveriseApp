@@ -47,13 +47,14 @@ import java.util.*
 @Composable
 fun SavedScreen(
     state: SavedWordsState,
-    onDeleteWord: (String) -> Unit,
+    onDeleteWord: (SavedWordEntity) -> Unit,
     onWordClick: (String) -> Unit,
     onSelectCategory: (Long?) -> Unit,
     onShowCategorySheet: () -> Unit,
     onHideCategorySheet: () -> Unit,
-    onSetWordToMove: (String) -> Unit,
-    onMoveWordToCategory: (word: String, catLocalId: Long?, catServerId: Int?) -> Unit,
+    onSetWordToFile: (SavedWordEntity) -> Unit,
+    onToggleFolder: (Long) -> Unit,
+    onSaveFolders: () -> Unit,
     onCreateCategory: () -> Unit,
     onDeleteCategory: (id: Long, serverId: Int?) -> Unit,
     onRenameCategory: (id: Long, serverId: Int?, name: String) -> Unit,
@@ -160,19 +161,23 @@ fun SavedScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(state.filteredWords, key = { it.word }) { word ->
+                        // ⚠️ Ключ — id записи, а не написание: одно слово встречается столько
+                        // раз, сколько значений человек отметил, и по написанию Compose счёл
+                        // бы их одной строкой.
+                        items(state.filteredWords, key = { it.id }) { word ->
                             WordCard(
                                 word = word,
+                                // Первая папка: на карточке место ровно на одну подпись, а
+                                // остальные видно по чипам сверху.
                                 categoryName = state.categories.find { it.id == word.categoryId }?.name,
-                                // Слово из папки класса не наше: и удаление, и перенос сервер
-                                // ключует по написанию, поэтому они попали бы в собственную
-                                // строку ученика с тем же словом.
+                                // Слово из папки класса не наше: строка принадлежит учителю,
+                                // и переставлять чужой словарь этот экран не вправе.
                                 onDelete = if (word.readOnly) null else {
-                                    { onDeleteWord(word.word) }
+                                    { onDeleteWord(word) }
                                 },
                                 onClick = { onWordClick(word.word) },
                                 onLongClick = if (word.readOnly) null else {
-                                    { onSetWordToMove(word.word) }
+                                    { onSetWordToFile(word) }
                                 }
                             )
                         }
@@ -193,8 +198,10 @@ fun SavedScreen(
             // кнопку рядом с ним, а понять, что лист вообще прокручивается, было неоткуда.
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
-            if (state.wordToMove != null) {
-                // Move word mode
+            val filing = state.entryToFile
+            if (filing != null) {
+                // Флажки, а не выбор одного: слово лежит в стольких папках, в скольких оно и
+                // правда нужно. ⚠️ Папок класса в списке нет — писать в чужой словарь нельзя.
                 Column(
                     modifier = Modifier
                         .verticalScroll(rememberScrollState())
@@ -203,24 +210,45 @@ fun SavedScreen(
                         .padding(bottom = 32.dp)
                 ) {
                     Text(
-                        "Переместить «${state.wordToMove}» в папку",
+                        "Папки для «${filing.word}»",
                         fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
-                    // No category option
-                    TextButton(
-                        onClick = { onMoveWordToCategory(state.wordToMove, null, null) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(stringResource(R.string.bez_kategorii), color = TextSecondary, modifier = Modifier.fillMaxWidth())
-                    }
-                    state.categories.forEach { cat ->
-                        TextButton(
-                            onClick = { onMoveWordToCategory(state.wordToMove, cat.id, cat.serverId) },
-                            modifier = Modifier.fillMaxWidth()
+                    state.ownCategories.forEach { cat ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onToggleFolder(cat.id) }
+                                .padding(vertical = 4.dp)
                         ) {
-                            Text(cat.name, color = TextPrimary, modifier = Modifier.fillMaxWidth())
+                            Checkbox(
+                                checked = cat.id in state.chosenFolders,
+                                onCheckedChange = { onToggleFolder(cat.id) }
+                            )
+                            Text(cat.name, color = TextPrimary, modifier = Modifier.padding(start = 4.dp))
                         }
+                    }
+                    if (state.ownCategories.isEmpty()) {
+                        Text(
+                            "Сначала создайте папку",
+                            color = TextSecondary,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                    Text(
+                        if (state.chosenFolders.isEmpty()) stringResource(R.string.bez_kategorii)
+                        else "Слово будет в ${state.chosenFolders.size} папк(ах)",
+                        fontSize = 12.sp, color = TextSecondary,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    Button(
+                        onClick = onSaveFolders,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                    ) {
+                        Text("Сохранить")
                     }
                 }
             } else {

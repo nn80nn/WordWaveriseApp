@@ -46,6 +46,7 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.ReportAttemptsResp
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SavedWordsResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SetWordFoldersRequest
 import retrofit2.http.*
 
 interface ApiService {
@@ -134,6 +135,21 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("word") word: String
     ): DeleteResponse
+
+    /** Убирает одно значение, оставляя остальные значения того же слова. */
+    @DELETE("api/words/saved/id/{id}")
+    suspend fun deleteSavedEntry(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): DeleteResponse
+
+    /** Заменяет весь набор папок одной записи. */
+    @PUT("api/words/saved/id/{id}/folders")
+    suspend fun setWordFolders(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body request: SetWordFoldersRequest
+    ): SaveWordResponse
 
     // Flashcard endpoints (require auth token)
     //

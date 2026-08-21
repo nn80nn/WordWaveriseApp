@@ -16,7 +16,15 @@ data class WordDetailState(
     val isSaved: Boolean = false,
     val isSavedLoading: Boolean = true,
     /** Значение статьи, к которому привязано слово — статья открывает его первым. */
-    val pinnedSenseId: String? = null,
+    /** Значения, сохранённые человеком: каждое — отдельное слово в его словаре. */
+    val pinnedSenseIds: Set<String> = emptySet(),
+    /**
+     * Серверный id записи для каждого сохранённого значения.
+     *
+     * ⚠️ Без него снять закладку с одного значения нечем: удаление по написанию забрало бы
+     * заодно и остальные значения того же слова.
+     */
+    val savedEntryIds: Map<String?, Int> = emptyMap(),
     val isPlayingAudio: Boolean = false,
     val playingAudioUrl: String? = null,
     val audioError: String? = null,

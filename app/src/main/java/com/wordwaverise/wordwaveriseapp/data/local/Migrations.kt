@@ -190,3 +190,49 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         db.execSQL("ALTER TABLE `saved_words` ADD COLUMN `readOnly` INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/**
+ * Слово перестаёт быть строкой и становится записью: одно значение, сколько угодно папок.
+ *
+ * ⚠️ Написание было первичным ключом, поэтому вторая строка для того же слова не вставала
+ * рядом с первой, а затирала её. Пока это так, «сохранить два значения как два слова» нельзя
+ * было ни показать, ни принять с сервера — потолок стоял в схеме, а не в интерфейсе. Таблица
+ * пересоздаётся: сменить первичный ключ ALTER'ом SQLite не умеет.
+ *
+ * Папка переезжает как список из одного элемента, а не теряется: у человека уже разложен
+ * словарь, и обновление приложения не тот момент, когда это должно сброситься.
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `saved_words_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `word` TEXT NOT NULL,
+                `savedAt` INTEGER NOT NULL,
+                `serverId` INTEGER,
+                `isSynced` INTEGER NOT NULL,
+                `categoryIds` TEXT NOT NULL,
+                `senseId` TEXT,
+                `groupServerId` INTEGER,
+                `readOnly` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `saved_words_new`
+                (`word`, `savedAt`, `serverId`, `isSynced`, `categoryIds`,
+                 `senseId`, `groupServerId`, `readOnly`)
+            SELECT `word`, `savedAt`, `serverId`, `isSynced`,
+                   CASE WHEN `categoryId` IS NULL THEN '' ELSE CAST(`categoryId` AS TEXT) END,
+                   `senseId`, `groupServerId`, `readOnly`
+            FROM `saved_words`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `saved_words`")
+        db.execSQL("ALTER TABLE `saved_words_new` RENAME TO `saved_words`")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_saved_words_serverId` ON `saved_words` (`serverId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_saved_words_word` ON `saved_words` (`word`)")
+    }
+}

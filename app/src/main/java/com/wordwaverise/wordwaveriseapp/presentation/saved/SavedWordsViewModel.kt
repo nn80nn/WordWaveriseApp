@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
 import com.wordwaverise.wordwaveriseapp.data.repository.AuthRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.CategoryRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.SavedWordsRepository
@@ -69,10 +70,16 @@ class SavedWordsViewModel @Inject constructor(
         }
     }
 
-    fun deleteWord(word: String) {
+    /**
+     * Убирает одну запись, а не всё написание.
+     *
+     * Человек мог сохранить два значения `resolve` как два слова; забрать вместе с одним и
+     * второе значило бы уничтожить работу, о которой он не просил.
+     */
+    fun deleteEntry(entry: SavedWordEntity) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
-            when (savedWordsRepository.deleteWord(word)) {
+            when (savedWordsRepository.deleteEntry(entry)) {
                 is Resource.Success -> _state.value = _state.value.copy(isLoading = false, error = null)
                 is Resource.Error -> _state.value = _state.value.copy(isLoading = false, error = "Не удалось удалить слово")
                 else -> {}
@@ -113,11 +120,26 @@ class SavedWordsViewModel @Inject constructor(
     }
 
     fun hideCategorySheet() {
-        _state.value = _state.value.copy(showCategorySheet = false, wordToMove = null)
+        _state.value = _state.value.copy(
+            showCategorySheet = false,
+            entryToFile = null,
+            chosenFolders = emptySet()
+        )
     }
 
-    fun setWordToMove(word: String) {
-        _state.value = _state.value.copy(wordToMove = word, showCategorySheet = true)
+    fun setWordToFile(entry: SavedWordEntity) {
+        _state.value = _state.value.copy(
+            entryToFile = entry,
+            chosenFolders = entry.categoryIds.toSet(),
+            showCategorySheet = true
+        )
+    }
+
+    fun toggleFolder(id: Long) {
+        val chosen = _state.value.chosenFolders
+        _state.value = _state.value.copy(
+            chosenFolders = if (id in chosen) chosen - id else chosen + id
+        )
     }
 
     fun setNewCategoryName(name: String) {
@@ -215,11 +237,29 @@ class SavedWordsViewModel @Inject constructor(
         }
     }
 
-    fun moveWordToCategory(word: String, categoryLocalId: Long?, categoryServerId: Int?) {
+    /**
+     * Раскладывает запись по отмеченным папкам — по всем сразу.
+     *
+     * Слово честно принадлежит и уроку, и теме к экзамену, и заставлять человека выбирать,
+     * какая из двух папок окажется неправильной, больше незачем.
+     */
+    fun saveFolders() {
+        val entry = _state.value.entryToFile ?: return
+        val chosen = _state.value.chosenFolders
+        val categories = _state.value.categories
         viewModelScope.launch {
-            savedWordsRepository.updateWordCategory(word, categoryLocalId)
-            categoryRepository.setWordCategory(word, categoryLocalId, categoryServerId)
-            _state.value = _state.value.copy(wordToMove = null, showCategorySheet = false)
+            savedWordsRepository.setFolders(
+                entry = entry,
+                localIds = chosen.toList(),
+                // Папка, заведённая офлайн, серверного id ещё не имеет: сервер о ней узнает
+                // на следующей синхронизации, а до тех пор раскладка живёт на телефоне.
+                serverIds = categories.filter { it.id in chosen }.mapNotNull { it.serverId }
+            )
+            _state.value = _state.value.copy(
+                entryToFile = null,
+                chosenFolders = emptySet(),
+                showCategorySheet = false
+            )
         }
     }
 
