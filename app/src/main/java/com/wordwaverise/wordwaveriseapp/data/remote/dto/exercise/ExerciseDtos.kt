@@ -21,7 +21,6 @@ enum class ExerciseKind {
     FILL_BLANK,
     CONTEXT_CHOICE,
     COLLOCATION,
-    WORD_FORM,
     SPELLING,
     LISTENING,
 

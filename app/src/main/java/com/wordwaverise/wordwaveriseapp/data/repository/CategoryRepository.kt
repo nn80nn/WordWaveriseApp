@@ -36,8 +36,15 @@ class CategoryRepository @Inject constructor(
                 response.data.forEach { dto ->
                     // Match an existing row first: a blind insert leaves id = 0, so Room
                     // autogenerates a new primary key and every sync duplicated the chip.
+                    //
+                    // ⚠️ Совпадение по имени ищется только среди своих папок. Папка класса
+                    // приходит с сервера и офлайн заведена быть не могла, поэтому одноимённая
+                    // локальная строка — это чужая, личная папка человека. Раньше её забирала
+                    // себе первая же папка группы с тем же названием («Урок 5» у ученика и
+                    // «Урок 5» у учителя): личная папка становилась readOnly, а её слова
+                    // уезжали в чужую по remapWordsToOldestDuplicate.
                     val existing = categoryDao.getByServerId(dto.id)
-                        ?: categoryDao.getUnlinkedByName(dto.name)
+                        ?: if (dto.groupId == null) categoryDao.getUnlinkedByName(dto.name) else null
 
                     if (existing == null) {
                         categoryDao.insert(
