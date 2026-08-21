@@ -19,7 +19,7 @@ import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
         CategoryEntity::class,
         ArticleCacheEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

@@ -54,10 +54,25 @@ class SavedWordsRepository @Inject constructor(
             val target = exact ?: unpinned
 
             val localId = if (target != null) {
-                savedWordDao.insertWord(target.copy(isSynced = false, senseId = senseId ?: target.senseId))
+                savedWordDao.insertWord(
+                    target.copy(
+                        isSynced = false,
+                        senseId = senseId ?: target.senseId,
+                        // Перевод с экрана статьи — запасной вариант: пустым он строку не портит,
+                        // а сервер всё равно пришлёт свой на ближайшей синхронизации.
+                        translation = translation ?: target.translation
+                    )
+                )
                 target.id
             } else {
-                savedWordDao.insertWord(SavedWordEntity(word = word, isSynced = false, senseId = senseId))
+                savedWordDao.insertWord(
+                    SavedWordEntity(
+                        word = word,
+                        translation = translation,
+                        isSynced = false,
+                        senseId = senseId
+                    )
+                )
             }
             Log.d(TAG, "Word saved locally: $word")
 
@@ -204,6 +219,7 @@ class SavedWordsRepository @Inject constructor(
 
                     val row = (existing ?: SavedWordEntity(word = serverWord.word)).copy(
                         word = serverWord.word,
+                        translation = serverWord.translation,
                         serverId = serverWord.id,
                         isSynced = true,
                         senseId = serverWord.senseId,

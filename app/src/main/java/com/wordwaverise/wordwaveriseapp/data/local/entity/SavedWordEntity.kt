@@ -26,6 +26,17 @@ data class SavedWordEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val word: String,
+
+    /**
+     * Перевод выбранного значения — то, что отличает одну запись от другой.
+     *
+     * ⚠️ Хранится локально, а не берётся с экрана статьи. Пока запись на слово была одна,
+     * список обходился написанием; теперь `resolve` встречается столько раз, сколько значений
+     * человек отметил, и без перевода две строки выглядят одинаково — различить их и удалить
+     * нужную нельзя.
+     */
+    val translation: String? = null,
+
     val savedAt: Long = System.currentTimeMillis(),
     val serverId: Int? = null,
     val isSynced: Boolean = false,

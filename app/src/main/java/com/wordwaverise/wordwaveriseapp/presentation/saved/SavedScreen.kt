@@ -34,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -443,6 +445,24 @@ private fun WordCard(
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
+                // Перевод — то, чем одна запись отличается от другой: у `resolve` их столько,
+                // сколько значений человек отметил, и без этой строки они неразличимы.
+                //
+                // Одна строка с многоточием, как у чипа: перевод бывает длинным («решимость,
+                // твёрдость духа, воля»), а карточка в списке не должна расти под него — тогда
+                // соседние слова уезжают с экрана ради подробности, за которой открывают статью.
+                word.translation?.takeIf { it.isNotBlank() }?.let { translation ->
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = translation,
+                        fontSize = 14.sp,
+                        fontStyle = FontStyle.Italic,
+                        fontWeight = FontWeight.Medium,
+                        color = WaveTheme.colors.secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),

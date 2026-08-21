@@ -236,3 +236,15 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_saved_words_word` ON `saved_words` (`word`)")
     }
 }
+
+/**
+ * Списку слов нужен перевод: без него две записи одного слова неразличимы.
+ *
+ * Колонка добавляется пустой и заполняется ближайшей синхронизацией — перевод и так приходит
+ * с сервера в каждой строке, а придумывать его на телефоне не из чего.
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `saved_words` ADD COLUMN `translation` TEXT")
+    }
+}
