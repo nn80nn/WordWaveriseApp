@@ -66,8 +66,12 @@ class CategoryDaoTest {
     }
 
     /**
-     * Repairing databases written before the index existed: copies go, and the
-     * words they held move to the surviving row rather than losing their folder.
+     * Repairing databases written before the index existed: the copies go.
+     *
+     * ⚠️ Переноса слов с удаляемой копии на выжившую здесь больше нет. Папки слова — это
+     * список в одной колонке, SQL-переноса для него не написать, и нужды в нём тоже нет:
+     * набор папок переписывается с сервера ближайшим `syncWords()`, а оба вызывающих кода
+     * запускают его сразу за `syncCategories()`.
      */
     @Test
     fun repairsCopiesLeftByTheOldSync() = runTest {
@@ -77,14 +81,37 @@ class CategoryDaoTest {
         // The unique index blocks a straight duplicate, so the pre-fix state is
         // reproduced the way it actually arose — a row that gains its serverId
         // after another row already has it cannot happen anymore either, which
-        // is the point; here we drive the repair queries directly.
+        // is the point; here we drive the repair query directly.
         val keep = dao.insert(CategoryEntity(serverId = 5, name = "Fruits", createdAt = 100))
-        savedWordDao.insertWord(SavedWordEntity(word = "apple", categoryId = keep))
+        savedWordDao.insertWord(SavedWordEntity(word = "apple", categoryIds = listOf(keep)))
 
-        dao.remapWordsToOldestDuplicate()
         dao.deleteDuplicateServerCategories()
 
         assertEquals(1, dao.getAll().first().size)
-        assertEquals(keep, savedWordDao.getSavedWord("apple")?.categoryId)
+        assertEquals(listOf(keep), savedWordDao.getSavedWord("apple")?.categoryIds)
+    }
+
+    /**
+     * ⚠️ Папка класса не забирает себе одноимённую личную.
+     *
+     * Подбор по имени существует ради папки, заведённой офлайн, — то есть ради **своей**.
+     * Папка группы приходит только с сервера, поэтому одноимённая локальная строка это чужая
+     * ей личная папка человека; раньше её переклеивало на серверный id класса, помечало
+     * readOnly, и слова уезжали в словарь учителя. Достаточно было, чтобы двое назвали папку
+     * «Урок 5». Проверяется сам DAO-запрос: он ищет строку, а решение «искать ли» принимает
+     * `CategoryRepository.syncCategories` по `dto.groupId`.
+     */
+    @Test
+    fun nameLookupOnlyEverFindsAFolderOfYourOwn() = runTest {
+        val dao = db.categoryDao()
+        val mine = dao.insert(CategoryEntity(serverId = null, name = "Урок 5"))
+        dao.insert(
+            CategoryEntity(
+                serverId = 77, name = "Урок 5", groupServerId = 8, groupName = "9Б", readOnly = true
+            )
+        )
+
+        // Уже связанная строка класса под подбор по имени не попадает вовсе.
+        assertEquals(mine, dao.getUnlinkedByName("Урок 5")?.id)
     }
 }
