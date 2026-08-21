@@ -81,9 +81,11 @@ class Migration9To10Test {
     @Test
     fun twoSensesOfOneWordNoLongerOverwriteEachOther() {
         helper.createDatabase(DB_NAME, 9).use { db ->
+            // ⚠️ readOnly перечисляется явно: в схеме 9 это NOT NULL без SQL-дефолта —
+            // `= false` у поля сущности живёт в Kotlin, а не в DDL, которое строит helper.
             db.execSQL(
-                "INSERT INTO saved_words (word, savedAt, serverId, isSynced, categoryId, senseId) " +
-                    "VALUES ('resolve', 500, 7, 1, NULL, 'v1')"
+                "INSERT INTO saved_words (word, savedAt, serverId, isSynced, categoryId, senseId, readOnly) " +
+                    "VALUES ('resolve', 500, 7, 1, NULL, 'v1', 0)"
             )
         }
 
