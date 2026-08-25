@@ -146,12 +146,36 @@ class SavedWordsViewModel @Inject constructor(
         _state.value = _state.value.copy(newCategoryName = name)
     }
 
+    fun setNewCategoryParent(parentServerId: Int?) {
+        _state.value = _state.value.copy(newCategoryParentServerId = parentServerId)
+    }
+
     fun createCategory() {
         val name = _state.value.newCategoryName.trim()
         if (name.isBlank()) return
         viewModelScope.launch {
-            categoryRepository.createCategory(name)
+            categoryRepository.createCategory(
+                name,
+                parentServerId = _state.value.newCategoryParentServerId
+            )
+            // Группа не сбрасывается: папки внутри одного модуля заводят подряд, и выбирать
+            // его заново на каждой — работа, которой можно не быть.
             _state.value = _state.value.copy(newCategoryName = "")
+        }
+    }
+
+    /**
+     * Вкладывает папку в папку-группу или выносит обратно.
+     *
+     * Ошибку показываем словами: у вложенности есть правила, и молчаливый отказ оставил бы
+     * человека перед папкой, которая осталась на месте без всякого объяснения.
+     */
+    fun setCategoryParent(id: Long, serverId: Int?, parentServerId: Int?) {
+        viewModelScope.launch {
+            when (val result = categoryRepository.setParent(id, serverId, parentServerId)) {
+                is Resource.Error -> _state.value = _state.value.copy(error = result.message)
+                else -> Unit
+            }
         }
     }
 

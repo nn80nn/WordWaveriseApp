@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -64,6 +65,10 @@ fun SavedScreen(
     onImportLinkChange: (String) -> Unit,
     onImportFolder: () -> Unit,
     onNewCategoryNameChange: (String) -> Unit,
+    /** Папка-группа, внутрь которой создаётся следующая папка (её серверный id, или null). */
+    onNewCategoryParentChange: (Int?) -> Unit,
+    /** Вложить папку в папку-группу или вынуть обратно. */
+    onSetCategoryParent: (id: Long, serverId: Int?, parentServerId: Int?) -> Unit,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -110,11 +115,19 @@ fun SavedScreen(
                         )
                     )
                 }
-                items(state.categories) { cat ->
+                // Папка-группа стоит перед тем, что в ней лежит; «↳» держит связь видимой и
+                // когда ряд прокручен на середину, где родителя уже не видно.
+                items(state.folderRows) { row ->
+                    val cat = row.folder
                     FilterChip(
                         selected = state.selectedCategoryId == cat.id,
                         onClick = { onSelectCategory(cat.id) },
-                        label = { Text(cat.name, fontSize = 13.sp) },
+                        label = {
+                            Text(
+                                if (row.nested) "↳ ${cat.name}" else cat.name,
+                                fontSize = 13.sp
+                            )
+                        },
                         // Папка от класса подписана значком: цветом в чипе уже сказано,
                         // выбран он или нет, и второго смысла та же краска не выдержит.
                         leadingIcon = if (cat.groupServerId != null) {
@@ -216,12 +229,14 @@ fun SavedScreen(
                         fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
-                    state.ownCategories.forEach { cat ->
+                    state.ownFolderRows.forEach { row ->
+                        val cat = row.folder
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onToggleFolder(cat.id) }
+                                .padding(start = if (row.nested) 20.dp else 0.dp)
                                 .padding(vertical = 4.dp)
                         ) {
                             Checkbox(
@@ -272,10 +287,12 @@ fun SavedScreen(
                     var renamingId by remember { mutableStateOf<Long?>(null) }
                     var renameDraft by remember { mutableStateOf("") }
 
-                    state.categories.forEach { cat ->
+                    state.folderRows.forEach { row ->
+                        val cat = row.folder
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(start = if (row.nested) 20.dp else 0.dp)
                                 .padding(vertical = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -314,6 +331,47 @@ fun SavedScreen(
                                         .weight(1f)
                                         .clickable { renamingId = cat.id; renameDraft = cat.name }
                                 )
+                                // Кнопка появляется только там, где есть из чего выбирать: вложенность
+                                // ровно одна, и у папки, в которой уже лежат другие, родителя быть не
+                                // может — предложить его значило бы вести к отказу, который нечем объяснить.
+                                if (!cat.readOnly && state.childCount(cat) == 0 &&
+                                    state.groupCandidates.any { it.id != cat.id }
+                                ) {
+                                    var menuOpen by remember(cat.id) { mutableStateOf(false) }
+                                    Box {
+                                        IconButton(onClick = { menuOpen = true }) {
+                                            Icon(
+                                                Icons.Default.DriveFileMove,
+                                                contentDescription = "В какой папке-группе лежит",
+                                                tint = if (cat.parentServerId != null) WaveTheme.colors.brass
+                                                       else TextTertiary.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = menuOpen,
+                                            onDismissRequest = { menuOpen = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Вне группы") },
+                                                onClick = {
+                                                    menuOpen = false
+                                                    onSetCategoryParent(cat.id, cat.serverId, null)
+                                                }
+                                            )
+                                            state.groupCandidates
+                                                .filter { it.id != cat.id }
+                                                .forEach { group ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(group.name) },
+                                                        onClick = {
+                                                            menuOpen = false
+                                                            onSetCategoryParent(cat.id, cat.serverId, group.serverId)
+                                                        }
+                                                    )
+                                                }
+                                        }
+                                    }
+                                }
                                 IconButton(onClick = { renamingId = cat.id; renameDraft = cat.name }) {
                                     Icon(
                                         Icons.Default.Edit,
@@ -398,6 +456,40 @@ fun SavedScreen(
                                 unfocusedTextColor = TextPrimary
                             )
                         )
+                        if (state.groupCandidates.isNotEmpty()) {
+                            var parentMenuOpen by remember { mutableStateOf(false) }
+                            val chosenGroup = state.groupCandidates
+                                .firstOrNull { it.serverId == state.newCategoryParentServerId }
+                            Box {
+                                TextButton(onClick = { parentMenuOpen = true }) {
+                                    Text(
+                                        chosenGroup?.name ?: "вне группы",
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = if (chosenGroup != null) WaveTheme.colors.brass else TextTertiary
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = parentMenuOpen,
+                                    onDismissRequest = { parentMenuOpen = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Вне группы") },
+                                        onClick = { parentMenuOpen = false; onNewCategoryParentChange(null) }
+                                    )
+                                    state.groupCandidates.forEach { group ->
+                                        DropdownMenuItem(
+                                            text = { Text(group.name) },
+                                            onClick = {
+                                                parentMenuOpen = false
+                                                onNewCategoryParentChange(group.serverId)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         IconButton(
                             onClick = onCreateCategory,
                             enabled = state.newCategoryName.isNotBlank()

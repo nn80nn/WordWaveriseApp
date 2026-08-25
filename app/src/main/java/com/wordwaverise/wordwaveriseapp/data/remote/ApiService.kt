@@ -35,6 +35,7 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SharedFolderPre
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoryResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CreateCategoryRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.RenameCategoryRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SetParentRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SetWordCategoryRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SimpleStringResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.group.AssignmentsResponse
@@ -316,6 +317,14 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("id") id: Int,
         @Body request: RenameCategoryRequest
+    ): SimpleStringResponse
+
+    /** Вложить папку в папку-группу или вынуть обратно. */
+    @PUT("api/categories/{id}/parent")
+    suspend fun setCategoryParent(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body request: SetParentRequest
     ): SimpleStringResponse
 
     @DELETE("api/categories/{id}")

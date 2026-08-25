@@ -153,6 +153,8 @@ class MainActivity : ComponentActivity() {
                                     onImportLinkChange = viewModel::setImportLink,
                                     onImportFolder = viewModel::importSharedFolder,
                                     onNewCategoryNameChange = viewModel::setNewCategoryName,
+                                    onNewCategoryParentChange = viewModel::setNewCategoryParent,
+                                    onSetCategoryParent = viewModel::setCategoryParent,
                                     onRefresh = viewModel::refresh
                                 )
                             }

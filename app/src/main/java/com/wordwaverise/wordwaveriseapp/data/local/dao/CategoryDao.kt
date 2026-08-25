@@ -22,6 +22,7 @@ interface CategoryDao {
         """
         UPDATE categories
         SET serverId = :serverId, name = :name, color = :color,
+            parentServerId = :parentServerId,
             groupServerId = :groupServerId, groupName = :groupName, readOnly = :readOnly
         WHERE id = :id
         """
@@ -31,10 +32,19 @@ interface CategoryDao {
         serverId: Int,
         name: String,
         color: String?,
+        parentServerId: Int? = null,
         groupServerId: Int? = null,
         groupName: String? = null,
         readOnly: Boolean = false
     )
+
+    /**
+     * Вложенность переписывается на каждой синхронизации вместе со всем остальным
+     * ([linkToServer]), но перемещение надо показать сразу — ждать следующего прохода
+     * значит показывать человеку папку там, откуда он её только что убрал.
+     */
+    @Query("UPDATE categories SET parentServerId = :parentServerId WHERE id = :id")
+    suspend fun setParent(id: Long, parentServerId: Int?)
 
     @Query(
         """

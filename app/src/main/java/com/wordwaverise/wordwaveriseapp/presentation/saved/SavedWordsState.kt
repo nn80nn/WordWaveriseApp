@@ -18,6 +18,8 @@ data class SavedWordsState(
     /** Отмеченные папки, пока лист открыт. */
     val chosenFolders: Set<Long> = emptySet(),
     val newCategoryName: String = "",
+    /** Серверный id папки-группы, внутрь которой создаётся следующая папка. */
+    val newCategoryParentServerId: Int? = null,
     /** Ссылка, которую надо отдать системному листу «Поделиться»; одноразовая. */
     val pendingShareUrl: String? = null,
     /** Ссылка на чужую папку, которую человек вставил. */
@@ -45,4 +47,44 @@ data class SavedWordsState(
      */
     val ownCategories: List<CategoryEntity>
         get() = categories.filter { !it.readOnly }
+
+    /**
+     * Папки деревом: группа, сразу за ней — то, что в ней лежит.
+     *
+     * Строится по **видимому** списку: папка класса, выданная без своего модуля, обязана стоять
+     * корнем, а не пропасть между уровнями. Родителя, которого нет в списке, сервер уже обнулил,
+     * но проверка нужна и здесь — синхронизация может застать список наполовину обновлённым.
+     */
+    val folderRows: List<FolderRow>
+        get() {
+            val visible = categories.mapNotNull { it.serverId }.toSet()
+            val childrenOf = categories
+                .filter { it.parentServerId != null && it.parentServerId in visible }
+                .groupBy { it.parentServerId!! }
+            return categories
+                .filter { it.parentServerId == null || it.parentServerId !in visible }
+                .flatMap { root ->
+                    listOf(FolderRow(root, nested = false)) +
+                        childrenOf[root.serverId].orEmpty().map { FolderRow(it, nested = true) }
+                }
+        }
+
+    /** То же дерево, но только из своих папок: в чужую слово положить нельзя. */
+    val ownFolderRows: List<FolderRow> get() = folderRows.filter { !it.folder.readOnly }
+
+    /**
+     * Свои корневые папки — единственные, что могут быть группой.
+     *
+     * Вложенность ровно одна, и сервер это проверяет. Предложить папку, которая уже лежит в
+     * группе, значит вести человека к отказу, который он не сможет объяснить.
+     */
+    val groupCandidates: List<CategoryEntity>
+        get() = categories.filter { !it.readOnly && it.parentServerId == null && it.serverId != null }
+
+    /** Сколько папок лежит внутри этой. Ноль — обычная папка. */
+    fun childCount(folder: CategoryEntity): Int =
+        folder.serverId?.let { id -> categories.count { it.parentServerId == id } } ?: 0
 }
+
+/** Папка и её место в дереве. Уровней всего два, поэтому флага достаточно. */
+data class FolderRow(val folder: CategoryEntity, val nested: Boolean)

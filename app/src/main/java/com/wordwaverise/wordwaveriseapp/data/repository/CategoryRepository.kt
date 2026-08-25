@@ -11,6 +11,7 @@ import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CreateCategoryRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.ImportResultDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.RenameCategoryRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SetParentRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SetWordCategoryRequest
 import com.wordwaverise.wordwaveriseapp.util.NetworkError
 import com.wordwaverise.wordwaveriseapp.util.Resource
@@ -54,6 +55,7 @@ class CategoryRepository @Inject constructor(
                                 serverId = dto.id,
                                 name = dto.name,
                                 color = dto.color,
+                                parentServerId = dto.parentId,
                                 groupServerId = dto.groupId,
                                 groupName = dto.groupName,
                                 readOnly = dto.readOnly
@@ -65,7 +67,7 @@ class CategoryRepository @Inject constructor(
                         // того, как строка на телефоне появилась.
                         categoryDao.linkToServer(
                             existing.id, dto.id, dto.name, dto.color,
-                            dto.groupId, dto.groupName, dto.readOnly
+                            dto.parentId, dto.groupId, dto.groupName, dto.readOnly
                         )
                     }
                 }
@@ -85,7 +87,12 @@ class CategoryRepository @Inject constructor(
         }
     }
 
-    suspend fun createCategory(name: String, color: String? = null): Resource<CategoryEntity> {
+    suspend fun createCategory(
+        name: String,
+        color: String? = null,
+        /** Серверный id папки-группы, внутрь которой класть новую. */
+        parentServerId: Int? = null
+    ): Resource<CategoryEntity> {
         return try {
             val token = tokenDataStore.token.firstOrNull()
             var serverId: Int? = null
@@ -94,7 +101,7 @@ class CategoryRepository @Inject constructor(
                 try {
                     val response = apiService.createCategory(
                         "Bearer $token",
-                        CreateCategoryRequest(name, color)
+                        CreateCategoryRequest(name, color, parentServerId)
                     )
                     if (response.status == "ok") serverId = response.data?.id
                 } catch (e: Exception) {
@@ -102,9 +109,47 @@ class CategoryRepository @Inject constructor(
                 }
             }
 
-            val entity = CategoryEntity(serverId = serverId, name = name, color = color)
+            // ⚠️ Вложенность записывается локально только вместе с serverId. Папка, заведённая
+            // без сети, родителя не получает — и не должна: сервер о ней ещё не знает, а
+            // показанная вложенность, которой на сервере нет, разойдётся на первой же
+            // синхронизации, причём молча.
+            val entity = CategoryEntity(
+                serverId = serverId,
+                name = name,
+                color = color,
+                parentServerId = parentServerId.takeIf { serverId != null }
+            )
             val id = categoryDao.insert(entity)
             Resource.Success(entity.copy(id = id))
+        } catch (e: Exception) {
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
+    /**
+     * Вкладывает папку в папку-группу или выносит обратно.
+     *
+     * ⚠️ Локальная строка правится **после** ответа сервера, в отличие от переименования: у
+     * вложенности есть правила (один уровень, только своя папка), и показать перемещение,
+     * которое сервер отверг, значит соврать ровно про то, чего человек проверить не может.
+     */
+    suspend fun setParent(id: Long, serverId: Int?, parentServerId: Int?): Resource<Unit> {
+        readOnlyRefusal(id)?.let { return it }
+        if (serverId == null) return Resource.Error("Папка ещё не синхронизирована")
+        return try {
+            val token = tokenDataStore.token.firstOrNull()
+                ?: return Resource.Error("Не авторизован")
+            val response = apiService.setCategoryParent(
+                "Bearer $token", serverId, SetParentRequest(parentServerId)
+            )
+            if (response.status != "ok") {
+                return Resource.Error(response.message ?: "Не удалось переместить папку")
+            }
+            categoryDao.setParent(id, parentServerId)
+            // Счётчик группы — сумма своих слов и детских, и он только что изменился у двух
+            // папок сразу; считает его сервер.
+            syncCategories()
+            Resource.Success(Unit)
         } catch (e: Exception) {
             Resource.Error(NetworkError.getErrorMessage(e))
         }

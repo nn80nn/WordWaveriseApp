@@ -248,3 +248,16 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         db.execSQL("ALTER TABLE `saved_words` ADD COLUMN `translation` TEXT")
     }
 }
+
+/**
+ * Папке — родительская папка.
+ *
+ * Хранится **серверный** id, как и у пометки группы: локальный `id` автогенерируемый, API о
+ * нём не знает, и связь по нему работала бы только на этом телефоне. Колонка добавляется
+ * пустой — вложенность приезжает с сервера, придумать её здесь не из чего.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `categories` ADD COLUMN `parentServerId` INTEGER")
+    }
+}
