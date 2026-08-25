@@ -370,6 +370,9 @@ fun SenseCard(
                 // карточки уже свой фон и рамка, отдельная строка ради подписи не нужна.
                 if (pinned) add(stringResource(R.string.vashe_znachenie) to PrimaryCyan)
                 sense.cefr?.let { add(it to PrimaryCyan) }
+                // Своим цветом, а не серым в общем ряду: из всех меток эта одна меняет то,
+                // как слово пишут в предложении, а не только то, где его уместно сказать.
+                countabilityLabel(sense.countability)?.let { add(it to Brass) }
                 registerLabel(sense.register)?.let { add(it to TextTertiary) }
                 sense.domain?.takeIf { it.isNotBlank() }?.let { add(it to TextTertiary) }
                 if (sense.generated) add(stringResource(R.string.ii) to Error)
@@ -493,6 +496,21 @@ fun SenseCard(
         }
     }
 }
+
+/**
+ * Исчисляемость — тот грамматический факт, который русскоязычному не вывести из перевода:
+ * «совет» исчисляемо, `advice` — нет, и ошибка вылезает уже в артикле.
+ *
+ * Неизвестное значение — это null, а не догадка: неверная пометка хуже отсутствующей, потому
+ * что проверять её человек будет ровно по этой статье.
+ */
+private fun countabilityLabel(countability: String?): String? =
+    when (countability?.uppercase()) {
+        "COUNTABLE" -> "исчисляемое"
+        "UNCOUNTABLE" -> "неисчисляемое"
+        "BOTH" -> "исч. и неисч."
+        else -> null
+    }
 
 private fun registerLabel(register: String): String? = when (register.uppercase()) {
     "FORMAL" -> "формальное"

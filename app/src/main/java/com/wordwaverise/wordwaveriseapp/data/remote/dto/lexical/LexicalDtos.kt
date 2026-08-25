@@ -33,6 +33,14 @@ data class SenseDto(
     /** Short Russian equivalents for this sense specifically. */
     val translationsRu: List<String> = emptyList(),
     val register: String = "NEUTRAL",
+    /**
+     * COUNTABLE | UNCOUNTABLE | BOTH, и только у существительных.
+     *
+     * Свойство ЗНАЧЕНИЯ, а не слова: `paper`-материал неисчисляем, `paper`-документ
+     * исчисляем. Null значит «не указано» — статья, собранная до появления поля, не должна
+     * выглядеть так, будто ответ известен.
+     */
+    val countability: String? = null,
     val cefr: String? = null,
     val domain: String? = null,
     val examples: List<BilingualExampleDto> = emptyList(),

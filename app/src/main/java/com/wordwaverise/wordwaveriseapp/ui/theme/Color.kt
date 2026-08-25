@@ -183,6 +183,9 @@ val BorderLight: Color
 val BorderMedium: Color
     @Composable @ReadOnlyComposable get() = LocalWaveColors.current.borderStrong
 
+val Brass: Color
+    @Composable @ReadOnlyComposable get() = LocalWaveColors.current.brass
+
 val Success: Color
     @Composable @ReadOnlyComposable get() = LocalWaveColors.current.success
 val Error: Color

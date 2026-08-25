@@ -44,6 +44,18 @@ class SearchViewModel @Inject constructor(
     private var mediaPlayer: MediaPlayer? = null
     private var suggestJob: Job? = null
 
+    /**
+     * Поиск, которому принадлежит экран прямо сейчас.
+     *
+     * ⚠️ Отменяется в начале следующего, и это не оптимизация. Холодная статья пишется одну-три
+     * минуты, а `lookup` — это поток, который всё это время опрашивает сервер и пишет в
+     * состояние. Без отмены брошенный поиск продолжал жить: искали «grow up», через секунду
+     * «cat», и статья про «grow up» приезжала поверх «cat» — вместе со звездой сохранённости и
+     * выбранными значениями чужого слова.
+     */
+    private var searchJob: Job? = null
+    private var analysisJob: Job? = null
+
     fun onSearchQueryChange(query: String) {
         _state.value = _state.value.copy(
             searchQuery = query,
@@ -90,7 +102,10 @@ class SearchViewModel @Inject constructor(
         _isSaved.value = false
         _pinnedSenseIds.value = emptySet()
 
-        viewModelScope.launch {
+        // Предыдущий поиск с этого момента никого не касается — вместе с его опросом статьи
+        // и вместе с проверкой сохранённости, которая живёт его же корутиной.
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _state.value = _state.value.copy(
                 isLoading = true,
                 error = null,
@@ -137,7 +152,11 @@ class SearchViewModel @Inject constructor(
                             ruEnAmbiguous = data.ruEn?.isAmbiguous ?: false
                         )
 
-                        data.entry?.lemma?.takeIf { it.isNotBlank() }?.let { checkIfWordIsSaved(it) }
+                        // Дочерней корутиной, а не из viewModelScope: иначе она переживает
+                        // отмену поиска и подсвечивает значения предыдущего слова.
+                        data.entry?.lemma?.takeIf { it.isNotBlank() }?.let { lemma ->
+                            launch { checkIfWordIsSaved(lemma) }
+                        }
 
                         // Nothing to show at all — offer alternatives rather than a bare error.
                         val empty = data.entry == null && data.raw == null &&
@@ -174,7 +193,10 @@ class SearchViewModel @Inject constructor(
     fun analyzeToken(index: Int) {
         val text = _state.value.sentenceText
         if (text.isBlank()) return
-        viewModelScope.launch {
+        // Тапнуть по второму слову, не дождавшись первого, — обычное дело: без отмены разбор
+        // первого приезжает поверх второго и подписывается выбранным словом.
+        analysisJob?.cancel()
+        analysisJob = viewModelScope.launch {
             _state.value = _state.value.copy(
                 selectedTokenIndex = index,
                 isAnalyzingContext = true,
@@ -219,8 +241,15 @@ class SearchViewModel @Inject constructor(
         searchWord(exact = true)
     }
 
+    /**
+     * Подсказки печатаются быстрее, чем отвечает сеть, поэтому у них своя единственная корутина.
+     *
+     * Без отмены ответ на «cat» мог приехать после ответа на «catal» и подставить список от трёх
+     * букв назад — под курсором, стоящим уже на другом слове.
+     */
     private fun fetchSuggestions(query: String, prefix: Boolean = false) {
-        viewModelScope.launch {
+        suggestJob?.cancel()
+        suggestJob = viewModelScope.launch {
             _state.value = _state.value.copy(isFetchingSuggestions = true)
             val suggestions = searchRepository.getSuggestions(query, prefix = prefix)
             _state.value = _state.value.copy(
@@ -232,6 +261,11 @@ class SearchViewModel @Inject constructor(
 
     fun clearSearch() {
         stopAudio()
+        // Крестик обязан отменять поиск, а не только стирать экран: иначе статья, которую уже
+        // ждали, приезжает на очищенный экран через минуту после нажатия.
+        searchJob?.cancel()
+        suggestJob?.cancel()
+        analysisJob?.cancel()
         _state.value = SearchState()
         _isSaved.value = false
         _pinnedSenseIds.value = emptySet()
@@ -406,11 +440,9 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    private fun checkIfWordIsSaved(word: String) {
-        viewModelScope.launch {
-            _isSaved.value = savedWordsRepository.isWordSaved(word)
-            _pinnedSenseIds.value = savedWordsRepository.pinnedSenseIds(word).toSet()
-        }
+    private suspend fun checkIfWordIsSaved(word: String) {
+        _isSaved.value = savedWordsRepository.isWordSaved(word)
+        _pinnedSenseIds.value = savedWordsRepository.pinnedSenseIds(word).toSet()
     }
 }
 
