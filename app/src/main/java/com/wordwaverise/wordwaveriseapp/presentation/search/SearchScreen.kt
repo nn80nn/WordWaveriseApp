@@ -53,12 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable
 fun SearchScreen(
     state: SearchState,
-    isSaved: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onClear: () -> Unit,
-    onSaveWord: () -> Unit,
-    onUnsaveWord: () -> Unit,
     isPlayingAudio: Boolean,
     playingAudioUrl: String?,
     onPlayAudio: (String) -> Unit,
@@ -140,11 +137,8 @@ fun SearchScreen(
         if (state.wordData != null && isWordResult) {
             WordHeader(
                 wordData = state.wordData,
-                isSaved = isSaved,
                 isPlayingAudio = isPlayingAudio,
                 playingAudioUrl = playingAudioUrl,
-                onSave = onSaveWord,
-                onUnsave = onUnsaveWord,
                 onPlayAudio = onPlayAudio,
                 onStopAudio = onStopAudio
             )
@@ -328,11 +322,8 @@ private fun RawDefinitions(wordData: WordDto?, annotationPending: Boolean) {
 @Composable
 private fun WordHeader(
     wordData: WordDto,
-    isSaved: Boolean,
     isPlayingAudio: Boolean,
     playingAudioUrl: String?,
-    onSave: () -> Unit,
-    onUnsave: () -> Unit,
     onPlayAudio: (String) -> Unit,
     onStopAudio: () -> Unit
 ) {
@@ -395,14 +386,10 @@ private fun WordHeader(
                         .waveUnderline(color = colors.secondary.copy(alpha = 0.65f))
                 )
 
-                IconButton(onClick = if (isSaved) onUnsave else onSave) {
-                    Icon(
-                        imageVector = if (isSaved) Icons.Default.Star else Icons.Default.StarBorder,
-                        contentDescription = if (isSaved) stringResource(R.string.ubrat_iz_sohranennyh) else stringResource(R.string.sohranit),
-                        tint = if (isSaved) Warning else TextTertiary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                // Звезды на заголовке больше нет: она сохраняла слово, не называя значения,
+                // то есть заводила запись без выбора — а следующее сохранение того же слова
+                // могло этот выбор за человека и сделать. Закладка стоит на каждом значении
+                // статьи, и сохраняется именно значение.
             }
 
             // UK / US IPA + audio buttons — full width, wraps to a new line instead of

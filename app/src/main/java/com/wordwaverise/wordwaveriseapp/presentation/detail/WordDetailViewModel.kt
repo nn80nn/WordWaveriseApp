@@ -114,39 +114,15 @@ class WordDetailViewModel @Inject constructor(
                         .orEmpty()
                     _state.update {
                         it.copy(
-                            isSaved = saved.isNotEmpty(),
                             savedEntryIds = saved.associateBy({ e -> e.senseId }, { e -> e.id }),
-                            pinnedSenseIds = saved.mapNotNull { e -> e.senseId }.toSet(),
-                            isSavedLoading = false
+                            pinnedSenseIds = saved.mapNotNull { e -> e.senseId }.toSet()
                         )
                     }
-                } else {
-                    _state.update { it.copy(isSavedLoading = false) }
                 }
             } catch (_: Exception) {
-                _state.update { it.copy(isSavedLoading = false) }
+                // Список сохранённого — не то, ради чего человек открыл слово: статья важнее,
+                // и без ответа она всё равно рисуется, просто без отметок на значениях.
             }
-        }
-    }
-
-    fun saveWord() {
-        viewModelScope.launch {
-            try {
-                val token = authRepository.token.firstOrNull()
-                if (token != null) {
-                    val word = _state.value.word
-                    val detail = _state.value.wordDetail
-                    apiService.saveWord(
-                        token = "Bearer $token",
-                        request = SaveWordRequest(
-                            word = word,
-                            translation = detail?.translation,
-                            definition = detail?.definitions?.firstOrNull()?.definition
-                        )
-                    )
-                    _state.update { it.copy(isSaved = true) }
-                }
-            } catch (_: Exception) { }
         }
     }
 
@@ -183,7 +159,7 @@ class WordDetailViewModel @Inject constructor(
                     )
                 )
                 _state.update {
-                    it.copy(isSaved = true, pinnedSenseIds = it.pinnedSenseIds + senseId)
+                    it.copy(pinnedSenseIds = it.pinnedSenseIds + senseId)
                 }
                 // Ответ несёт id новой записи — без него снятие закладки не знало бы, какую
                 // именно строку убирать, и убрало бы слово целиком.
@@ -206,26 +182,10 @@ class WordDetailViewModel @Inject constructor(
                     apiService.deleteSavedWord(token = "Bearer $token", word = _state.value.word)
                 }
                 _state.update {
-                    val left = it.pinnedSenseIds - senseId
                     it.copy(
-                        pinnedSenseIds = left,
-                        savedEntryIds = it.savedEntryIds - senseId,
-                        isSaved = entryId != null && (left.isNotEmpty() || it.savedEntryIds.size > 1)
+                        pinnedSenseIds = it.pinnedSenseIds - senseId,
+                        savedEntryIds = it.savedEntryIds - senseId
                     )
-                }
-            } catch (_: Exception) { }
-        }
-    }
-
-    fun unsaveWord() {
-        viewModelScope.launch {
-            try {
-                val token = authRepository.token.firstOrNull()
-                if (token != null) {
-                    apiService.deleteSavedWord(token = "Bearer $token", word = _state.value.word)
-                    _state.update {
-                        it.copy(isSaved = false, pinnedSenseIds = emptySet(), savedEntryIds = emptyMap())
-                    }
                 }
             } catch (_: Exception) { }
         }

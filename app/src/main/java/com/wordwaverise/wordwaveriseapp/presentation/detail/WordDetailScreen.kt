@@ -48,11 +48,7 @@ fun WordDetailScreen(
     annotationDegraded: Boolean = false,
     isLoading: Boolean,
     error: String?,
-    isSaved: Boolean,
-    isSavedLoading: Boolean = false,
     isLoadingFull: Boolean = false,
-    onSaveWord: () -> Unit,
-    onUnsaveWord: () -> Unit,
     pinnedSenseIds: Set<String> = emptySet(),
     onToggleSense: (String) -> Unit = {},
     isPlayingAudio: Boolean = false,
@@ -120,12 +116,8 @@ fun WordDetailScreen(
                 // ── Word header ────────────────────────────────────────────
                 if (wordDetail != null) WordHeaderCard(
                     wordDetail = wordDetail,
-                    isSaved = isSaved,
-                    isSavedLoading = isSavedLoading,
                     isPlayingAudio = isPlayingAudio,
                     playingAudioUrl = playingAudioUrl,
-                    onSave = onSaveWord,
-                    onUnsave = onUnsaveWord,
                     onPlayAudio = onPlayAudio,
                     onStopAudio = onStopAudio
                 )
@@ -232,12 +224,8 @@ private fun RawDefinitions(wordDetail: WordDetailResponse?, annotationPending: B
 @Composable
 private fun WordHeaderCard(
     wordDetail: WordDetailResponse,
-    isSaved: Boolean,
-    isSavedLoading: Boolean,
     isPlayingAudio: Boolean,
     playingAudioUrl: String?,
-    onSave: () -> Unit,
-    onUnsave: () -> Unit,
     onPlayAudio: (String) -> Unit,
     onStopAudio: () -> Unit
 ) {
@@ -281,22 +269,8 @@ private fun WordHeaderCard(
                     modifier = Modifier.weight(1f)
                 )
 
-                if (isSavedLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = PrimaryCyan,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    IconButton(onClick = if (isSaved) onUnsave else onSave) {
-                        Icon(
-                            imageVector = if (isSaved) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = if (isSaved) stringResource(R.string.ubrat_iz_sohranennyh) else stringResource(R.string.sohranit),
-                            tint = if (isSaved) Warning else TextTertiary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
+                // Звезды на заголовке больше нет — см. SearchScreen: сохраняется значение,
+                // а не написание, и закладка стоит на каждом значении статьи.
             }
 
             // UK / US IPA + audio buttons — full width, wraps to a new line instead of

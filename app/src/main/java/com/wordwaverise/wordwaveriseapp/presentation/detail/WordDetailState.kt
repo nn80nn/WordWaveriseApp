@@ -13,8 +13,8 @@ data class WordDetailState(
     val annotationPending: Boolean = false,
     val annotationDegraded: Boolean = false,
     val error: String? = null,
-    val isSaved: Boolean = false,
-    val isSavedLoading: Boolean = true,
+    // «Сохранено ли слово» больше не спрашивается: сохраняется значение, и отмечено оно
+    // закладкой на самом значении — pinnedSenseIds ниже.
     /** Значение статьи, к которому привязано слово — статья открывает его первым. */
     /** Значения, сохранённые человеком: каждое — отдельное слово в его словаре. */
     val pinnedSenseIds: Set<String> = emptySet(),

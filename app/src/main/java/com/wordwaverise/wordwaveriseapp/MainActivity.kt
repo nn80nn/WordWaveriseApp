@@ -92,12 +92,9 @@ class MainActivity : ComponentActivity() {
                                 val viewModel: SearchViewModel = hiltViewModel()
                                 SearchScreen(
                                     state = viewModel.state.value,
-                                    isSaved = viewModel.isSaved.value,
                                     onSearchQueryChange = viewModel::onSearchQueryChange,
                                     onSearch = viewModel::searchWord,
                                     onClear = viewModel::clearSearch,
-                                    onSaveWord = viewModel::saveWord,
-                                    onUnsaveWord = viewModel::unsaveWord,
                                     isPlayingAudio = viewModel.state.value.isPlayingAudio,
                                     playingAudioUrl = viewModel.state.value.playingAudioUrl,
                                     onPlayAudio = viewModel::playAudio,
@@ -233,10 +230,6 @@ class MainActivity : ComponentActivity() {
                                     isLoading = state.isLoading,
                                     isLoadingFull = state.isLoadingFull,
                                     error = state.error,
-                                    isSaved = state.isSaved,
-                                    isSavedLoading = state.isSavedLoading,
-                                    onSaveWord = viewModel::saveWord,
-                                    onUnsaveWord = viewModel::unsaveWord,
                                     pinnedSenseIds = state.pinnedSenseIds,
                                     onToggleSense = viewModel::toggleSense,
                                     isPlayingAudio = state.isPlayingAudio,

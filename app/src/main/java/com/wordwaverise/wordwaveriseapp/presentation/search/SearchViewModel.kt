@@ -33,8 +33,6 @@ class SearchViewModel @Inject constructor(
     private val _state = mutableStateOf(SearchState())
     val state: State<SearchState> = _state
 
-    private val _isSaved = mutableStateOf(false)
-    val isSaved: State<Boolean> = _isSaved
 
     /** Значение статьи, к которому привязано слово: статья открывает его первым. */
     /** Значения, которые человек сохранил. Каждое — отдельное слово в его словаре. */
@@ -99,7 +97,6 @@ class SearchViewModel @Inject constructor(
         // рядом, поэтому оставшийся пин подсвечивал «Ваше значение» в статье, к которой он не
         // имеет отношения; а если статья новому слову так и не пришла, звезда продолжала
         // утверждать, что оно сохранено.
-        _isSaved.value = false
         _pinnedSenseIds.value = emptySet()
 
         // Предыдущий поиск с этого момента никого не касается — вместе с его опросом статьи
@@ -267,7 +264,6 @@ class SearchViewModel @Inject constructor(
         suggestJob?.cancel()
         analysisJob?.cancel()
         _state.value = SearchState()
-        _isSaved.value = false
         _pinnedSenseIds.value = emptySet()
     }
 
@@ -321,40 +317,6 @@ class SearchViewModel @Inject constructor(
      * Its Russian is written per sense, so the saved word and the flashcard made from it carry a
      * translation that actually matches the definition sitting next to it.
      */
-    fun saveWord() {
-        val entry = _state.value.entry
-        val wordData = _state.value.wordData
-        val word = entry?.lemma?.takeIf { it.isNotBlank() } ?: wordData?.word ?: return
-
-        val firstSense = entry?.posGroups?.firstOrNull()?.senses?.firstOrNull()
-        val firstDefinition = wordData?.definitions?.firstOrNull()
-
-        val translation = firstSense?.translationsRu?.firstOrNull() ?: wordData?.translation
-        val definition = firstSense?.definitionEn ?: firstDefinition?.definition
-        val example = firstSense?.examples?.firstOrNull()?.en ?: firstDefinition?.example
-        val partOfSpeech = entry?.posGroups?.firstOrNull()?.pos ?: firstDefinition?.partOfSpeech
-
-        viewModelScope.launch {
-            when (savedWordsRepository.saveWord(word, translation, definition)) {
-                is Resource.Success -> {
-                    _isSaved.value = true
-                    if (definition != null) {
-                        flashcardRepository.createFlashcard(
-                            word = word,
-                            definition = definition,
-                            example = example,
-                            translation = translation,
-                            phonetic = entry?.phonetic ?: wordData?.phonetic,
-                            partOfSpeech = partOfSpeech
-                        )
-                    }
-                }
-                is Resource.Error -> Log.e(TAG, "Failed to save word")
-                else -> {}
-            }
-        }
-    }
-
     /**
      * The bookmark on one sense of the article.
      *
@@ -385,7 +347,6 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch {
             when (savedWordsRepository.saveWord(word, translation, definition, senseId)) {
                 is Resource.Success -> {
-                    _isSaved.value = true
                     _pinnedSenseIds.value = _pinnedSenseIds.value + senseId
                     if (definition != null) {
                         flashcardRepository.createFlashcard(
@@ -405,21 +366,6 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    fun unsaveWord() {
-        val word = _state.value.entry?.lemma?.takeIf { it.isNotBlank() }
-            ?: _state.value.wordData?.word ?: return
-        viewModelScope.launch {
-            when (savedWordsRepository.deleteWord(word)) {
-                is Resource.Success -> {
-                    _isSaved.value = false
-                    _pinnedSenseIds.value = emptySet()
-                }
-                is Resource.Error -> Log.e(TAG, "Failed to remove word")
-                else -> {}
-            }
-        }
-    }
-
     /** Убирает одно значение; остальные значения того же слова остаются сохранёнными. */
     private fun unsaveSense(word: String, senseId: String) {
         viewModelScope.launch {
@@ -432,7 +378,6 @@ class SearchViewModel @Inject constructor(
             when (result) {
                 is Resource.Success -> {
                     _pinnedSenseIds.value = _pinnedSenseIds.value - senseId
-                    _isSaved.value = savedWordsRepository.isWordSaved(word)
                 }
                 is Resource.Error -> Log.e(TAG, "Failed to remove sense")
                 else -> {}
@@ -440,8 +385,13 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Какие значения этого слова уже в словаре.
+     *
+     * ⚠️ «Сохранено ли слово целиком» больше не спрашивается: сохраняются значения, и ответ на
+     * старый вопрос ничего не значил бы ни для одной закладки в статье.
+     */
     private suspend fun checkIfWordIsSaved(word: String) {
-        _isSaved.value = savedWordsRepository.isWordSaved(word)
         _pinnedSenseIds.value = savedWordsRepository.pinnedSenseIds(word).toSet()
     }
 }

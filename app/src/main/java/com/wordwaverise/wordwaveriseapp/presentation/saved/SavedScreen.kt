@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -864,16 +863,9 @@ private fun WordCard(
                             color = if (word.readOnly) WaveTheme.colors.brass else PrimaryCyan
                         )
                     }
-                    // Слово сохранено с выбранным значением: при открытии статья начнётся с него.
-                    if (word.senseId != null) {
-                        Text("·", fontSize = 12.sp, color = TextTertiary)
-                        Icon(
-                            imageVector = Icons.Default.Bookmark,
-                            contentDescription = stringResource(R.string.vashe_znachenie),
-                            tint = PrimaryCyan,
-                            modifier = Modifier.size(11.dp)
-                        )
-                    }
+                    // Пометки о выбранном значении здесь больше нет: значение теперь есть у
+                    // каждой записи, и значок, стоящий на всех строках без исключения, не
+                    // отличает ни одну из них — он просто занимает место в каждой.
                 }
             }
             // Слово из папки класса удалить нельзя — см. вызов выше.
