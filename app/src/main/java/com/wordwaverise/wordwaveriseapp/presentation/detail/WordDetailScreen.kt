@@ -154,7 +154,8 @@ fun WordDetailScreen(
                         onWordClick = onWordClick,
                         pinnedSenseIds = pinnedSenseIds,
                         canSave = true,
-                        onToggleSense = onToggleSense
+                        onToggleSense = onToggleSense,
+                        onPlayAudio = onPlayAudio
                     )
                 } else {
                     RawDefinitions(

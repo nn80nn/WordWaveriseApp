@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -52,7 +53,15 @@ fun ArticleView(
     pinnedSenseIds: Set<String> = emptySet(),
     /** Saving needs an account; without one the bookmark explains itself instead of vanishing. */
     canSave: Boolean = false,
-    onToggleSense: (String) -> Unit = {}
+    onToggleSense: (String) -> Unit = {},
+    /**
+     * Играет запись части речи или значения.
+     *
+     * Кнопка в шапке умеет ровно одно произношение, а у `suspect` их два, и различаются они
+     * ударением — то есть на слух это и есть всё различие. Поэтому запись живёт рядом с той
+     * транскрипцией, к которой относится.
+     */
+    onPlayAudio: (String) -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -79,7 +88,8 @@ fun ArticleView(
                 onWordClick = onWordClick,
                 pinnedSenseIds = pinnedSenseIds,
                 canSave = canSave,
-                onToggleSense = onToggleSense
+                onToggleSense = onToggleSense,
+                onPlayAudio = onPlayAudio
             )
             Spacer(Modifier.height(20.dp))
         }
@@ -144,7 +154,8 @@ private fun PosGroupSection(
     onWordClick: (String) -> Unit,
     pinnedSenseIds: Set<String> = emptySet(),
     canSave: Boolean = false,
-    onToggleSense: (String) -> Unit = {}
+    onToggleSense: (String) -> Unit = {},
+    onPlayAudio: (String) -> Unit = {}
 ) {
     Column {
         Row(
@@ -158,9 +169,12 @@ private fun PosGroupSection(
                 color = PrimaryCyan
             )
             // Homographs differ by pronunciation, not just by sense — show it per part of speech.
-            group.pronunciations.firstOrNull { !it.ipa.isNullOrBlank() }?.ipa?.let { ipa ->
-                Text(ipa, fontSize = 13.sp, color = TextTertiary)
-            }
+            val sound = preferredPronunciation(group)
+            PronunciationLine(
+                ipa = sound?.ipa,
+                audioUrl = sound?.audioMp3Url,
+                onPlayAudio = onPlayAudio
+            )
         }
 
         group.forms?.labelled()?.takeIf { it.isNotEmpty() }?.let { forms ->
@@ -182,12 +196,57 @@ private fun PosGroupSection(
                 onWordClick = onWordClick,
                 pinned = sense.id in pinnedSenseIds,
                 canSave = canSave,
-                onToggleSave = { onToggleSense(sense.id) }
+                onToggleSave = { onToggleSense(sense.id) },
+                onPlayAudio = onPlayAudio
             )
             Spacer(Modifier.height(10.dp))
         }
     }
 }
+
+/**
+ * Транскрипция и — если есть запись — кнопка её послушать, одной строкой.
+ *
+ * ⚠️ Не отдельный ряд: у части речи и у значения на это есть ровно та строка, где уже стоит
+ * подпись. Ряд ради одного значка стоил бы высоты на каждом блоке длинной статьи.
+ */
+@Composable
+private fun PronunciationLine(
+    ipa: String?,
+    audioUrl: String?,
+    onPlayAudio: (String) -> Unit
+) {
+    if (ipa.isNullOrBlank() && audioUrl.isNullOrBlank()) return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        ipa?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 13.sp, color = TextTertiary) }
+        audioUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            Icon(
+                imageVector = Icons.Default.VolumeUp,
+                contentDescription = stringResource(R.string.proslushat_proiznoshenie),
+                tint = TextTertiary,
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onPlayAudio(url) }
+            )
+        }
+    }
+}
+
+/**
+ * Та же запись, что выберет сервер для карточки: сначала британская, потом любая.
+ *
+ * Совпадение не косметическое — иначе в статье стояла бы одна транскрипция, а на карточке того
+ * же значения другая, и обе выглядели бы правильными.
+ */
+private fun preferredPronunciation(group: PosGroupDto) =
+    group.pronunciations.firstOrNull { it.region.equals("uk", true) && !it.ipa.isNullOrBlank() }
+        ?: group.pronunciations.firstOrNull { it.region.equals("us", true) && !it.ipa.isNullOrBlank() }
+        ?: group.pronunciations.firstOrNull { !it.ipa.isNullOrBlank() }
+        ?: group.pronunciations.firstOrNull { !it.audioMp3Url.isNullOrBlank() }
 
 @Composable
 private fun InfoBlock(title: String, body: String) {
@@ -282,7 +341,8 @@ fun SenseCard(
     onWordClick: (String) -> Unit,
     pinned: Boolean = false,
     canSave: Boolean = false,
-    onToggleSave: (() -> Unit)? = null
+    onToggleSave: (() -> Unit)? = null,
+    onPlayAudio: (String) -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -362,6 +422,14 @@ fun SenseCard(
                     lineHeight = 19.sp,
                     modifier = headPad
                 )
+            }
+
+            // Транскрипция появляется только у значения, которое звучит не как его часть речи:
+            // `lead`-металл против `lead`-«вести». Оба существительные, и никакая помета выше
+            // этого не скажет.
+            sense.phonetic?.takeIf { it.isNotBlank() }?.let { ipa ->
+                Spacer(Modifier.height(8.dp))
+                PronunciationLine(ipa = ipa, audioUrl = sense.audioUrl, onPlayAudio = onPlayAudio)
             }
 
             // ── Labels ────────────────────────────────────────────────

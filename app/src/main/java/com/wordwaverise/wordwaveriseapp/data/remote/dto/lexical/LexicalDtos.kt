@@ -49,6 +49,14 @@ data class SenseDto(
     val antonyms: List<String> = emptyList(),
     /** 1-based indices into [LexicalEntryDto.sources]; empty when the sense is model-written. */
     val sourceRefs: List<Int> = emptyList(),
+    /**
+     * Как слово звучит именно в этом значении — заполнено, только если иначе, чем у части речи.
+     *
+     * `lead` — существительное и в /liːd/, и в /led/, и различить их пометой части речи нельзя.
+     * Пусто значит «как у группы»: повторять её транскрипцию под каждым значением незачем.
+     */
+    val phonetic: String? = null,
+    val audioUrl: String? = null,
     val generated: Boolean = false,
     val usageNote: String? = null
 )

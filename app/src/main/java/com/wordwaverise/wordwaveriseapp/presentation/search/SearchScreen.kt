@@ -232,7 +232,8 @@ fun SearchScreen(
                         onWordClick = onWordClick,
                         pinnedSenseIds = pinnedSenseIds,
                         canSave = canSave,
-                        onToggleSense = onToggleSense
+                        onToggleSense = onToggleSense,
+                        onPlayAudio = onPlayAudio
                     )
                 }
 
