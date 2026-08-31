@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -65,6 +67,12 @@ fun SavedScreen(
     onImportLinkChange: (String) -> Unit,
     onImportFolder: () -> Unit,
     onNewCategoryNameChange: (String) -> Unit,
+    /** Поиск по своим словам. */
+    onSearchChange: (String) -> Unit,
+    onSortChange: (WordSort) -> Unit,
+    /** Поиск по папкам — только пока открыт лист папок. */
+    onFolderQueryChange: (String) -> Unit,
+    onFolderSortChange: (FolderSort) -> Unit,
     /** Папка-группа, внутрь которой создаётся следующая папка (её серверный id, или null). */
     onNewCategoryParentChange: (Int?) -> Unit,
     /** Вложить папку в папку-группу или вынуть обратно. */
@@ -92,11 +100,23 @@ fun SavedScreen(
             }
         }
 
-        // Category filter row
+        // Поиск и порядок. Словарь растёт без потолка, и на пятой сотне слов «найти слово»
+        // перестаёт быть прокруткой — это и есть причина, по которой строка стоит выше папок.
+        WordSearchRow(
+            query = state.searchQuery,
+            sort = state.sortBy,
+            onQueryChange = onSearchChange,
+            onSortChange = onSortChange
+        )
+
+        // Первый уровень: только корневые папки. Содержимое выбранной группы раскрывается
+        // рядом ниже — одна лента со всем сразу уезжала на два экрана вбок, и по ней не было
+        // видно ни вложенности, ни того, что у группы вообще есть содержимое.
+        val counts = state.wordCounts
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             LazyRow(
@@ -105,46 +125,36 @@ fun SavedScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item {
-                    FilterChip(
+                    FolderChip(
+                        label = stringResource(R.string.vse),
+                        count = state.words.count { !it.readOnly },
                         selected = state.selectedCategoryId == null,
-                        onClick = { onSelectCategory(null) },
-                        label = { Text(stringResource(R.string.vse), fontSize = 13.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = PrimaryCyan.copy(alpha = 0.2f),
-                            selectedLabelColor = PrimaryCyan
-                        )
+                        onClick = { onSelectCategory(null) }
                     )
                 }
-                // Папка-группа стоит перед тем, что в ней лежит; «↳» держит связь видимой и
-                // когда ряд прокручен на середину, где родителя уже не видно.
-                items(state.folderRows) { row ->
-                    val cat = row.folder
-                    FilterChip(
+                items(state.rootFolders, key = { it.folder.id }) { node ->
+                    val cat = node.folder
+                    FolderChip(
+                        label = cat.name,
+                        count = counts[cat.id] ?: 0,
                         selected = state.selectedCategoryId == cat.id,
-                        onClick = { onSelectCategory(cat.id) },
-                        label = {
-                            Text(
-                                if (row.nested) "↳ ${cat.name}" else cat.name,
-                                fontSize = 13.sp
-                            )
-                        },
-                        // Папка от класса подписана значком: цветом в чипе уже сказано,
-                        // выбран он или нет, и второго смысла та же краска не выдержит.
-                        leadingIcon = if (cat.groupServerId != null) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Outlined.Group,
-                                    contentDescription = null,
-                                    tint = WaveTheme.colors.brass,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        } else null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = PrimaryCyan.copy(alpha = 0.2f),
-                            selectedLabelColor = PrimaryCyan
-                        )
+                        fromGroup = cat.groupServerId != null,
+                        // Значок папки стоит у той, внутри которой лежат другие: без него
+                        // единственным признаком группы был бы счётчик, а он у обычной папки
+                        // выглядит точно так же.
+                        hasChildren = node.children.isNotEmpty(),
+                        onClick = { onSelectCategory(cat.id) }
                     )
+                }
+                if (state.looseCount > 0) {
+                    item {
+                        FolderChip(
+                            label = stringResource(R.string.bez_kategorii),
+                            count = state.looseCount,
+                            selected = state.selectedCategoryId == SavedWordsState.UNCATEGORIZED,
+                            onClick = { onSelectCategory(SavedWordsState.UNCATEGORIZED) }
+                        )
+                    }
                 }
             }
             IconButton(onClick = onShowCategorySheet) {
@@ -152,16 +162,74 @@ fun SavedScreen(
             }
         }
 
+        // Второй уровень. Черта слева и имя родителя — это и есть «папка лежит в папке»:
+        // связь видна и тогда, когда ряд прокручен на середину, где родителя уже не видно.
+        val openGroup = state.openGroup
+        val openChildren = state.openChildren
+        if (openGroup != null && openChildren.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .padding(start = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .fillMaxHeight()
+                        .padding(vertical = 6.dp)
+                        .background(PrimaryCyan.copy(alpha = 0.4f))
+                )
+                Text(
+                    text = openGroup.name,
+                    fontSize = 11.sp,
+                    color = TextTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .widthIn(max = 88.dp)
+                        .padding(horizontal = 8.dp)
+                )
+                LazyRow(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        FolderChip(
+                            label = "Всё вместе",
+                            count = counts[openGroup.id] ?: 0,
+                            selected = state.selectedCategoryId == openGroup.id,
+                            onClick = { onSelectCategory(openGroup.id) }
+                        )
+                    }
+                    items(openChildren, key = { it.id }) { cat ->
+                        FolderChip(
+                            label = cat.name,
+                            count = counts[cat.id] ?: 0,
+                            selected = state.selectedCategoryId == cat.id,
+                            fromGroup = cat.groupServerId != null,
+                            onClick = { onSelectCategory(cat.id) }
+                        )
+                    }
+                }
+            }
+        }
+        // Отбор и сортировка считаются один раз на композицию, а не на каждое обращение:
+        // это геттер, а список — весь словарь человека.
+        val shown = state.filteredWords
         when {
             state.isLoading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = PrimaryCyan)
                 }
             }
-            state.filteredWords.isEmpty() -> EmptyState()
+            shown.isEmpty() -> EmptyState(
+                searching = state.searchQuery.isNotBlank() || state.selectedCategoryId != null
+            )
             else -> {
                 Text(
-                    text = "${state.filteredWords.size} ${wordCountLabel(state.filteredWords.size)}",
+                    text = "${shown.size} ${wordCountLabel(shown.size)}",
                     fontSize = 13.sp,
                     color = TextTertiary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -179,7 +247,7 @@ fun SavedScreen(
                         // ⚠️ Ключ — id записи, а не написание: одно слово встречается столько
                         // раз, сколько значений человек отметил, и по написанию Compose счёл
                         // бы их одной строкой.
-                        items(state.filteredWords, key = { it.id }) { word ->
+                        items(shown, key = { it.id }) { word ->
                             WordCard(
                                 word = word,
                                 // Первая папка: на карточке место ровно на одну подпись, а
@@ -229,6 +297,14 @@ fun SavedScreen(
                         fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
+                    if (state.ownCategories.size >= 6) {
+                        FolderSearchRow(
+                            query = state.folderQuery,
+                            sort = state.folderSort,
+                            onQueryChange = onFolderQueryChange,
+                            onSortChange = onFolderSortChange
+                        )
+                    }
                     state.ownFolderRows.forEach { row ->
                         val cat = row.folder
                         Row(
@@ -245,6 +321,13 @@ fun SavedScreen(
                             )
                             Text(cat.name, color = TextPrimary, modifier = Modifier.padding(start = 4.dp))
                         }
+                    }
+                    if (state.ownCategories.isNotEmpty() && state.ownFolderRows.isEmpty()) {
+                        Text(
+                            "Ничего не нашлось",
+                            color = TextSecondary,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
                     }
                     if (state.ownCategories.isEmpty()) {
                         Text(
@@ -287,6 +370,14 @@ fun SavedScreen(
                     var renamingId by remember { mutableStateOf<Long?>(null) }
                     var renameDraft by remember { mutableStateOf("") }
 
+                    if (state.categories.size >= 6) {
+                        FolderSearchRow(
+                            query = state.folderQuery,
+                            sort = state.folderSort,
+                            onQueryChange = onFolderQueryChange,
+                            onSortChange = onFolderSortChange
+                        )
+                    }
                     state.folderRows.forEach { row ->
                         val cat = row.folder
                         Row(
@@ -503,6 +594,197 @@ fun SavedScreen(
     }
 }
 
+/**
+ * Поиск и порядок папок — там же, где список, к которому относятся.
+ *
+ * ⚠️ Порядок общий на все места, где папки видно: одна и та же папка не должна стоять третьей
+ * в фильтре и седьмой в этом листе. Поиск, наоборот, живёт только пока лист открыт — он про
+ * «сейчас найти», и оставленный включённым прятал бы папки на экране без строки поиска.
+ */
+@Composable
+private fun FolderSearchRow(
+    query: String,
+    sort: FolderSort,
+    onQueryChange: (String) -> Unit,
+    onSortChange: (FolderSort) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = { Text("Поиск папки", color = TextTertiary, fontSize = 14.sp) },
+            singleLine = true,
+            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+            modifier = Modifier.weight(1f),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PrimaryCyan,
+                unfocusedBorderColor = BackgroundLight,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary
+            )
+        )
+        var menuOpen by remember { mutableStateOf(false) }
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Sort,
+                    contentDescription = "Порядок папок",
+                    tint = if (sort == FolderSort.CUSTOM) TextTertiary else PrimaryCyan
+                )
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                listOf(
+                    FolderSort.CUSTOM to "Как заведены",
+                    FolderSort.A_Z to "А–Я",
+                    FolderSort.Z_A to "Я–А",
+                    FolderSort.COUNT to "По числу слов"
+                ).forEach { (value, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label, color = if (value == sort) PrimaryCyan else TextPrimary) },
+                        onClick = { menuOpen = false; onSortChange(value) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Строка поиска по словам и порядок списка.
+ *
+ * ⚠️ Поиск и сортировка — одно поле ввода и одна кнопка, а не отдельный экран настроек: они
+ * относятся к списку под ними и должны быть видны вместе с ним. Порядок живёт в меню, потому
+ * что вариантов четыре, а места в строке — на один контрол.
+ */
+@Composable
+private fun WordSearchRow(
+    query: String,
+    sort: WordSort,
+    onQueryChange: (String) -> Unit,
+    onSortChange: (WordSort) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = { Text("Поиск по словам", color = TextTertiary, fontSize = 14.sp) },
+            singleLine = true,
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(18.dp))
+            },
+            trailingIcon = if (query.isNotEmpty()) {
+                {
+                    IconButton(onClick = { onQueryChange("") }) {
+                        Icon(Icons.Default.Close, contentDescription = "Очистить", tint = TextTertiary, modifier = Modifier.size(18.dp))
+                    }
+                }
+            } else null,
+            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+            modifier = Modifier.weight(1f),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PrimaryCyan,
+                unfocusedBorderColor = BackgroundLight,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary
+            )
+        )
+        var menuOpen by remember { mutableStateOf(false) }
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Sort,
+                    contentDescription = "Порядок слов",
+                    tint = if (sort == WordSort.NEWEST) TextTertiary else PrimaryCyan
+                )
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                listOf(
+                    WordSort.NEWEST to "Сначала новые",
+                    WordSort.OLDEST to "Сначала старые",
+                    WordSort.A_Z to "A–Z",
+                    WordSort.Z_A to "Z–A"
+                ).forEach { (value, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label, color = if (value == sort) PrimaryCyan else TextPrimary) },
+                        onClick = { menuOpen = false; onSortChange(value) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Чип папки: имя, число слов и — у папки-группы — значок того, что внутри лежат другие.
+ *
+ * ⚠️ Число здесь не украшение: до того как в папку зашли, оно единственное отличает полную
+ * от пустой. У группы оно считается вместе с вложенными — ровно так же, как их достаёт фильтр.
+ */
+@Composable
+private fun FolderChip(
+    label: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    fromGroup: Boolean = false,
+    hasChildren: Boolean = false
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = if (count > 0) "$label · $count" else label,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        // Папка от класса подписана значком: цветом в чипе уже сказано, выбран он или нет,
+        // и второго смысла та же краска не выдержит.
+        leadingIcon = when {
+            fromGroup -> {
+                {
+                    Icon(
+                        imageVector = Icons.Outlined.Group,
+                        contentDescription = null,
+                        tint = WaveTheme.colors.brass,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+            hasChildren -> {
+                {
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = null,
+                        tint = TextTertiary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+            else -> null
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = PrimaryCyan.copy(alpha = 0.2f),
+            selectedLabelColor = PrimaryCyan
+        ),
+        modifier = Modifier.widthIn(max = 220.dp)
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WordCard(
@@ -609,7 +891,7 @@ private fun WordCard(
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(searching: Boolean = false) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -617,14 +899,21 @@ private fun EmptyState() {
             modifier = Modifier.padding(32.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Book,
+                imageVector = if (searching) Icons.Default.Search else Icons.Default.Book,
                 contentDescription = null,
                 tint = TextTertiary,
                 modifier = Modifier.size(64.dp)
             )
-            Text(stringResource(R.string.net_sohranennyh_slov), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            // Пустой поиск и пустой словарь — разные состояния, и совет «найдите слово и
+            // нажмите на звезду» человеку, который только что искал в своём словаре, отвечает
+            // не на его вопрос.
             Text(
-                stringResource(R.string.naydite_slovo_i_nazhmite_na_zvezdu_chtoby),
+                if (searching) "Ничего не нашлось" else stringResource(R.string.net_sohranennyh_slov),
+                fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary
+            )
+            Text(
+                if (searching) "Попробуйте другое написание или снимите фильтр папки"
+                else stringResource(R.string.naydite_slovo_i_nazhmite_na_zvezdu_chtoby),
                 fontSize = 14.sp, color = TextSecondary, textAlign = TextAlign.Center, lineHeight = 20.sp
             )
         }

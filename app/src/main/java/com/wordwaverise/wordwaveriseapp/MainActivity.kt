@@ -155,6 +155,10 @@ class MainActivity : ComponentActivity() {
                                     onNewCategoryNameChange = viewModel::setNewCategoryName,
                                     onNewCategoryParentChange = viewModel::setNewCategoryParent,
                                     onSetCategoryParent = viewModel::setCategoryParent,
+                                    onSearchChange = viewModel::setSearchQuery,
+                                    onSortChange = viewModel::setSortBy,
+                                    onFolderQueryChange = viewModel::setFolderQuery,
+                                    onFolderSortChange = viewModel::setFolderSort,
                                     onRefresh = viewModel::refresh
                                 )
                             }

@@ -115,15 +115,34 @@ class SavedWordsViewModel @Inject constructor(
         _state.value = _state.value.copy(selectedCategoryId = id)
     }
 
+    fun setSearchQuery(query: String) {
+        _state.value = _state.value.copy(searchQuery = query)
+    }
+
+    fun setSortBy(sort: WordSort) {
+        _state.value = _state.value.copy(sortBy = sort)
+    }
+
+    fun setFolderQuery(query: String) {
+        _state.value = _state.value.copy(folderQuery = query)
+    }
+
+    fun setFolderSort(sort: FolderSort) {
+        _state.value = _state.value.copy(folderSort = sort)
+    }
+
     fun showCategorySheet() {
-        _state.value = _state.value.copy(showCategorySheet = true)
+        // Открыли заново — открыли на полном списке: недоискавшийся прошлый раз запрос прятал
+        // бы папки, о поиске которых человек уже забыл.
+        _state.value = _state.value.copy(showCategorySheet = true, folderQuery = "")
     }
 
     fun hideCategorySheet() {
         _state.value = _state.value.copy(
             showCategorySheet = false,
             entryToFile = null,
-            chosenFolders = emptySet()
+            chosenFolders = emptySet(),
+            folderQuery = ""
         )
     }
 
@@ -131,7 +150,8 @@ class SavedWordsViewModel @Inject constructor(
         _state.value = _state.value.copy(
             entryToFile = entry,
             chosenFolders = entry.categoryIds.toSet(),
-            showCategorySheet = true
+            showCategorySheet = true,
+            folderQuery = ""
         )
     }
 
