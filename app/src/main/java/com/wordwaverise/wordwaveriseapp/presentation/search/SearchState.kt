@@ -1,5 +1,7 @@
 package com.wordwaverise.wordwaveriseapp.presentation.search
 
+import com.wordwaverise.wordwaveriseapp.data.local.entity.CategoryEntity
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.SuggestItemDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LexicalEntryDto
@@ -15,8 +17,25 @@ data class SearchState(
     val hasSearched: Boolean = false,
     val isPlayingAudio: Boolean = false,
     val playingAudioUrl: String? = null,
-    val suggestions: List<String> = emptyList(),
+    val suggestions: List<SuggestItemDto> = emptyList(),
     val isFetchingSuggestions: Boolean = false,
+
+    // ── Куда положить сохраняемое значение ───────────────────────────────────
+    /**
+     * Значение, которое сохранят, как только человек назовёт папки.
+     *
+     * Пока оно не null, на экране стоит диалог выбора: слово, отправленное «никуда»,
+     * находится потом только через «Без папки», и человек, собирающий урок, замечает это,
+     * когда собрал уже двадцать слов.
+     */
+    val pendingSenseId: String? = null,
+    /** Что именно сохранится — перевод выбранного значения, а не только написание. */
+    val pendingSenseSummary: String? = null,
+    /** Свои папки: в папку класса писать нельзя, и сервер такой запрос отклоняет. */
+    val ownFolders: List<CategoryEntity> = emptyList(),
+    /** Отмеченные папки. Пустой список — «без папки». */
+    val chosenFolders: List<Long> = emptyList(),
+    val isSavingSense: Boolean = false,
 
     // ── The annotated article: the primary view ──────────────────────────────
     val entry: LexicalEntryDto? = null,

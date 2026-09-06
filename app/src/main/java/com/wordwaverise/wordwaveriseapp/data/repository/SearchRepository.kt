@@ -4,6 +4,7 @@ import android.util.Log
 import com.wordwaverise.wordwaveriseapp.data.local.dao.ArticleCacheDao
 import com.wordwaverise.wordwaveriseapp.data.local.entity.ArticleCacheEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.SuggestItemDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalyzeRequest
@@ -181,11 +182,18 @@ class SearchRepository @Inject constructor(
         }
     }
 
-    suspend fun getSuggestions(query: String, prefix: Boolean = false): List<String> {
+    /**
+     * @param prefix человек ещё печатает. Без флага сервер отвечает исправлением опечаток —
+     *   верный ответ на «искали и не нашли» и бесполезный на «набрано полслова».
+     */
+    suspend fun getSuggestions(query: String, prefix: Boolean = false): List<SuggestItemDto> {
         return try {
             val response = apiService.getSuggestions(query.trim(), prefix = prefix)
-            if (response.status == "ok") response.data?.suggestions.orEmpty()
-            else emptyList()
+            if (response.status != "ok") return emptyList()
+            val data = response.data ?: return emptyList()
+            // Сервер, не знающий про `items`, всё ещё отвечает строками — тогда строка и есть
+            // вся подсказка. Достраивается здесь, чтобы у экрана был один вид списка.
+            data.items.ifEmpty { data.suggestions.map { SuggestItemDto(word = it) } }
         } catch (e: Exception) {
             Log.d(TAG, "Suggestions failed for '$query': ${e.message}")
             emptyList()

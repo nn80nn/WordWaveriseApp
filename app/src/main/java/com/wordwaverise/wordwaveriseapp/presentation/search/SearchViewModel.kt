@@ -16,15 +16,30 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.PronunciationDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
 import com.wordwaverise.wordwaveriseapp.data.repository.SearchRepository
+import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
+import com.wordwaverise.wordwaveriseapp.data.repository.CategoryRepository
 import com.wordwaverise.wordwaveriseapp.util.Resource
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val savedWordsRepository: com.wordwaverise.wordwaveriseapp.data.repository.SavedWordsRepository,
-    private val flashcardRepository: com.wordwaverise.wordwaveriseapp.data.repository.FlashcardRepository
+    private val flashcardRepository: com.wordwaverise.wordwaveriseapp.data.repository.FlashcardRepository,
+    private val categoryRepository: CategoryRepository,
+    private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
+
+    init {
+        // Папки нужны раньше первого сохранения: диалог, открывшийся пустым и заполнившийся
+        // через полсекунды, читается как «папок нет».
+        viewModelScope.launch {
+            categoryRepository.categories.collect { folders ->
+                _state.value = _state.value.copy(ownFolders = folders.filter { !it.readOnly })
+            }
+        }
+    }
 
     companion object {
         private const val TAG = "SearchViewModel"
@@ -61,14 +76,16 @@ class SearchViewModel @Inject constructor(
             suggestions = emptyList()
         )
         suggestJob?.cancel()
-        // Autocomplete English single words only. Russian input is answered by the lookup itself
-        // now, with explained options, so pre-fetching bare strings while typing is just noise.
-        val isEnglishWord = query.length >= 2 &&
-            query.none { it in 'Ѐ'..'ӿ' } &&
-            !query.trim().contains(' ')
-        if (isEnglishWord) {
+        // Автодополнение — для английского ввода. Русский отвечает сам поиск, объяснёнными
+        // вариантами, поэтому тянуть под него голые строки при вводе незачем.
+        //
+        // ⚠️ Запрет на пробел снят: фразы (`grow up`, `come across`) — полноправные статьи
+        // корпуса, и правило «только одно слово» вычёркивало из подсказок ровно те выражения,
+        // написание которых человек как раз и не помнит.
+        val isEnglishInput = query.trim().length >= 2 && query.none { it in 'Ѐ'..'ӿ' }
+        if (isEnglishInput) {
             suggestJob = viewModelScope.launch {
-                delay(300)
+                delay(220)
                 fetchSuggestions(query, prefix = true)
             }
         }
@@ -332,22 +349,103 @@ class SearchViewModel @Inject constructor(
         val entry = _state.value.entry ?: return
         val word = entry.lemma.takeIf { it.isNotBlank() } ?: _state.value.wordData?.word ?: return
 
+        // Снятие закладки ничего не спрашивает: убрать — это уже ответ.
         if (senseId in _pinnedSenseIds.value) {
             unsaveSense(word, senseId)
             return
         }
 
         val sense = entry.posGroups.flatMap { it.senses }.firstOrNull { it.id == senseId } ?: return
+
+        // Сохранение спрашивает, куда. Папки прошлого раза предлагаются отмеченными: слова
+        // собирают подряд в один урок, и повторять один и тот же выбор двадцать раз — это не
+        // выбор, а работа. ⚠️ Сверяется с текущим списком: папку могли удалить на другом
+        // устройстве, и «сохранить в несуществующую» — это молчаливая потеря слова.
+        viewModelScope.launch {
+            val known = _state.value.ownFolders.map { it.id }.toSet()
+            val remembered = settingsDataStore.lastSaveFolders.first().filter { it in known }
+            _state.value = _state.value.copy(
+                pendingSenseId = senseId,
+                pendingSenseSummary = sense.translationsRu.joinToString(", ")
+                    .takeIf { it.isNotBlank() }
+                    ?: sense.definitionEn.takeIf { it.isNotBlank() }
+                    ?: sense.definitionRu.takeIf { it.isNotBlank() },
+                chosenFolders = remembered
+            )
+        }
+    }
+
+    /** Отметить папку в диалоге сохранения или снять отметку. Пусто — «без папки». */
+    fun toggleSaveFolder(id: Long) {
+        val chosen = _state.value.chosenFolders
+        _state.value = _state.value.copy(
+            chosenFolders = if (id in chosen) chosen - id else chosen + id
+        )
+    }
+
+    fun cancelSaveSense() {
+        _state.value = _state.value.copy(pendingSenseId = null, pendingSenseSummary = null)
+    }
+
+    /**
+     * Заводит папку прямо из диалога и сразу её отмечает.
+     *
+     * Без этого человек без единой папки упирается в диалог, в котором нечего выбрать, — то
+     * есть в тупик ровно там, где его позвали выбирать.
+     */
+    fun createFolderForSave(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            when (val result = categoryRepository.createCategory(trimmed)) {
+                is Resource.Success -> {
+                    val created = result.data ?: return@launch
+                    _state.value = _state.value.copy(
+                        chosenFolders = _state.value.chosenFolders + created.id
+                    )
+                }
+                is Resource.Error -> Log.w(TAG, "Failed to create folder: " + result.message)
+                else -> {}
+            }
+        }
+    }
+
+    /**
+     * Сохраняет значение в выбранные папки.
+     *
+     * Папки едут вместе с сохранением, а не вторым запросом: слово, которое сначала легло
+     * «никуда», а потом переехало, при обрыве между этими двумя шагами остаётся не там, куда
+     * его клали, — и человек об этом не узнаёт.
+     */
+    fun confirmSaveSense() {
+        val senseId = _state.value.pendingSenseId ?: return
+        val entry = _state.value.entry ?: return
+        val word = entry.lemma.takeIf { it.isNotBlank() } ?: _state.value.wordData?.word ?: return
+        val sense = entry.posGroups.flatMap { it.senses }.firstOrNull { it.id == senseId } ?: return
         val group = entry.posGroups.firstOrNull { g -> g.senses.any { it.id == senseId } }
         val translation = sense.translationsRu.firstOrNull()
         val definition = sense.definitionEn.takeIf { it.isNotBlank() }
             ?: sense.definitionRu.takeIf { it.isNotBlank() }
         val example = sense.examples.firstOrNull()?.en
+        val chosen = _state.value.chosenFolders
 
         viewModelScope.launch {
-            when (savedWordsRepository.saveWord(word, translation, definition, senseId)) {
+            _state.value = _state.value.copy(isSavingSense = true)
+            val folders = _state.value.ownFolders.filter { it.id in chosen }
+            val result = savedWordsRepository.saveWord(
+                word = word,
+                translation = translation,
+                definition = definition,
+                senseId = senseId,
+                categoryLocalIds = folders.map { it.id },
+                // ⚠️ Папка, заведённая офлайн, серверного id ещё не имеет: на сервер она
+                // доедет со следующей синхронизацией, а слово ляжет в неё уже сейчас.
+                categoryServerIds = folders.mapNotNull { it.serverId }
+            )
+            when (result) {
                 is Resource.Success -> {
                     _pinnedSenseIds.value = _pinnedSenseIds.value + senseId
+                    settingsDataStore.setLastSaveFolders(chosen)
                     if (definition != null) {
                         flashcardRepository.createFlashcard(
                             word = word,
@@ -359,9 +457,17 @@ class SearchViewModel @Inject constructor(
                             senseId = senseId
                         )
                     }
+                    _state.value = _state.value.copy(
+                        pendingSenseId = null,
+                        pendingSenseSummary = null,
+                        isSavingSense = false
+                    )
                 }
-                is Resource.Error -> Log.e(TAG, "Failed to pin sense")
-                else -> {}
+                is Resource.Error -> {
+                    Log.e(TAG, "Failed to pin sense")
+                    _state.value = _state.value.copy(isSavingSense = false)
+                }
+                else -> _state.value = _state.value.copy(isSavingSense = false)
             }
         }
     }

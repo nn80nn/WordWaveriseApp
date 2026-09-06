@@ -39,8 +39,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wordwaverise.wordwaveriseapp.data.local.entity.CategoryEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.DefinitionDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.SuggestItemDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
+import com.wordwaverise.wordwaveriseapp.presentation.components.SaveToFolderDialog
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.ArticleView
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.NoticeBar
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.RuEnCandidatesView
@@ -67,8 +70,28 @@ fun SearchScreen(
     pinnedSenseIds: Set<String> = emptySet(),
     canSave: Boolean = true,
     onToggleSense: (String) -> Unit = {},
+    onToggleSaveFolder: (Long) -> Unit = {},
+    onCreateSaveFolder: (String) -> Unit = {},
+    onConfirmSave: () -> Unit = {},
+    onCancelSave: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // Куда положить сохраняемое значение. Спрашивается на каждом сохранении: слово,
+    // отправленное «никуда», находится потом только через «Без папки», и человек,
+    // собирающий урок, замечает это, когда собрал уже двадцать слов.
+    if (state.pendingSenseId != null) {
+        SaveToFolderDialog(
+            word = state.entry?.lemma ?: state.wordData?.word.orEmpty(),
+            summary = state.pendingSenseSummary,
+            folders = state.ownFolders,
+            chosen = state.chosenFolders,
+            saving = state.isSavingSense,
+            onToggle = onToggleSaveFolder,
+            onCreate = onCreateSaveFolder,
+            onConfirm = onConfirmSave,
+            onDismiss = onCancelSave
+        )
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -114,13 +137,14 @@ fun SearchScreen(
             )
         )
 
-        // ── Suggestions strip (English spelling/autocomplete only) ────────
-        // Russian candidates are shown in RuTranslationPanel below, not here
-        // Hide suggestions after a successful search (word found)
-        if (state.suggestions.isNotEmpty() && !state.isRussianSearch &&
-            state.wordData == null && state.entry == null
-        ) {
-            SuggestionsRow(suggestions = state.suggestions, onSelect = onSelectSuggestion)
+        // ── Подсказки при вводе ───────────────────────────────────────────
+        // Русские варианты рисует RuEnCandidatesView ниже — у них своя, объяснённая форма.
+        //
+        // ⚠️ Условия «на экране ещё нет слова» здесь больше нет: набирая следующее слово
+        // поверх открытой статьи, человек оставался вообще без подсказок. Список и так
+        // очищается на старте поиска, поэтому найденное слово его не переживает.
+        if (state.suggestions.isNotEmpty() && !state.isRussianSearch) {
+            SuggestionsList(suggestions = state.suggestions, onSelect = onSelectSuggestion)
         }
 
         // A correction the server applied — shown above everything, and reversible.
@@ -686,44 +710,89 @@ private fun RuTranslationPanel(
     }
 }
 
-// ── Suggestions strip ─────────────────────────────────────────────────────────
+// ── Подсказки при вводе ───────────────────────────────────────────────────────
 
+/**
+ * Список под строкой поиска: слово, часть речи и русский перевод.
+ *
+ * Раньше это была лента чипов с одними написаниями, приезжавшая из исправления опечаток: на
+ * «resol» словарь отвечал похоже написанными словами, среди которых `resolve` мог и не
+ * оказаться. Шесть английских слов не говорят, какое из них имелось в виду, — их всё равно
+ * открывают по очереди, то есть делают ту работу, ради экономии которой подсказки и нужны.
+ *
+ * Перевод есть у слова, чья статья уже написана; у остальных строк его взять неоткуда, и
+ * пустое место под ними честнее выдуманного.
+ */
 @Composable
-private fun SuggestionsRow(suggestions: List<String>, onSelect: (String) -> Unit) {
+private fun SuggestionsList(suggestions: List<SuggestItemDto>, onSelect: (String) -> Unit) {
+    val typed = suggestions.filter { it.kind != "spelling" }
+    val spelling = suggestions.filter { it.kind == "spelling" }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .padding(top = 2.dp, bottom = 6.dp)
+            .padding(top = 2.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(BackgroundSecondary)
+    ) {
+        typed.forEach { item -> SuggestionRow(item, onSelect) }
+
+        // «Возможно, вы имели в виду» — другой вопрос, чем автодополнение, поэтому отдельным
+        // заголовком, а не строкой в том же списке.
+        if (spelling.isNotEmpty()) {
+            if (typed.isNotEmpty()) {
+                HorizontalDivider(color = BorderLight, thickness = 0.5.dp)
+            }
+            Text(
+                text = stringResource(R.string.vozmozhno_vy_imeli_v_vidu),
+                fontSize = 11.sp,
+                color = TextTertiary,
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 2.dp)
+            )
+            spelling.forEach { item -> SuggestionRow(item, onSelect) }
+        }
+    }
+}
+
+@Composable
+private fun SuggestionRow(item: SuggestItemDto, onSelect: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect(item.word) }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = stringResource(R.string.vozmozhno_vy_imeli_v_vidu),
-            fontSize = 12.sp,
-            color = TextTertiary
+            text = item.word,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false)
         )
-        Spacer(modifier = Modifier.height(5.dp))
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            suggestions.forEach { suggestion ->
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(PrimaryBlue.copy(alpha = 0.12f))
-                        .clickable { onSelect(suggestion) }
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
-                ) {
-                    Text(
-                        text = suggestion,
-                        fontSize = 13.sp,
-                        color = PrimaryBlue,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+        item.partOfSpeech?.takeIf { it.isNotBlank() }?.let { pos ->
+            Text(
+                text = pos,
+                fontSize = 11.sp,
+                fontStyle = FontStyle.Italic,
+                color = TextTertiary,
+                maxLines = 1
+            )
+        }
+        item.translation?.takeIf { it.isNotBlank() }?.let { translation ->
+            Text(
+                text = translation,
+                fontSize = 13.sp,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }

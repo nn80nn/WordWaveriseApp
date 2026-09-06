@@ -1,5 +1,6 @@
 package com.wordwaverise.wordwaveriseapp.presentation.detail
 
+import com.wordwaverise.wordwaveriseapp.data.local.entity.CategoryEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LexicalEntryDto
 
@@ -25,6 +26,15 @@ data class WordDetailState(
      * заодно и остальные значения того же слова.
      */
     val savedEntryIds: Map<String?, Int> = emptyMap(),
+    // ── Куда положить сохраняемое значение ───────────────────────────────────
+    // Тот же вопрос и та же форма, что на экране поиска: закладка в двух местах приложения
+    // не может означать разное.
+    val pendingSenseId: String? = null,
+    val pendingSenseSummary: String? = null,
+    /** Свои папки, о которых знает сервер: этот экран пишет напрямую в API, без Room. */
+    val ownFolders: List<CategoryEntity> = emptyList(),
+    val chosenFolders: List<Long> = emptyList(),
+    val isSavingSense: Boolean = false,
     val isPlayingAudio: Boolean = false,
     val playingAudioUrl: String? = null,
     val audioError: String? = null,

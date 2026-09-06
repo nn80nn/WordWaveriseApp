@@ -30,6 +30,8 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailResponse
 import com.wordwaverise.wordwaveriseapp.presentation.search.components.ArticleView
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LexicalEntryDto
 import com.wordwaverise.wordwaveriseapp.R
+import com.wordwaverise.wordwaveriseapp.data.local.entity.CategoryEntity
+import com.wordwaverise.wordwaveriseapp.presentation.components.SaveToFolderDialog
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 /** Lightweight display model for the raw definitions — avoids coupling to DTO type. */
@@ -51,6 +53,16 @@ fun WordDetailScreen(
     isLoadingFull: Boolean = false,
     pinnedSenseIds: Set<String> = emptySet(),
     onToggleSense: (String) -> Unit = {},
+    /** Диалог «в какие папки положить» — тот же, что на экране поиска. */
+    pendingSenseId: String? = null,
+    pendingSenseSummary: String? = null,
+    ownFolders: List<CategoryEntity> = emptyList(),
+    chosenFolders: List<Long> = emptyList(),
+    isSavingSense: Boolean = false,
+    onToggleSaveFolder: (Long) -> Unit = {},
+    onCreateSaveFolder: (String) -> Unit = {},
+    onConfirmSave: () -> Unit = {},
+    onCancelSave: () -> Unit = {},
     isPlayingAudio: Boolean = false,
     playingAudioUrl: String? = null,
     onPlayAudio: (String) -> Unit = {},
@@ -59,6 +71,22 @@ fun WordDetailScreen(
     onWordClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // Сохранение спрашивает, куда класть слово, — и здесь, и в поиске: закладка в двух
+    // местах приложения не может означать разное.
+    if (pendingSenseId != null) {
+        SaveToFolderDialog(
+            word = entry?.lemma ?: wordDetail?.word.orEmpty(),
+            summary = pendingSenseSummary,
+            folders = ownFolders,
+            chosen = chosenFolders,
+            saving = isSavingSense,
+            onToggle = onToggleSaveFolder,
+            onCreate = onCreateSaveFolder,
+            onConfirm = onConfirmSave,
+            onDismiss = onCancelSave
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()

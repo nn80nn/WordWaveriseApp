@@ -20,6 +20,7 @@ class SettingsDataStore(private val context: Context) {
 
     companion object {
         private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
+        private val LAST_SAVE_FOLDERS_KEY = stringPreferencesKey("last_save_folders")
     }
 
     val themeMode: Flow<ThemeMode> = context.settingsDataStore.data.map { prefs ->
@@ -32,5 +33,23 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setThemeMode(mode: ThemeMode) {
         context.settingsDataStore.edit { it[THEME_MODE_KEY] = mode.name }
+    }
+
+    /**
+     * Папки прошлого сохранения — то, что диалог предлагает отмеченными заранее.
+     *
+     * Урок собирают в несколько заходов, и «куда я клал предыдущие двадцать слов» — вопрос,
+     * на который человеку отвечать не должен никто, кроме приложения. Хранятся **локальные**
+     * id папок: диалог показывает строки Room, а не ответ сервера.
+     */
+    val lastSaveFolders: Flow<List<Long>> = context.settingsDataStore.data.map { prefs ->
+        prefs[LAST_SAVE_FOLDERS_KEY]
+            ?.split(',')
+            ?.mapNotNull { it.trim().toLongOrNull() }
+            ?: emptyList()
+    }
+
+    suspend fun setLastSaveFolders(ids: List<Long>) {
+        context.settingsDataStore.edit { it[LAST_SAVE_FOLDERS_KEY] = ids.joinToString(",") }
     }
 }

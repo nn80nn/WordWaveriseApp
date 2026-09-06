@@ -106,7 +106,11 @@ class MainActivity : ComponentActivity() {
                                     onSearchOriginal = viewModel::searchOriginalQuery,
                                     onTokenClick = viewModel::analyzeToken,
                                     pinnedSenseIds = viewModel.pinnedSenseIds.value,
-                                    onToggleSense = viewModel::toggleSense
+                                    onToggleSense = viewModel::toggleSense,
+                                    onToggleSaveFolder = viewModel::toggleSaveFolder,
+                                    onCreateSaveFolder = viewModel::createFolderForSave,
+                                    onConfirmSave = viewModel::confirmSaveSense,
+                                    onCancelSave = viewModel::cancelSaveSense
                                 )
                             }
 
@@ -232,6 +236,15 @@ class MainActivity : ComponentActivity() {
                                     error = state.error,
                                     pinnedSenseIds = state.pinnedSenseIds,
                                     onToggleSense = viewModel::toggleSense,
+                                    pendingSenseId = state.pendingSenseId,
+                                    pendingSenseSummary = state.pendingSenseSummary,
+                                    ownFolders = state.ownFolders,
+                                    chosenFolders = state.chosenFolders,
+                                    isSavingSense = state.isSavingSense,
+                                    onToggleSaveFolder = viewModel::toggleSaveFolder,
+                                    onCreateSaveFolder = viewModel::createFolderForSave,
+                                    onConfirmSave = viewModel::confirmSaveSense,
+                                    onCancelSave = viewModel::cancelSaveSense,
                                     isPlayingAudio = state.isPlayingAudio,
                                     playingAudioUrl = state.playingAudioUrl,
                                     onPlayAudio = viewModel::playAudio,

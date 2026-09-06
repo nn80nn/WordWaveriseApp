@@ -40,11 +40,20 @@ class SavedWordsRepository @Inject constructor(
      * ⚠️ Отметить второе значение — это второе слово, а не смена решения о первом. Раньше
      * вторая закладка переставляла привязку, то есть выглядела как добавление и была отменой.
      */
+    /**
+     * @param categoryLocalIds папки, в которые кладут слово, — id строк Room.
+     * @param categoryServerIds те же папки, как их называет сервер. Папка, заведённая офлайн,
+     *   серверного id ещё не имеет, поэтому списки разной длины — это норма, а не рассинхрон:
+     *   локально слово ляжет куда просили, а на сервер эта папка доедет со следующей
+     *   синхронизацией.
+     */
     suspend fun saveWord(
         word: String,
         translation: String? = null,
         definition: String? = null,
-        senseId: String? = null
+        senseId: String? = null,
+        categoryLocalIds: List<Long> = emptyList(),
+        categoryServerIds: List<Int> = emptyList()
     ): Resource<Boolean> {
         return try {
             Log.d(TAG, "Saving word: $word (sense=${senseId ?: "—"})")
@@ -60,7 +69,11 @@ class SavedWordsRepository @Inject constructor(
                         senseId = senseId ?: target.senseId,
                         // Перевод с экрана статьи — запасной вариант: пустым он строку не портит,
                         // а сервер всё равно пришлёт свой на ближайшей синхронизации.
-                        translation = translation ?: target.translation
+                        translation = translation ?: target.translation,
+                        // ⚠️ Папки дописываются к тем, что у записи уже были, а не заменяют их:
+                        // это сохранение, а не раскладывание. Убрать слово из папки — отдельное
+                        // действие, и делать это молча при повторном сохранении нельзя.
+                        categoryIds = (target.categoryIds + categoryLocalIds).distinct()
                     )
                 )
                 target.id
@@ -70,7 +83,8 @@ class SavedWordsRepository @Inject constructor(
                         word = word,
                         translation = translation,
                         isSynced = false,
-                        senseId = senseId
+                        senseId = senseId,
+                        categoryIds = categoryLocalIds
                     )
                 )
             }
@@ -83,26 +97,37 @@ class SavedWordsRepository @Inject constructor(
                     Log.d(TAG, "Syncing word to server: $word")
                     val response = apiService.saveWord(
                         "Bearer $token",
-                        SaveWordRequest(word, translation, definition, senseId)
+                        SaveWordRequest(
+                            word, translation, definition, senseId,
+                            // ⚠️ Пустой список не отправляется вовсе: сервер различает «никуда»
+                            // и «в эти папки», и `[]` читалось бы как просьба вынуть слово.
+                            categoryIds = categoryServerIds.takeIf { it.isNotEmpty() }
+                        )
                     )
 
                     if (response.status == "ok" && response.data != null) {
                         val saved = savedWordDao.getEntry(word, senseId ?: response.data.senseId)
                         // Значение приходит обратно от сервера: он мог отказать в привязке,
                         // если статьи ещё нет, и локально это не должно выглядеть иначе.
+                        val existing = saved ?: savedWordDao.getEntry(word, senseId)
                         savedWordDao.insertWord(
-                            (saved ?: savedWordDao.getEntry(word, senseId))
-                                ?.copy(
-                                    isSynced = true,
-                                    serverId = response.data.id,
-                                    senseId = response.data.senseId ?: senseId
-                                )
+                            existing?.copy(
+                                isSynced = true,
+                                serverId = response.data.id,
+                                senseId = response.data.senseId ?: senseId,
+                                // ⚠️ Выбранные папки дописываются и здесь. Строка перечитана
+                                // из базы уже после первой записи, но её могли найти и по
+                                // другому ключу (сервер вернул своё значение) — и тогда
+                                // «сохранено» показывалось бы на слове, лежащем не там.
+                                categoryIds = (existing.categoryIds + categoryLocalIds).distinct()
+                            )
                                 ?: SavedWordEntity(
                                     id = localId,
                                     word = word,
                                     isSynced = true,
                                     serverId = response.data.id,
-                                    senseId = response.data.senseId ?: senseId
+                                    senseId = response.data.senseId ?: senseId,
+                                    categoryIds = categoryLocalIds
                                 )
                         )
                         Log.d(TAG, "Word synced successfully: $word (serverId: ${response.data.id})")

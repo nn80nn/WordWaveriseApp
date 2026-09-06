@@ -12,7 +12,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
 import com.wordwaverise.wordwaveriseapp.data.repository.AiRepository
+import com.wordwaverise.wordwaveriseapp.data.repository.CategoryRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.AuthRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.SearchRepository
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
@@ -27,6 +30,8 @@ class WordDetailViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val aiRepository: AiRepository,
     private val searchRepository: SearchRepository,
+    private val categoryRepository: CategoryRepository,
+    private val settingsDataStore: SettingsDataStore,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -36,6 +41,19 @@ class WordDetailViewModel @Inject constructor(
     private var mediaPlayer: MediaPlayer? = null
 
     init {
+        // Папки нужны раньше первого сохранения: диалог, открывшийся пустым и заполнившийся
+        // через полсекунды, читается как «папок нет».
+        //
+        // ⚠️ Только те, о которых знает сервер: этот экран сохраняет напрямую через API, и
+        // папка, заведённая без сети, назвать себя серверу пока не может.
+        viewModelScope.launch {
+            categoryRepository.categories.collect { folders ->
+                _state.update { state ->
+                    state.copy(ownFolders = folders.filter { !it.readOnly && it.serverId != null })
+                }
+            }
+        }
+
         val word = savedStateHandle.get<String>("word")
         // Слово из сохранённых открывается ровно тем, чем его сохранили: резолвер по нему
         // второй раз не ходит, иначе выбранная форма каждый раз уезжала бы на лемму.
@@ -135,6 +153,7 @@ class WordDetailViewModel @Inject constructor(
      * про то, от чего человек сейчас отказался.
      */
     fun toggleSense(senseId: String) {
+        // Снятие закладки ничего не спрашивает: убрать — это уже ответ.
         if (senseId in _state.value.pinnedSenseIds) {
             unsaveSense(senseId)
             return
@@ -143,9 +162,70 @@ class WordDetailViewModel @Inject constructor(
         val entry = _state.value.entry ?: return
         val sense = entry.posGroups.flatMap { it.senses }.firstOrNull { it.id == senseId } ?: return
 
+        // Сохранение спрашивает, куда. Папки прошлого раза предлагаются отмеченными: слова
+        // собирают подряд в один урок, и повторять один и тот же выбор двадцать раз — это не
+        // выбор, а работа. ⚠️ Сверяется с текущим списком: папку могли удалить.
         viewModelScope.launch {
+            val known = _state.value.ownFolders.map { it.id }.toSet()
+            val remembered = settingsDataStore.lastSaveFolders.first().filter { it in known }
+            _state.update {
+                it.copy(
+                    pendingSenseId = senseId,
+                    pendingSenseSummary = sense.translationsRu.joinToString(", ")
+                        .takeIf { text -> text.isNotBlank() }
+                        ?: sense.definitionEn.takeIf { text -> text.isNotBlank() }
+                        ?: sense.definitionRu.takeIf { text -> text.isNotBlank() },
+                    chosenFolders = remembered
+                )
+            }
+        }
+    }
+
+    /** Отметить папку в диалоге сохранения или снять отметку. Пусто — «без папки». */
+    fun toggleSaveFolder(id: Long) {
+        _state.update {
+            it.copy(
+                chosenFolders = if (id in it.chosenFolders) it.chosenFolders - id
+                                else it.chosenFolders + id
+            )
+        }
+    }
+
+    fun cancelSaveSense() {
+        _state.update { it.copy(pendingSenseId = null, pendingSenseSummary = null) }
+    }
+
+    /** Заводит папку прямо из диалога и сразу её отмечает. */
+    fun createFolderForSave(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val result = categoryRepository.createCategory(trimmed)
+            val created = (result as? Resource.Success)?.data ?: return@launch
+            _state.update { it.copy(chosenFolders = it.chosenFolders + created.id) }
+        }
+    }
+
+    /**
+     * Сохраняет значение в выбранные папки.
+     *
+     * Папки едут вместе с сохранением, а не вторым запросом: слово, которое сначала легло
+     * «никуда», а потом переехало, при обрыве между этими двумя шагами остаётся не там, куда
+     * его клали, — и человек об этом не узнаёт.
+     */
+    fun confirmSaveSense() {
+        val senseId = _state.value.pendingSenseId ?: return
+        val entry = _state.value.entry ?: return
+        val sense = entry.posGroups.flatMap { it.senses }.firstOrNull { it.id == senseId } ?: return
+        val chosen = _state.value.chosenFolders
+
+        viewModelScope.launch {
+            _state.update { it.copy(isSavingSense = true) }
             try {
                 val token = authRepository.token.firstOrNull() ?: return@launch
+                val serverIds = _state.value.ownFolders
+                    .filter { it.id in chosen }
+                    .mapNotNull { it.serverId }
                 apiService.saveWord(
                     token = "Bearer $token",
                     request = SaveWordRequest(
@@ -155,16 +235,27 @@ class WordDetailViewModel @Inject constructor(
                         translation = sense.translationsRu.firstOrNull(),
                         definition = sense.definitionEn.takeIf { it.isNotBlank() }
                             ?: sense.definitionRu.takeIf { it.isNotBlank() },
-                        senseId = senseId
+                        senseId = senseId,
+                        // ⚠️ Пустой список не отправляется: сервер различает «никуда» и
+                        // «в эти папки», и `[]` читалось бы как просьба вынуть слово.
+                        categoryIds = serverIds.takeIf { it.isNotEmpty() }
                     )
                 )
+                settingsDataStore.setLastSaveFolders(chosen)
                 _state.update {
-                    it.copy(pinnedSenseIds = it.pinnedSenseIds + senseId)
+                    it.copy(
+                        pinnedSenseIds = it.pinnedSenseIds + senseId,
+                        pendingSenseId = null,
+                        pendingSenseSummary = null
+                    )
                 }
                 // Ответ несёт id новой записи — без него снятие закладки не знало бы, какую
                 // именно строку убирать, и убрало бы слово целиком.
                 checkIfWordIsSaved(_state.value.word)
-            } catch (_: Exception) { }
+            } catch (_: Exception) {
+            } finally {
+                _state.update { it.copy(isSavingSense = false) }
+            }
         }
     }
 
