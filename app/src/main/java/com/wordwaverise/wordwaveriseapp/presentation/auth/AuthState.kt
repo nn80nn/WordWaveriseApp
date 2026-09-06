@@ -14,6 +14,13 @@ data class AuthState(
     val verificationCode: String = "",
     val resendLoading: Boolean = false,
     val deletionScheduledFor: String? = null,
+    /**
+     * Есть ли у аккаунта пароль.
+     *
+     * От этого зависит, что спрашивает диалог удаления: у аккаунта из Google пароля нет вовсе,
+     * и поле для него было бы формой, которую нельзя заполнить правильно.
+     */
+    val hasPassword: Boolean = true,
     val deletionActionLoading: Boolean = false,
     val deletionError: String? = null
 )

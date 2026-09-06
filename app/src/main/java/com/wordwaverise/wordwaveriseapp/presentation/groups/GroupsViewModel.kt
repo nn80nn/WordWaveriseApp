@@ -95,6 +95,27 @@ class GroupsViewModel @Inject constructor(
         }
     }
 
+    /** То же вступление, но по нажатой ссылке, а не по набранному коду. */
+    fun joinByInvite(linkOrToken: String) {
+        if (linkOrToken.isBlank()) return
+        viewModelScope.launch {
+            _state.update { it.copy(isJoining = true, error = null) }
+            when (val result = groupRepository.joinByInvite(linkOrToken)) {
+                is Resource.Success -> {
+                    _state.update {
+                        it.copy(isJoining = false, message = "Вы в группе «${result.data?.name}»")
+                    }
+                    syncBorrowedContent()
+                    refresh()
+                }
+                is Resource.Error -> _state.update {
+                    it.copy(isJoining = false, error = result.message ?: "Ссылка не подошла")
+                }
+                is Resource.Loading -> Unit
+            }
+        }
+    }
+
     fun leave(groupId: Int) {
         viewModelScope.launch {
             when (val result = groupRepository.leave(groupId)) {

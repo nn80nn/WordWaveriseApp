@@ -31,6 +31,8 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.flashcard.*
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoriesResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.ImportResultResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.ShareLinkResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.report.ContentReportRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.report.ContentReportResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.SharedFolderPreviewResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoryResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CreateCategoryRequest
@@ -112,6 +114,9 @@ interface ApiService {
     @POST("api/auth/google")
     suspend fun loginWithGoogle(@Body request: GoogleAuthRequest): AuthResponse
 
+    @GET("api/auth/me")
+    suspend fun getCurrentUser(@Header("Authorization") token: String): UserWrapperResponse
+
     @POST("api/auth/request-deletion")
     suspend fun requestAccountDeletion(
         @Header("Authorization") token: String,
@@ -120,6 +125,19 @@ interface ApiService {
 
     @POST("api/auth/cancel-deletion")
     suspend fun cancelAccountDeletion(@Header("Authorization") token: String): UserWrapperResponse
+
+    /**
+     * Жалоба на сгенерированный текст.
+     *
+     * Google Play требует, чтобы приложение со сгенерированным контентом давало пожаловаться
+     * на него изнутри: жалоба, которую можно оставить только на почте поддержки, — это жалоба,
+     * которую почти никто не оставит.
+     */
+    @POST("api/reports")
+    suspend fun reportContent(
+        @Header("Authorization") token: String,
+        @Body request: ContentReportRequest
+    ): ContentReportResponse
 
     // Saved words endpoints (require auth token)
     @POST("api/words/saved")

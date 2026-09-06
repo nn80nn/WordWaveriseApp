@@ -29,7 +29,10 @@ data class ResendVerificationRequest(
 
 @Serializable
 data class RequestDeletionRequest(
-    val password: String
+    /** Пароль — для аккаунта, у которого он есть. */
+    val password: String? = null,
+    /** Свежий id-токен Google — для аккаунта, заведённого через Google: пароля у него нет. */
+    val googleIdToken: String? = null
 )
 
 /** Generic response for endpoints where `data` is just `{ "message": ... }` */

@@ -28,7 +28,17 @@ sealed class Screen(
         route = "saved",
         title = "Слова",
         icon = Icons.Outlined.MenuBook
-    )
+    ) {
+        /**
+         * Тот же экран, открытый по нажатой ссылке на общую папку (`/f/{token}`).
+         *
+         * Аргумент необязательный, поэтому переход на голый `saved` из нижней вкладки
+         * по-прежнему подходит под этот шаблон — второй вкладки не появляется.
+         */
+        const val ROUTE_WITH_IMPORT = "saved?import={import}"
+
+        fun createImportRoute(token: String) = "saved?import=$token"
+    }
 
     data object Tasks : Screen(
         route = "tasks",
@@ -79,7 +89,12 @@ sealed class Screen(
         route = "groups",
         title = "Группы",
         icon = Icons.Outlined.Group
-    )
+    ) {
+        /** Тот же экран, открытый по нажатому приглашению (`/g/{token}`). */
+        const val ROUTE_WITH_INVITE = "groups?invite={invite}"
+
+        fun createInviteRoute(token: String) = "groups?invite=$token"
+    }
 
     companion object {
         val bottomNavigationScreens = listOf(Search, Saved, Tasks, Profile)

@@ -38,13 +38,61 @@ import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
 import com.wordwaverise.wordwaveriseapp.ui.theme.ThemeMode
 import com.wordwaverise.wordwaveriseapp.ui.theme.WordWaveriseAppTheme
 
+/**
+ * Ссылка с сайта, которую приложение открывает вместо браузера.
+ *
+ * Разбирается один раз здесь, а не в каждом экране: `/f/` и `/g/` — единственные пути, которые
+ * заявлены в манифесте, и держать их список в двух местах значит однажды заявить путь, который
+ * приложение не умеет открыть.
+ */
+private sealed interface PendingLink {
+    /** Общая папка: `https://wordwaverise.com/f/{token}`. */
+    data class SharedFolder(val token: String) : PendingLink
+
+    /** Приглашение в группу: `https://wordwaverise.com/g/{token}`. */
+    data class GroupInvite(val token: String) : PendingLink
+}
+
+private fun parseLink(intent: Intent?): PendingLink? {
+    if (intent?.action != Intent.ACTION_VIEW) return null
+    val segments = intent.data?.pathSegments ?: return null
+    if (segments.size < 2) return null
+    val token = segments[1].takeIf { it.isNotBlank() } ?: return null
+    return when (segments[0]) {
+        "f" -> PendingLink.SharedFolder(token)
+        "g" -> PendingLink.GroupInvite(token)
+        else -> null
+    }
+}
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsDataStore: SettingsDataStore
 
+    /**
+     * Ссылка ждёт, пока её будет чем открыть.
+     *
+     * Приглашение в группу приходит человеку, у которого приложения ещё не было, — то есть чаще
+     * всего его нажимают до входа. Ссылка, применённая на экране логина, просто пропала бы, и
+     * второй раз её никто не пришлёт.
+     */
+    private var pendingLink by mutableStateOf<PendingLink?>(null)
+
+    /**
+     * ⚠️ Нужен вместе с `launchMode="singleTop"`: при работающем приложении система не создаёт
+     * activity заново, а приносит интент сюда. Без этого нажатая ссылка молча ничего не делала
+     * бы — ровно в том случае, когда приложение уже открыто, то есть в самом частом.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        parseLink(intent)?.let { pendingLink = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingLink = parseLink(intent)
         enableEdgeToEdge()
         setContent {
             val themeMode by settingsDataStore.themeMode
@@ -83,6 +131,20 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(innerPadding)
                         )
                     } else {
+                        // Ссылка применяется только после входа: экраны, которые её принимают,
+                        // до этого момента не существуют. Сбрасывается сразу после перехода,
+                        // иначе поворот экрана открывал бы приглашение заново.
+                        LaunchedEffect(pendingLink) {
+                            when (val link = pendingLink) {
+                                is PendingLink.SharedFolder ->
+                                    navController.navigate(Screen.Saved.createImportRoute(link.token))
+                                is PendingLink.GroupInvite ->
+                                    navController.navigate(Screen.Groups.createInviteRoute(link.token))
+                                null -> Unit
+                            }
+                            if (pendingLink != null) pendingLink = null
+                        }
+
                         NavHost(
                             navController = navController,
                             startDestination = Screen.Search.route,
@@ -115,8 +177,28 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            composable(Screen.Saved.route) {
+                            composable(
+                                route = Screen.Saved.ROUTE_WITH_IMPORT,
+                                arguments = listOf(
+                                    navArgument("import") {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = null
+                                    }
+                                )
+                            ) { entry ->
                                 val viewModel: SavedWordsViewModel = hiltViewModel()
+
+                                // Папка забирается сама: человек нажал ссылку — это и есть
+                                // просьба. Ещё одна кнопка «добавить» после неё была бы
+                                // вопросом, на который уже ответили.
+                                val importToken = entry.arguments?.getString("import")
+                                LaunchedEffect(importToken) {
+                                    if (!importToken.isNullOrBlank()) {
+                                        viewModel.setImportLink(importToken)
+                                        viewModel.importSharedFolder()
+                                    }
+                                }
                                 // Ссылка уходит в системный лист «Поделиться»: на телефоне
                                 // папку отправляют в конкретный чат, и «скопировано в буфер»
                                 // оставляет человека доделывать это руками.
@@ -194,15 +276,29 @@ class MainActivity : ComponentActivity() {
                                     deletionScheduledFor = authState.deletionScheduledFor,
                                     deletionLoading = authState.deletionActionLoading,
                                     deletionError = authState.deletionError,
-                                    onRequestDeletion = { authViewModel.requestAccountDeletion(it) },
+                                    hasPassword = authState.hasPassword,
+                                    onRequestDeletion = { password, googleIdToken ->
+                                        authViewModel.requestAccountDeletion(password, googleIdToken)
+                                    },
                                     onCancelDeletion = { authViewModel.cancelAccountDeletion() },
                                     onClearDeletionError = { authViewModel.clearDeletionError() },
                                     onOpenGroups = { navController.navigate(Screen.Groups.route) }
                                 )
                             }
 
-                            composable(Screen.Groups.route) {
+                            composable(
+                                route = Screen.Groups.ROUTE_WITH_INVITE,
+                                arguments = listOf(
+                                    navArgument("invite") {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = null
+                                    }
+                                )
+                            ) { entry ->
+                                val inviteToken = entry.arguments?.getString("invite")
                                 GroupsScreen(
+                                    joinInviteToken = inviteToken,
                                     onBack = { navController.popBackStack() },
                                     onPractise = { assignmentId ->
                                         // Задание выполняется там же, где обычная практика:

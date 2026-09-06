@@ -1,6 +1,7 @@
-Typing now suggests words rather than similar spellings.
+Shared folder links and class invitations now open in the app instead of the browser.
 
-• The word, its part of speech and its Russian meaning right in the list
-• Phrases like "grow up" are suggested too
-• "Did you mean" stands apart instead of being mixed into completions
-• Saving a word now asks which folder — and a new one can be created without leaving the dialog
+• Tapping a folder link adds it straight to your vocabulary
+• A group invitation takes you into the class
+• Google accounts can be deleted by confirming with Google sign-in
+• Any sense in an article can be reported if the text is wrong or inappropriate
+• Privacy policy and terms are in Profile and on the sign-in screen

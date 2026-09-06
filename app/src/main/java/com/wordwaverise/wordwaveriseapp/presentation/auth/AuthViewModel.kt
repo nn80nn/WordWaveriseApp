@@ -30,15 +30,47 @@ class AuthViewModel @Inject constructor(
 
     private fun checkAuthStatus() {
         viewModelScope.launch {
-            combine(authRepository.token, authRepository.userEmail, authRepository.userLogin) { token, email, login ->
-                Triple(token, email, login)
-            }.collect { (token, email, login) ->
+            var refreshedFor: String? = null
+            combine(
+                authRepository.token,
+                authRepository.userEmail,
+                authRepository.userLogin,
+                authRepository.hasPassword
+            ) { token, email, login, hasPassword ->
+                Quad(token, email, login, hasPassword)
+            }.collect { (token, email, login, hasPassword) ->
                 _state.value = _state.value.copy(
                     isLoggedIn = !token.isNullOrEmpty(),
                     userEmail = email,
-                    userLogin = login
+                    userLogin = login,
+                    hasPassword = hasPassword
                 )
+                // Профиль перечитывается один раз на сессию токена: он приносит назначенное
+                // удаление, которое иначе видно только в том запуске, где его попросили, —
+                // то есть отменить его со второго запуска было бы нечем.
+                if (!token.isNullOrEmpty() && token != refreshedFor) {
+                    refreshedFor = token
+                    refreshUser()
+                }
             }
+        }
+    }
+
+    private data class Quad<A, B, C, D>(
+        val first: A,
+        val second: B,
+        val third: C,
+        val fourth: D
+    )
+
+    /** Сбой намеренно молчит: запуск без сети не повод объявлять что-то об аккаунте. */
+    private fun refreshUser() {
+        viewModelScope.launch {
+            val user = (authRepository.refreshUser() as? Resource.Success)?.data ?: return@launch
+            _state.value = _state.value.copy(
+                deletionScheduledFor = user.deletionScheduledFor,
+                hasPassword = user.hasPassword
+            )
         }
     }
 
@@ -163,10 +195,13 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun requestAccountDeletion(password: String) {
+    /**
+     * Подтверждение — либо пароль, либо свежий вход в Google: у аккаунта из Google пароля нет.
+     */
+    fun requestAccountDeletion(password: String? = null, googleIdToken: String? = null) {
         viewModelScope.launch {
             _state.value = _state.value.copy(deletionActionLoading = true, deletionError = null)
-            when (val result = authRepository.requestAccountDeletion(password)) {
+            when (val result = authRepository.requestAccountDeletion(password, googleIdToken)) {
                 is Resource.Success -> _state.value = _state.value.copy(
                     deletionActionLoading = false, deletionScheduledFor = result.data?.deletionScheduledFor
                 )

@@ -1,6 +1,8 @@
 package com.wordwaverise.wordwaveriseapp.presentation.auth
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -255,6 +257,49 @@ fun AuthScreen(
                 color = TextTertiary
             )
         }
+
+        // Политика стоит и здесь, а не только в Профиле: до входа в приложение видно ровно
+        // этот экран, а согласие даётся именно на нём.
+        Spacer(modifier = Modifier.height(20.dp))
+        AuthLegalLinks()
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+}
+
+private const val PRIVACY_POLICY_URL = "https://wordwaverise.com/privacy-policy"
+private const val TERMS_URL = "https://wordwaverise.com/terms"
+
+@Composable
+private fun AuthLegalLinks() {
+    val context = LocalContext.current
+    val open = { url: String ->
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        Unit
+    }
+
+    Row(
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Политика конфиденциальности",
+            fontSize = 12.sp,
+            color = TextTertiary,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { open(PRIVACY_POLICY_URL) }
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        )
+        Text(text = "·", fontSize = 12.sp, color = TextTertiary)
+        Text(
+            text = "Условия",
+            fontSize = 12.sp,
+            color = TextTertiary,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { open(TERMS_URL) }
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        )
     }
 }
 

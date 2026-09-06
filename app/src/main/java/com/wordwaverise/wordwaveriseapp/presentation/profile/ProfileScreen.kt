@@ -24,6 +24,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.app.Activity
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -50,7 +58,14 @@ fun ProfileScreen(
     deletionScheduledFor: String? = null,
     deletionLoading: Boolean = false,
     deletionError: String? = null,
-    onRequestDeletion: (String) -> Unit = {},
+    /**
+     * Есть ли у аккаунта пароль. Аккаунт из Google живёт без него, и просить пароль у такого
+     * человека — это форма, которую нельзя заполнить верно: сервер отвечал бы «неверный пароль»
+     * на единственно возможный, пустой.
+     */
+    hasPassword: Boolean = true,
+    /** Подтверждение: пароль либо свежий id-токен Google — что у аккаунта есть. */
+    onRequestDeletion: (String?, String?) -> Unit = { _, _ -> },
     onCancelDeletion: () -> Unit = {},
     onClearDeletionError: () -> Unit = {},
     onOpenGroups: () -> Unit = {},
@@ -58,6 +73,27 @@ fun ProfileScreen(
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletePassword by remember { mutableStateOf("") }
+
+    // Тот же клиент и тот же поток, что на экране входа: аккаунт без пароля подтверждает себя
+    // единственным, что у него есть, — свежим входом в Google.
+    val context = LocalContext.current
+    val googleSignInClient = remember {
+        val clientId = BuildConfig.GOOGLE_CLIENT_ID
+        val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .apply { if (clientId.isNotEmpty()) requestIdToken(clientId) }
+            .requestEmail()
+            .build()
+        GoogleSignIn.getClient(context, options)
+    }
+    val googleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            runCatching {
+                GoogleSignIn.getSignedInAccountFromIntent(result.data).result?.idToken
+            }.getOrNull()?.let { idToken -> onRequestDeletion(null, idToken) }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -288,6 +324,13 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        // ── Документы ─────────────────────────────────────────────────────
+        // Ссылка на политику обязана быть **внутри** приложения, а не только в карточке
+        // Google Play: до установки её читает магазин, после установки — больше негде.
+        LegalLinks()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Logout Button
         Button(
             onClick = onLogout,
@@ -320,19 +363,25 @@ fun ProfileScreen(
                 Column {
                     Text(
                         stringResource(R.string.akkaunt_i_vse_dannye_budut_udaleny_bezvozvratno) +
-                            stringResource(R.string.vvedite_parol_dlya_podtverzhdeniya),
+                            if (hasPassword) {
+                                stringResource(R.string.vvedite_parol_dlya_podtverzhdeniya)
+                            } else {
+                                " Подтвердите, что это вы, — войдите в свой аккаунт Google."
+                            },
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = deletePassword,
-                        onValueChange = { deletePassword = it },
-                        label = { Text(stringResource(R.string.parol)) },
-                        singleLine = true,
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        enabled = !deletionLoading
-                    )
+                    if (hasPassword) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = deletePassword,
+                            onValueChange = { deletePassword = it },
+                            label = { Text(stringResource(R.string.parol)) },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            enabled = !deletionLoading
+                        )
+                    }
                     if (deletionError != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(deletionError, color = Error, fontSize = 12.sp)
@@ -340,11 +389,26 @@ fun ProfileScreen(
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = { onRequestDeletion(deletePassword) },
-                    enabled = !deletionLoading && deletePassword.isNotEmpty()
-                ) {
-                    Text(stringResource(R.string.udalit), color = Error)
+                if (hasPassword) {
+                    TextButton(
+                        onClick = { onRequestDeletion(deletePassword, null) },
+                        enabled = !deletionLoading && deletePassword.isNotEmpty()
+                    ) {
+                        Text(stringResource(R.string.udalit), color = Error)
+                    }
+                } else {
+                    // signOut перед запуском: без него Google молча отдаёт закешированный
+                    // аккаунт, и «подтвердите, что это вы» подтверждается ничем.
+                    TextButton(
+                        onClick = {
+                            googleSignInClient.signOut().addOnCompleteListener {
+                                googleLauncher.launch(googleSignInClient.signInIntent)
+                            }
+                        },
+                        enabled = !deletionLoading
+                    ) {
+                        Text("Подтвердить через Google", color = Error)
+                    }
                 }
             },
             dismissButton = {
@@ -588,5 +652,52 @@ private fun WaterlineSwatch(mode: ThemeMode) {
             }
             drawPath(crestLine, crest, style = Stroke(width = 1.6.dp.toPx()))
         }
+    }
+}
+
+private const val PRIVACY_POLICY_URL = "https://wordwaverise.com/privacy-policy"
+private const val TERMS_URL = "https://wordwaverise.com/terms"
+
+/**
+ * Политика конфиденциальности и условия — в браузере, а не своим экраном.
+ *
+ * Свой экран пришлось бы обновлять вместе с сайтом, а расходятся такие тексты молча: тот, что
+ * лежит в собранном APK, застывает на версии релиза, тогда как политика меняется отдельно от
+ * приложения и обязана быть одной и той же на всех поверхностях.
+ */
+@Composable
+private fun LegalLinks() {
+    val context = LocalContext.current
+    val open = { url: String ->
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }
+        Unit
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Политика конфиденциальности",
+            fontSize = 12.sp,
+            color = TextTertiary,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { open(PRIVACY_POLICY_URL) }
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        )
+        Text(text = "·", fontSize = 12.sp, color = TextTertiary)
+        Text(
+            text = "Условия использования",
+            fontSize = 12.sp,
+            color = TextTertiary,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { open(TERMS_URL) }
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        )
     }
 }

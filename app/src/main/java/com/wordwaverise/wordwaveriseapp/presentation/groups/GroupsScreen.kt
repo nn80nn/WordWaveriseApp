@@ -35,6 +35,8 @@ import com.wordwaverise.wordwaveriseapp.ui.theme.*
 fun GroupsScreen(
     onBack: () -> Unit,
     onPractise: (assignmentId: Int) -> Unit,
+    /** Токен из нажатого приглашения `https://wordwaverise.com/g/{token}`, если экран открыт им. */
+    joinInviteToken: String? = null,
     modifier: Modifier = Modifier,
     viewModel: GroupsViewModel = hiltViewModel()
 ) {
@@ -42,6 +44,12 @@ fun GroupsScreen(
     val colors = WaveTheme.colors
     var code by remember { mutableStateOf("") }
     val snackbar = remember { SnackbarHostState() }
+
+    // Нажатая ссылка — это уже согласие вступить, поэтому подтверждения не спрашиваем: оно
+    // было бы вторым вопросом про то же самое. Результат приезжает снекбаром, как и по коду.
+    LaunchedEffect(joinInviteToken) {
+        if (!joinInviteToken.isNullOrBlank()) viewModel.joinByInvite(joinInviteToken)
+    }
 
     LaunchedEffect(state.message, state.error) {
         val text = state.message ?: state.error

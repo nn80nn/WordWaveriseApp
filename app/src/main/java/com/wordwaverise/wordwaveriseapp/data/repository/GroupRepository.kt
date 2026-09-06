@@ -63,6 +63,26 @@ class GroupRepository @Inject constructor(
         }
     }
 
+    /**
+     * Вступает по ссылке-приглашению вида `https://wordwaverise.com/g/{token}`.
+     *
+     * Принимается и целая ссылка, и один токен: приглашение приходит по-разному — нажатой
+     * ссылкой из App Links и текстом, скопированным из мессенджера, — и требовать от человека
+     * вырезать хвост руками значит получить «не работает» на ровном месте.
+     */
+    suspend fun joinByInvite(linkOrToken: String): Resource<GroupDto> {
+        val auth = bearer() ?: return Resource.Error("Нужен вход в аккаунт")
+        val inviteToken = linkOrToken.trim().trimEnd('/').substringAfterLast('/')
+        if (inviteToken.isBlank()) return Resource.Error("Пустая ссылка")
+        return try {
+            val response = apiService.joinGroupByInvite(auth, inviteToken)
+            if (response.status == "ok" && response.data != null) Resource.Success(response.data)
+            else Resource.Error(response.message ?: "Ссылка не подошла")
+        } catch (e: Exception) {
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
     suspend fun leave(groupId: Int): Resource<String> {
         val auth = bearer() ?: return Resource.Error("Нужен вход в аккаунт")
         return try {

@@ -44,6 +44,7 @@ class AuthRepository @Inject constructor(
     val token: Flow<String?> = tokenDataStore.token
     val userEmail: Flow<String?> = tokenDataStore.userEmail
     val userLogin: Flow<String?> = tokenDataStore.userLogin
+    val hasPassword: Flow<Boolean> = tokenDataStore.hasPassword
 
     // Перевод стоит здесь, а не у каждого вызова: сообщение про аккаунт Google одинаково
     // прилетает и логину, и регистрации, и разъехались бы они молча.
@@ -96,7 +97,12 @@ class AuthRepository @Inject constructor(
         return try {
             val response = apiService.verifyEmail(VerifyEmailRequest(email, code))
             if (response.status == "ok" && response.data != null) {
-                tokenDataStore.saveToken(response.data.token, response.data.user.email, response.data.user.login)
+                tokenDataStore.saveToken(
+                    response.data.token,
+                    response.data.user.email,
+                    response.data.user.login,
+                    response.data.user.hasPassword
+                )
                 Resource.Success(response.data)
             } else {
                 Resource.Error(response.message ?: "Неверный код")
@@ -132,7 +138,12 @@ class AuthRepository @Inject constructor(
 
             if (response.status == "ok" && response.data != null) {
                 Log.d(TAG, "Login successful")
-                tokenDataStore.saveToken(response.data.token, response.data.user.email, response.data.user.login)
+                tokenDataStore.saveToken(
+                    response.data.token,
+                    response.data.user.email,
+                    response.data.user.login,
+                    response.data.user.hasPassword
+                )
                 Resource.Success(response.data)
             } else {
                 Log.w(TAG, "Login failed: ${response.message}")
@@ -151,11 +162,24 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    suspend fun requestAccountDeletion(password: String): Resource<UserDto> {
+    /**
+     * Просит удалить аккаунт, подтверждая это тем, что у аккаунта вообще есть.
+     *
+     * ⚠️ Аккаунт, заведённый через Google, пароля не имеет вовсе, и раньше сервер отвечал ему
+     * «неверный пароль» на единственно возможный — пустой. Удалить такой аккаунт было нельзя,
+     * а Google Play требует, чтобы было можно, поэтому вторым ключом идёт свежий id-токен.
+     */
+    suspend fun requestAccountDeletion(
+        password: String? = null,
+        googleIdToken: String? = null
+    ): Resource<UserDto> {
         return try {
             val token = tokenDataStore.token.firstOrNull()
                 ?: return Resource.Error("Не авторизован")
-            val response = apiService.requestAccountDeletion("Bearer $token", RequestDeletionRequest(password))
+            val response = apiService.requestAccountDeletion(
+                "Bearer $token",
+                RequestDeletionRequest(password = password, googleIdToken = googleIdToken)
+            )
             if (response.status == "ok" && response.data != null) {
                 Resource.Success(response.data.user)
             } else {
@@ -165,6 +189,34 @@ class AuthRepository @Inject constructor(
             Resource.Error(extractBackendMessage(e) ?: NetworkError.getErrorMessage(e))
         } catch (e: Exception) {
             Log.e(TAG, "Request deletion error: ${e.message}", e)
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
+
+    /**
+     * Перечитывает аккаунт с сервера.
+     *
+     * Нужно ровно за двумя полями, и оба нельзя вывести локально: есть ли у аккаунта пароль
+     * (иначе диалог удаления спросит не то) и не назначено ли уже удаление — раньше баннер
+     * «аккаунт будет удалён» жил только до перезапуска приложения, то есть отменить удаление
+     * со второго запуска было нечем.
+     *
+     * ⚠️ Сбой запроса ничего не меняет и никого не разлогинивает: 401 разбирает
+     * `UnauthorizedInterceptor`, а запуск без сети не повод выкидывать человека из сессии.
+     */
+    suspend fun refreshUser(): Resource<UserDto> {
+        return try {
+            val token = tokenDataStore.token.firstOrNull()
+                ?: return Resource.Error("Не авторизован")
+            val response = apiService.getCurrentUser("Bearer $token")
+            val user = response.data?.user
+            if (response.status == "ok" && user != null) {
+                tokenDataStore.setHasPassword(user.hasPassword)
+                Resource.Success(user)
+            } else {
+                Resource.Error(response.message ?: "Не удалось прочитать профиль")
+            }
+        } catch (e: Exception) {
             Resource.Error(NetworkError.getErrorMessage(e))
         }
     }
@@ -191,7 +243,12 @@ class AuthRepository @Inject constructor(
         return try {
             val response = apiService.loginWithGoogle(GoogleAuthRequest(idToken))
             if (response.status == "ok" && response.data != null) {
-                tokenDataStore.saveToken(response.data.token, response.data.user.email, response.data.user.login)
+                tokenDataStore.saveToken(
+                    response.data.token,
+                    response.data.user.email,
+                    response.data.user.login,
+                    response.data.user.hasPassword
+                )
                 Resource.Success(response.data)
             } else {
                 Resource.Error(response.message ?: "Google login failed")

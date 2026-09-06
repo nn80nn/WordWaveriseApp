@@ -17,16 +17,41 @@
         android:theme="@style/Theme.WordWaveriseApp"
         android:enableOnBackInvokedCallback="true"
         android:networkSecurityConfig="@xml/network_security_config">
+        <!--
+            singleTop, чтобы нажатая ссылка попадала в уже открытое приложение через
+            onNewIntent, а не поднимала вторую копию поверх первой. Полноценный singleTask
+            здесь был бы лишним: он переписал бы поведение back-стека всему приложению ради
+            одного случая.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.WordWaveriseApp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+                Ссылки на общую папку и приглашение в группу открываются приложением, а не
+                браузером: и то и другое всё равно требует входа, а в браузере человек
+                оказывался бы перед логином второй раз, уже другим.
+
+                ⚠️ autoVerify работает, только если https://wordwaverise.com/.well-known/assetlinks.json
+                называет отпечаток ключа, которым подписана установленная сборка. Для сборки из
+                Google Play это ключ Play App Signing, а не upload-ключ — см. APPLINKS.md в
+                репозитории сайта. Без него ссылка молча уйдёт в браузер.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="wordwaverise.com" android:pathPrefix="/f/" />
+                <data android:scheme="https" android:host="wordwaverise.com" android:pathPrefix="/g/" />
             </intent-filter>
         </activity>
     </application>

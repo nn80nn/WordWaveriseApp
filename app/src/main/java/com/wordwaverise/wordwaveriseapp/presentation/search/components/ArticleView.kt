@@ -32,6 +32,8 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LexicalEntryDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.PosGroupDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.SenseDto
 import com.wordwaverise.wordwaveriseapp.R
+import com.wordwaverise.wordwaveriseapp.presentation.components.REPORT_KIND_ARTICLE
+import com.wordwaverise.wordwaveriseapp.presentation.components.ReportAction
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
 
 /**
@@ -526,15 +528,27 @@ fun SenseCard(
             val sources = sense.sourceRefs
                 .mapNotNull { ref -> entry.sources.firstOrNull { it.index == ref }?.source }
                 .distinct()
-            if (sources.isNotEmpty()) {
-                Spacer(Modifier.height(14.dp))
-                RuleFade()
-                Spacer(Modifier.height(8.dp))
+            // Ряд аппарата рисуется всегда, даже без источников: жалоба стоит в нём же, а не
+            // отдельной строкой, и значение, у которого источников нет, — как раз то, на которое
+            // жалуются чаще всего.
+            Spacer(Modifier.height(14.dp))
+            RuleFade()
+            Spacer(Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = sources.joinToString(" · ") { SOURCE_LABELS[it.uppercase()] ?: it },
                     style = ApparatusStyle,
                     fontSize = 9.sp,
-                    color = TextTertiary
+                    color = TextTertiary,
+                    modifier = Modifier.weight(1f)
+                )
+                ReportAction(
+                    kind = REPORT_KIND_ARTICLE,
+                    word = entry.lemma.ifBlank { entry.queryForm },
+                    senseId = sense.id
                 )
             }
         }
