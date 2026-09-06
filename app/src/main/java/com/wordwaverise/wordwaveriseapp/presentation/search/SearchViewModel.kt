@@ -383,6 +383,11 @@ class SearchViewModel @Inject constructor(
         )
     }
 
+    /** «Без папки» — это выбор, а не его отсутствие: строка снимает все отметки. */
+    fun clearSaveFolders() {
+        _state.value = _state.value.copy(chosenFolders = emptyList())
+    }
+
     fun cancelSaveSense() {
         _state.value = _state.value.copy(pendingSenseId = null, pendingSenseSummary = null)
     }

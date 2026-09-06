@@ -191,6 +191,11 @@ class WordDetailViewModel @Inject constructor(
         }
     }
 
+    /** «Без папки» — это выбор, а не его отсутствие: строка снимает все отметки. */
+    fun clearSaveFolders() {
+        _state.update { it.copy(chosenFolders = emptyList()) }
+    }
+
     fun cancelSaveSense() {
         _state.update { it.copy(pendingSenseId = null, pendingSenseSummary = null) }
     }

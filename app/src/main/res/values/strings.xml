@@ -188,6 +188,5 @@
     <string name="poslushat_esche_raz">послушать ещё раз</string>
     <string name="zvuchit">звучит</string>
     <string name="sokhranit_slovo">Сохранить «%1$s»</string>
-    <string name="bez_papki_poyasnenie">Ни одной папки — слово останется «без папки»</string>
-    <string name="slovo_budet_v_papkakh">Слово будет в папках: %1$d</string>
+    <string name="bez_papki_poyasnenie">Слово просто ляжет в общий список</string>
 </resources>

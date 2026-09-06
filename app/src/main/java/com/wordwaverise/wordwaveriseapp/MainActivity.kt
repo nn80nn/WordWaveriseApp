@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
                                     pinnedSenseIds = viewModel.pinnedSenseIds.value,
                                     onToggleSense = viewModel::toggleSense,
                                     onToggleSaveFolder = viewModel::toggleSaveFolder,
+                                    onClearSaveFolders = viewModel::clearSaveFolders,
                                     onCreateSaveFolder = viewModel::createFolderForSave,
                                     onConfirmSave = viewModel::confirmSaveSense,
                                     onCancelSave = viewModel::cancelSaveSense
@@ -242,6 +243,7 @@ class MainActivity : ComponentActivity() {
                                     chosenFolders = state.chosenFolders,
                                     isSavingSense = state.isSavingSense,
                                     onToggleSaveFolder = viewModel::toggleSaveFolder,
+                                    onClearSaveFolders = viewModel::clearSaveFolders,
                                     onCreateSaveFolder = viewModel::createFolderForSave,
                                     onConfirmSave = viewModel::confirmSaveSense,
                                     onCancelSave = viewModel::cancelSaveSense,

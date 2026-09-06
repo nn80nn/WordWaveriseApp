@@ -60,6 +60,7 @@ fun WordDetailScreen(
     chosenFolders: List<Long> = emptyList(),
     isSavingSense: Boolean = false,
     onToggleSaveFolder: (Long) -> Unit = {},
+    onClearSaveFolders: () -> Unit = {},
     onCreateSaveFolder: (String) -> Unit = {},
     onConfirmSave: () -> Unit = {},
     onCancelSave: () -> Unit = {},
@@ -81,6 +82,7 @@ fun WordDetailScreen(
             chosen = chosenFolders,
             saving = isSavingSense,
             onToggle = onToggleSaveFolder,
+            onSelectNone = onClearSaveFolders,
             onCreate = onCreateSaveFolder,
             onConfirm = onConfirmSave,
             onDismiss = onCancelSave

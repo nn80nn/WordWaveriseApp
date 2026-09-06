@@ -30,6 +30,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -71,6 +72,7 @@ fun SearchScreen(
     canSave: Boolean = true,
     onToggleSense: (String) -> Unit = {},
     onToggleSaveFolder: (Long) -> Unit = {},
+    onClearSaveFolders: () -> Unit = {},
     onCreateSaveFolder: (String) -> Unit = {},
     onConfirmSave: () -> Unit = {},
     onCancelSave: () -> Unit = {},
@@ -87,6 +89,7 @@ fun SearchScreen(
             chosen = state.chosenFolders,
             saving = state.isSavingSense,
             onToggle = onToggleSaveFolder,
+            onSelectNone = onClearSaveFolders,
             onCreate = onCreateSaveFolder,
             onConfirm = onConfirmSave,
             onDismiss = onCancelSave
@@ -98,12 +101,18 @@ fun SearchScreen(
             .waveSurface()
     ) {
         // ── Search field ──────────────────────────────────────────────────
+        // ⚠️ Подсказки живут ровно столько, сколько поле держит фокус. Без этого список
+        // оставался под строкой после поиска и раздвигал статью на треть экрана: он
+        // отвечает на вопрос «что я печатаю», а печатать в этот момент уже перестали.
+        var fieldFocused by remember { mutableStateOf(false) }
+
         OutlinedTextField(
             value = state.searchQuery,
             onValueChange = onSearchQueryChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .onFocusChanged { fieldFocused = it.isFocused },
             placeholder = {
                 Text(stringResource(R.string.nayti_slovo), color = TextPlaceholder)
             },
@@ -143,7 +152,7 @@ fun SearchScreen(
         // ⚠️ Условия «на экране ещё нет слова» здесь больше нет: набирая следующее слово
         // поверх открытой статьи, человек оставался вообще без подсказок. Список и так
         // очищается на старте поиска, поэтому найденное слово его не переживает.
-        if (state.suggestions.isNotEmpty() && !state.isRussianSearch) {
+        if (fieldFocused && state.suggestions.isNotEmpty() && !state.isRussianSearch) {
             SuggestionsList(suggestions = state.suggestions, onSelect = onSelectSuggestion)
         }
 

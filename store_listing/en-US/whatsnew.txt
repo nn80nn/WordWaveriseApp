@@ -1,5 +1,6 @@
-The word screen is now one article. The per-dictionary tabs are gone: they restated the same meanings without senses, translations or examples, five times over.
+Typing now suggests words rather than similar spellings.
 
-• Senses, pronunciation, translated examples and collocations — all at once, no switching
-• While the article is still being written, plain dictionary definitions stand in for it
-• The finished article arrives on its own — no need to search again
+• The word, its part of speech and its Russian meaning right in the list
+• Phrases like "grow up" are suggested too
+• "Did you mean" stands apart instead of being mixed into completions
+• Saving a word now asks which folder — and a new one can be created without leaving the dialog
