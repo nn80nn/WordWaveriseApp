@@ -280,7 +280,8 @@ class SearchViewModel @Inject constructor(
         searchJob?.cancel()
         suggestJob?.cancel()
         analysisJob?.cancel()
-        _state.value = SearchState()
+        // Свои папки не принадлежат поиску и его очисткой не теряются — см. [SearchState.cleared].
+        _state.value = _state.value.cleared()
         _pinnedSenseIds.value = emptySet()
     }
 
