@@ -120,6 +120,7 @@
     <string name="statistika">Статистика</string>
     <string name="statya_esche_ne_gotova_otkroyte_vkladku_istochniki">Статья ещё не готова — откройте вкладку «Источники».</string>
     <string name="statya_napisana_ii_v_slovaryah_istochnikah_etogo">Статья написана ИИ — в словарях-источниках этого выражения нет.</string>
+    <string name="bystraya_versiya_statyi_polnaya_dopisyvaetsya">Быстрая версия статьи — полная дописывается и заменит её сама. Сохранить значение можно будет, когда она придёт.</string>
     <string name="svetlaya">Светлая</string>
     <string name="temnaya">Тёмная</string>
     <string name="tezaurus">Тезаурус</string>

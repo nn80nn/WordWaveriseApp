@@ -119,6 +119,14 @@ data class LexicalEntryDto(
     val aiGenerated: Boolean = false,
     /** Annotation failed — the article has structure but no Russian. */
     val degraded: Boolean = false,
+    /**
+     * Черновик: быстрая статья, показанная, пока пишется настоящая, и заменяемая ею.
+     *
+     * ⚠️ Сохранять из черновика нельзя. У него меньше значений, а id значения — это его место
+     * в статье (`n1`, `v2`), так что закладка, поставленная здесь, после прихода полной статьи
+     * указывала бы на соседний смысл. Экран говорит это прямо — см. [ArticleView].
+     */
+    val draft: Boolean = false,
     val model: String = ""
 )
 

@@ -83,13 +83,21 @@ fun ArticleView(
             Spacer(Modifier.height(12.dp))
         }
 
+        if (entry.draft) {
+            DraftBanner()
+            Spacer(Modifier.height(12.dp))
+        }
+
         orderedGroups(entry, pinnedSenseIds).forEach { group ->
             PosGroupSection(
                 group = group,
                 entry = entry,
                 onWordClick = onWordClick,
                 pinnedSenseIds = pinnedSenseIds,
-                canSave = canSave,
+                // ⚠️ Из черновика не сохраняют: id значения — это его место в статье, а в полной
+                // статье значений больше, и закладка указала бы на соседний смысл. Баннер выше
+                // говорит об этом словами — кнопка, молча делающая не то, была бы хуже.
+                canSave = canSave && !entry.draft,
                 onToggleSense = onToggleSense,
                 onPlayAudio = onPlayAudio
             )
@@ -280,6 +288,27 @@ private fun AiGeneratedBanner() {
     ) {
         Text(
             text = stringResource(R.string.statya_napisana_ii_v_slovaryah_istochnikah_etogo),
+            fontSize = 13.sp,
+            color = TextSecondary,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(14.dp)
+        )
+    }
+}
+
+/**
+ * Черновик. Сказано словами, потому что иначе непонятно, почему нет закладок и почему статья
+ * через минуту меняется сама.
+ */
+@Composable
+private fun DraftBanner() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = PrimaryCyan.copy(alpha = 0.10f))
+    ) {
+        Text(
+            text = stringResource(R.string.bystraya_versiya_statyi_polnaya_dopisyvaetsya),
             fontSize = 13.sp,
             color = TextSecondary,
             lineHeight = 18.sp,
