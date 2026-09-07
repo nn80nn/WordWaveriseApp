@@ -1,7 +1,6 @@
-Shared folder links and class invitations now open in the app instead of the browser.
+A word's entry now arrives in seconds rather than in a minute: a quick version first, then the full one, which replaces it by itself.
 
-• Tapping a folder link adds it straight to your vocabulary
-• A group invitation takes you into the class
+• Shared folder links and class invitations open in the app instead of the browser
 • Google accounts can be deleted by confirming with Google sign-in
 • Any sense in an article can be reported if the text is wrong or inappropriate
 • Privacy policy and terms are in Profile and on the sign-in screen
