@@ -1,6 +1,3 @@
-A word's entry now arrives in seconds rather than in a minute: a quick version first, then the full one, which replaces it by itself.
+Saving words is fixed.
 
-• Shared folder links and class invitations open in the app instead of the browser
-• Google accounts can be deleted by confirming with Google sign-in
-• Any sense in an article can be reported if the text is wrong or inappropriate
-• Privacy policy and terms are in Profile and on the sign-in screen
+Clearing the search box between two words used to empty the folder list: the save dialog then offered only "No folder" and a field for a new one. Your folders now survive clearing the search.
