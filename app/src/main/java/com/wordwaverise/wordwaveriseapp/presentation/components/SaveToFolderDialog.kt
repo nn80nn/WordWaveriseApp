@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -119,6 +120,7 @@ fun SaveToFolderDialog(
                         // Вложенная папка отступом и своим значком: без родителя «Урок 5»
                         // одного модуля неотличим от «Урока 5» соседнего.
                         nested = folder.parentServerId != null,
+                    book = folder.bookServerId != null,
                         group = folders.any { it.parentServerId != null && it.parentServerId == folder.serverId },
                         onClick = { onToggle(folder.id) }
                     )
@@ -206,7 +208,9 @@ private fun FolderRow(
     selected: Boolean,
     nested: Boolean,
     group: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    /** Папка книги: узнаётся значком, а не названием — переименовать можно и книгу, и папку. */
+    book: Boolean = false
 ) {
     val background by animateColorAsState(
         targetValue = if (selected) WaveTheme.colors.secondarySoft.copy(alpha = 0.14f)
@@ -233,7 +237,11 @@ private fun FolderRow(
         SelectionMark(selected)
 
         Icon(
-            imageVector = if (group) Icons.Default.FolderOpen else Icons.Default.Folder,
+            imageVector = when {
+                book -> Icons.Outlined.AutoStories
+                group -> Icons.Default.FolderOpen
+                else -> Icons.Default.Folder
+            },
             contentDescription = null,
             tint = if (selected) PrimaryCyan else TextTertiary,
             modifier = Modifier.size(17.dp)

@@ -22,7 +22,7 @@ interface CategoryDao {
         """
         UPDATE categories
         SET serverId = :serverId, name = :name, color = :color,
-            parentServerId = :parentServerId,
+            parentServerId = :parentServerId, bookServerId = :bookServerId,
             groupServerId = :groupServerId, groupName = :groupName, readOnly = :readOnly
         WHERE id = :id
         """
@@ -33,6 +33,7 @@ interface CategoryDao {
         name: String,
         color: String?,
         parentServerId: Int? = null,
+        bookServerId: Int? = null,
         groupServerId: Int? = null,
         groupName: String? = null,
         readOnly: Boolean = false

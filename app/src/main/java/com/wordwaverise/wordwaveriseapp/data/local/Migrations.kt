@@ -261,3 +261,17 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
         db.execSQL("ALTER TABLE `categories` ADD COLUMN `parentServerId` INTEGER")
     }
 }
+
+/**
+ * Папке — книга, словарём которой она служит.
+ *
+ * По **серверному** id, как группа и родитель: книг офлайн не заводят, локального id у них нет,
+ * а связь по локальному жила бы только на этом телефоне. Колонка добавляется пустой — признак
+ * приезжает с сервера, вывести его на телефоне не из чего, и совпадение названия папки с
+ * названием книги распадается на первом же переименовании любого из двух.
+ */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `categories` ADD COLUMN `bookServerId` INTEGER")
+    }
+}

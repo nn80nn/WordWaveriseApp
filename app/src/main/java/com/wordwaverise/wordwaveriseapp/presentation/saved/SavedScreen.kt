@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
@@ -142,6 +143,7 @@ fun SavedScreen(
                         // единственным признаком группы был бы счётчик, а он у обычной папки
                         // выглядит точно так же.
                         hasChildren = node.children.isNotEmpty(),
+                        fromBook = cat.bookServerId != null,
                         onClick = { onSelectCategory(cat.id) }
                     )
                 }
@@ -208,6 +210,7 @@ fun SavedScreen(
                             count = counts[cat.id] ?: 0,
                             selected = state.selectedCategoryId == cat.id,
                             fromGroup = cat.groupServerId != null,
+                            fromBook = cat.bookServerId != null,
                             onClick = { onSelectCategory(cat.id) }
                         )
                     }
@@ -738,7 +741,8 @@ private fun FolderChip(
     selected: Boolean,
     onClick: () -> Unit,
     fromGroup: Boolean = false,
-    hasChildren: Boolean = false
+    hasChildren: Boolean = false,
+    fromBook: Boolean = false
 ) {
     FilterChip(
         selected = selected,
@@ -760,6 +764,18 @@ private fun FolderChip(
                         imageVector = Icons.Outlined.Group,
                         contentDescription = null,
                         tint = WaveTheme.colors.brass,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+            // Папка книги узнаётся значком, а не названием: и книгу, и папку человек волен
+            // переименовать, а «слова из The Hobbit» и «Урок 5» — разные вещи в одном ряду.
+            fromBook -> {
+                {
+                    Icon(
+                        imageVector = Icons.Outlined.AutoStories,
+                        contentDescription = null,
+                        tint = TextTertiary,
                         modifier = Modifier.size(14.dp)
                     )
                 }

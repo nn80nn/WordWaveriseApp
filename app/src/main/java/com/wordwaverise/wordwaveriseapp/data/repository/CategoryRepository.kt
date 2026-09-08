@@ -56,6 +56,7 @@ class CategoryRepository @Inject constructor(
                                 name = dto.name,
                                 color = dto.color,
                                 parentServerId = dto.parentId,
+                                bookServerId = dto.bookId,
                                 groupServerId = dto.groupId,
                                 groupName = dto.groupName,
                                 readOnly = dto.readOnly
@@ -67,7 +68,7 @@ class CategoryRepository @Inject constructor(
                         // того, как строка на телефоне появилась.
                         categoryDao.linkToServer(
                             existing.id, dto.id, dto.name, dto.color,
-                            dto.parentId, dto.groupId, dto.groupName, dto.readOnly
+                            dto.parentId, dto.bookId, dto.groupId, dto.groupName, dto.readOnly
                         )
                     }
                 }
