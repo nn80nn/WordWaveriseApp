@@ -29,11 +29,11 @@ import com.wordwaverise.wordwaveriseapp.presentation.navigation.BottomNavigation
 import com.wordwaverise.wordwaveriseapp.presentation.navigation.Screen
 import com.wordwaverise.wordwaveriseapp.presentation.profile.ProfileScreen
 import com.wordwaverise.wordwaveriseapp.presentation.profile.ProfileViewModel
-import com.wordwaverise.wordwaveriseapp.presentation.saved.SavedScreen
-import com.wordwaverise.wordwaveriseapp.presentation.saved.SavedWordsViewModel
+import com.wordwaverise.wordwaveriseapp.presentation.reader.BooksScreen
+import com.wordwaverise.wordwaveriseapp.presentation.reader.ReaderScreen
 import com.wordwaverise.wordwaveriseapp.presentation.search.SearchScreen
 import com.wordwaverise.wordwaveriseapp.presentation.search.SearchViewModel
-import com.wordwaverise.wordwaveriseapp.presentation.tasks.TasksScreen
+import com.wordwaverise.wordwaveriseapp.presentation.study.StudyScreen
 import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
 import com.wordwaverise.wordwaveriseapp.ui.theme.ThemeMode
 import com.wordwaverise.wordwaveriseapp.ui.theme.WordWaveriseAppTheme
@@ -105,8 +105,10 @@ class MainActivity : ComponentActivity() {
 
                 val currentRoute = navController.currentBackStackEntryAsState().value
                     ?.destination?.route?.substringBefore('?')
-                val showBottomBar = authState.isLoggedIn &&
-                    currentRoute != Screen.WordDetail.route
+                // Экраны во весь экран: у статьи слова и у страницы книги нижней панели нет.
+                // Набор, а не одно сравнение, — второй такой экран уже появился.
+                val fullScreenRoutes = setOf(Screen.WordDetail.route, Screen.Reader.route)
+                val showBottomBar = authState.isLoggedIn && currentRoute !in fullScreenRoutes
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -137,7 +139,7 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(pendingLink) {
                             when (val link = pendingLink) {
                                 is PendingLink.SharedFolder ->
-                                    navController.navigate(Screen.Saved.createImportRoute(link.token))
+                                    navController.navigate(Screen.Study.createImportRoute(link.token))
                                 is PendingLink.GroupInvite ->
                                     navController.navigate(Screen.Groups.createInviteRoute(link.token))
                                 null -> Unit
@@ -177,89 +179,68 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            /**
+                             * «Учёба» — слова и задания под одной вкладкой.
+                             *
+                             * ⚠️ Один маршрут на обе половины: подсветка вкладки сравнивает
+                             * маршрут целиком, и на втором она бы гасла. Оба необязательных
+                             * аргумента ссылок (`/f/{token}` и переход по заданию) приезжают
+                             * сюда же и называют сегмент, который надо открыть.
+                             */
                             composable(
-                                route = Screen.Saved.ROUTE_WITH_IMPORT,
+                                route = Screen.Study.ROUTE_FULL,
                                 arguments = listOf(
+                                    navArgument("segment") {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = null
+                                    },
                                     navArgument("import") {
                                         type = NavType.StringType
                                         nullable = true
                                         defaultValue = null
+                                    },
+                                    navArgument("assignment") {
+                                        type = NavType.IntType
+                                        defaultValue = Screen.Study.NO_ASSIGNMENT
                                     }
                                 )
                             ) { entry ->
-                                val viewModel: SavedWordsViewModel = hiltViewModel()
-
-                                // Папка забирается сама: человек нажал ссылку — это и есть
-                                // просьба. Ещё одна кнопка «добавить» после неё была бы
-                                // вопросом, на который уже ответили.
-                                val importToken = entry.arguments?.getString("import")
-                                LaunchedEffect(importToken) {
-                                    if (!importToken.isNullOrBlank()) {
-                                        viewModel.setImportLink(importToken)
-                                        viewModel.importSharedFolder()
-                                    }
-                                }
-                                // Ссылка уходит в системный лист «Поделиться»: на телефоне
-                                // папку отправляют в конкретный чат, и «скопировано в буфер»
-                                // оставляет человека доделывать это руками.
-                                val context = LocalContext.current
-                                val shareUrl = viewModel.state.value.pendingShareUrl
-                                LaunchedEffect(shareUrl) {
-                                    val url = shareUrl ?: return@LaunchedEffect
-                                    val send = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, url)
-                                    }
-                                    context.startActivity(
-                                        Intent.createChooser(send, getString(R.string.podelitsya_papkoy_slov))
-                                    )
-                                    viewModel.shareHandled()
-                                }
-
-                                SavedScreen(
-                                    state = viewModel.state.value,
-                                    onDeleteWord = viewModel::deleteEntry,
+                                StudyScreen(
+                                    startSegment = entry.arguments?.getString("segment"),
+                                    importToken = entry.arguments?.getString("import"),
+                                    startAssignmentId = entry.arguments
+                                        ?.getInt("assignment")
+                                        ?.takeIf { it != Screen.Study.NO_ASSIGNMENT },
                                     onWordClick = { word ->
                                         navController.navigate(
                                             Screen.WordDetail.createRoute(word, exact = true)
                                         )
-                                    },
-                                    onSelectCategory = viewModel::selectCategory,
-                                    onShowCategorySheet = viewModel::showCategorySheet,
-                                    onHideCategorySheet = viewModel::hideCategorySheet,
-                                    onSetWordToFile = viewModel::setWordToFile,
-                                    onToggleFolder = viewModel::toggleFolder,
-                                    onSaveFolders = viewModel::saveFolders,
-                                    onCreateCategory = viewModel::createCategory,
-                                    onDeleteCategory = viewModel::deleteCategory,
-                                    onRenameCategory = viewModel::renameCategory,
-                                    onShareCategory = viewModel::shareCategory,
-                                    onImportLinkChange = viewModel::setImportLink,
-                                    onImportFolder = viewModel::importSharedFolder,
-                                    onNewCategoryNameChange = viewModel::setNewCategoryName,
-                                    onNewCategoryParentChange = viewModel::setNewCategoryParent,
-                                    onSetCategoryParent = viewModel::setCategoryParent,
-                                    onSearchChange = viewModel::setSearchQuery,
-                                    onSortChange = viewModel::setSortBy,
-                                    onFolderQueryChange = viewModel::setFolderQuery,
-                                    onFolderSortChange = viewModel::setFolderSort,
-                                    onRefresh = viewModel::refresh
+                                    }
+                                )
+                            }
+
+                            composable(Screen.Books.route) {
+                                BooksScreen(
+                                    onOpenBook = { bookId ->
+                                        navController.navigate(Screen.Reader.createRoute(bookId))
+                                    }
                                 )
                             }
 
                             composable(
-                                route = Screen.Tasks.ROUTE_WITH_ASSIGNMENT,
+                                route = Screen.Reader.route,
                                 arguments = listOf(
-                                    navArgument("assignment") {
-                                        type = NavType.IntType
-                                        defaultValue = Screen.Tasks.NO_ASSIGNMENT
-                                    }
+                                    navArgument("bookId") { type = NavType.IntType }
                                 )
                             ) { entry ->
-                                val assignmentId = entry.arguments
-                                    ?.getInt("assignment")
-                                    ?.takeIf { it != Screen.Tasks.NO_ASSIGNMENT }
-                                TasksScreen(startAssignmentId = assignmentId)
+                                ReaderScreen(
+                                    bookId = entry.arguments?.getInt("bookId") ?: 0,
+                                    onBack = { navController.popBackStack() },
+                                    onOpenArticle = { word ->
+                                        navController.navigate(Screen.WordDetail.createRoute(word))
+                                    }
+                                )
                             }
 
                             composable(Screen.Profile.route) {
@@ -305,7 +286,7 @@ class MainActivity : ComponentActivity() {
                                         // сессия та же, отличается только откуда взялись
                                         // папка и типы вопросов.
                                         navController.navigate(
-                                            Screen.Tasks.createAssignmentRoute(assignmentId)
+                                            Screen.Study.createAssignmentRoute(assignmentId)
                                         )
                                     }
                                 )

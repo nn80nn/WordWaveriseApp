@@ -24,16 +24,13 @@ fun BottomNavigationBar(
     navController: NavController,
     modifier: Modifier = Modifier
 ) {
-    // Часть после «?» — необязательные аргументы (см. Screen.Tasks): по полной строке
+    // Часть после «?» — необязательные аргументы (см. Screen.Study): по полной строке
     // вкладка «Задания» перестала бы подсвечиваться, как только её открыли по заданию.
     val currentRoute = navController.currentBackStackEntryAsState().value
         ?.destination?.route?.substringBefore('?')
-    val screens = listOf(
-        Screen.Search,
-        Screen.Saved,
-        Screen.Tasks,
-        Screen.Profile
-    )
+    // Один список на всё приложение: дубликат здесь уже расходился со Screen.kt и молча
+    // переживал бы следующую правку вкладок.
+    val screens = Screen.bottomNavigationScreens
 
     val colors = WaveTheme.colors
 

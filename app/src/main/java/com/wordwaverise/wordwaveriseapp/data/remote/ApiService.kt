@@ -7,6 +7,7 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDetailApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalyzeRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextHintApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LookupApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.RuEnApiResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.TokenizeRequest
@@ -50,6 +51,14 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SavedWordsResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SetWordFoldersRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BlockPageResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDetailResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BooksResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookImportResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ImportBookTextRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ReadingPositionResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.SetPositionRequest
+import okhttp3.MultipartBody
 import retrofit2.http.*
 
 interface ApiService {
@@ -86,6 +95,15 @@ interface ApiService {
          */
         @Query("exact") exact: Boolean? = null
     ): LookupApiResponse
+
+    /**
+     * Быстрая подсказка: лемма, часть речи, перевод в этом предложении.
+     *
+     * То, что зовёт тап по слову в книге. Полный разбор остаётся отдельным шагом: он пишется
+     * секундами, а читающий не должен их ждать, чтобы узнать одно слово.
+     */
+    @POST("api/v2/context/hint")
+    suspend fun contextHint(@Body request: ContextAnalyzeRequest): ContextHintApiResponse
 
     /** Explains one word as used in one sentence. */
     @POST("api/v2/context/analyze")
@@ -375,6 +393,67 @@ interface ApiService {
     suspend fun getAiExercise(
         @Body request: AiWordRequest
     ): AiExerciseApiResponse
+
+    // ── Читалка (все требуют токен) ───────────────────────────────────
+
+    @GET("api/v2/library/books")
+    suspend fun getBooks(@Header("Authorization") token: String): BooksResponse
+
+    /**
+     * ⚠️ Имя части значения не имеет — сервер берёт первую файловую и останавливается.
+     * Заодно это значит, что название рядом с файлом передать нельзя: обычные поля он выбросит.
+     */
+    @Multipart
+    @POST("api/v2/library/books")
+    suspend fun uploadBook(
+        @Header("Authorization") token: String,
+        @Part file: MultipartBody.Part
+    ): BookImportResponse
+
+    /**
+     * ⚠️ Название входит в хэш содержимого, поэтому тот же текст под другим названием — это
+     * другая книга, а не повторный импорт прежней.
+     */
+    @POST("api/v2/library/books/text")
+    suspend fun importBookText(
+        @Header("Authorization") token: String,
+        @Body request: ImportBookTextRequest
+    ): BookImportResponse
+
+    @GET("api/v2/library/books/{id}")
+    suspend fun getBook(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): BookDetailResponse
+
+    /** Окно блоков. Просить дальше по `nextOrdinal`, пока он не придёт пустым. */
+    @GET("api/v2/library/books/{id}/blocks")
+    suspend fun getBookBlocks(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Query("from") from: Int,
+        @Query("limit") limit: Int = 40
+    ): BlockPageResponse
+
+    @PUT("api/v2/library/books/{id}/position")
+    suspend fun setReadingPosition(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body request: SetPositionRequest
+    ): ReadingPositionResponse
+
+    @DELETE("api/v2/library/books/{id}")
+    suspend fun deleteBook(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): DeleteResponse
+
+    /** Папка книги — заводится при первом сохранении из неё. Идемпотентно. */
+    @POST("api/v2/library/books/{id}/folder")
+    suspend fun ensureBookFolder(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): CategoryResponse
 
     @GET("api/ai/summary")
     suspend fun getAiSummary(

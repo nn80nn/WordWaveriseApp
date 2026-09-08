@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextHintDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.TokenDto
 import com.wordwaverise.wordwaveriseapp.R
 import com.wordwaverise.wordwaveriseapp.ui.theme.*
@@ -28,6 +29,10 @@ import com.wordwaverise.wordwaveriseapp.ui.theme.*
  * Answers the question the dictionary cannot: not "what can this word mean" but "what does it
  * mean here". Tokens come from the server, so the index sent back on a tap refers to exactly
  * the tokenisation the analysis was built from.
+ *
+ * The answer itself lives in [ContextCard], shared with the reader: a word explained in a book
+ * and a word explained in a pasted line are the same question, and two renderings of it would
+ * drift apart on the first change to either.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -101,95 +106,31 @@ fun SentenceView(
                 )
             }
 
-            analysis != null -> ContextCard(analysis = analysis, onOpenArticle = onOpenArticle)
+            // Здесь в карточку едет сразу полный разбор: этот экран и есть просьба разобрать
+            // предложение, и ждать его — то, ради чего сюда пришли. В книге наоборот: там
+            // сначала подсказка, потому что человек читает, а не разбирает.
+            analysis != null -> ContextCard(
+                hint = analysis.asHint(),
+                isHinting = false,
+                analysis = analysis,
+                onOpenArticle = onOpenArticle
+            )
         }
 
         Spacer(Modifier.height(24.dp))
     }
 }
 
-@Composable
-private fun ContextCard(
-    analysis: ContextAnalysisDto,
-    onOpenArticle: (String) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSecondary),
-        border = BorderStroke(1.dp, WaveTheme.colors.border),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-
-            // The word as it appears here, translated in the form it appears in.
-            analysis.translationRu?.let { translation ->
-                Text(
-                    text = translation,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-            }
-
-            Row(
-                modifier = Modifier.padding(top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                analysis.lemma?.let { lemma ->
-                    Text(lemma, fontSize = 14.sp, color = PrimaryCyan, fontWeight = FontWeight.Medium)
-                }
-                analysis.pos?.let { pos -> Badge(pos, TextTertiary) }
-                if (analysis.senseMatched) Badge(stringResource(R.string.znachenie_iz_stati), PrimaryCyan)
-            }
-
-            analysis.translationLemmaRu?.takeIf { it != analysis.translationRu }?.let { lemmaRu ->
-                Spacer(Modifier.height(4.dp))
-                Text("словарная форма: $lemmaRu", fontSize = 12.sp, color = TextTertiary)
-            }
-
-            analysis.senseDefinitionEn?.takeIf { it.isNotBlank() }?.let { gloss ->
-                Spacer(Modifier.height(10.dp))
-                Text(gloss, fontSize = 14.sp, color = TextSecondary, lineHeight = 19.sp)
-            }
-
-            analysis.whyRu?.takeIf { it.isNotBlank() }?.let { why ->
-                Spacer(Modifier.height(12.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = PrimaryCyan.copy(alpha = 0.08f))
-                ) {
-                    Text(
-                        text = why,
-                        fontSize = 13.sp,
-                        color = TextSecondary,
-                        lineHeight = 18.sp,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
-
-            analysis.sentenceRu?.takeIf { it.isNotBlank() }?.let { sentenceRu ->
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.perevod_predlozheniya), fontSize = 11.sp, color = TextTertiary)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = sentenceRu,
-                    fontSize = 14.sp,
-                    fontStyle = FontStyle.Italic,
-                    color = TextSecondary,
-                    lineHeight = 19.sp
-                )
-            }
-
-            analysis.lemma?.takeIf { analysis.entryAvailable }?.let { lemma ->
-                Spacer(Modifier.height(14.dp))
-                TextButton(onClick = { onOpenArticle(lemma) }) {
-                    Text("Открыть статью «$lemma»", color = PrimaryCyan, fontSize = 14.sp)
-                }
-            }
-        }
-    }
-}
+/** Полный разбор в форме подсказки: те же поля, и карточка рисует их одним кодом. */
+private fun ContextAnalysisDto.asHint() = ContextHintDto(
+    text = text,
+    tokens = tokens,
+    target = target,
+    lemma = lemma,
+    pos = pos,
+    translationRu = translationRu,
+    senseId = senseId,
+    senseMatched = senseMatched,
+    senseDefinitionEn = senseDefinitionEn,
+    entryAvailable = entryAvailable
+)

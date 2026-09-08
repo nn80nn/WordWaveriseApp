@@ -7,6 +7,7 @@ import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.SuggestItemDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.WordDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextHintDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalyzeRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.LookupResponseDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.RuEnCandidatesDto
@@ -159,6 +160,23 @@ class SearchRepository @Inject constructor(
         // Nothing will change until the server's own retry window elapses, so ask less often.
         if (data.annotationStatus == "DEGRADED") 15_000L
         else (data.retryAfterMs ?: 5000).toLong().coerceIn(1500L, 10_000L)
+
+    /**
+     * Быстрая подсказка про слово в предложении.
+     *
+     * Отдельный вызов, а не флаг у [analyzeInContext]: у них разная цена и разное назначение —
+     * подсказку ждут секунду, полный разбор просят намеренно.
+     */
+    suspend fun contextHint(text: String, tokenIndex: Int): Resource<ContextHintDto> {
+        return try {
+            val response = apiService.contextHint(ContextAnalyzeRequest(text, tokenIndex))
+            if (response.status == "ok" && response.data != null) Resource.Success(response.data)
+            else Resource.Error(response.message ?: "Не удалось разобрать слово")
+        } catch (e: Exception) {
+            Log.e(TAG, "Context hint failed: ${e.message}", e)
+            Resource.Error(NetworkError.getErrorMessage(e))
+        }
+    }
 
     suspend fun analyzeInContext(text: String, tokenIndex: Int): Resource<ContextAnalysisDto> {
         return try {

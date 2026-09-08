@@ -247,6 +247,35 @@ data class ContextAnalysisDto(
     val entryAvailable: Boolean = false
 )
 
+/**
+ * Быстрый ответ на тап по слову: что оно значит здесь — и больше ничего.
+ *
+ * Поля названы так же, как у [ContextAnalysisDto], и это не совпадение: карточка разбора рисует
+ * то и другое одним кодом, а полный разбор приезжает поверх подсказки, ничего не переставляя.
+ */
+@Serializable
+data class ContextHintDto(
+    val text: String = "",
+    val tokens: List<TokenDto> = emptyList(),
+    val target: ContextTargetDto? = null,
+    val lemma: String? = null,
+    val pos: String? = null,
+    /** Перевод слова так, как оно стоит здесь: 1–3 слова. */
+    val translationRu: String? = null,
+    val senseId: String? = null,
+    val senseMatched: Boolean = false,
+    /** Из корпуса, когда значение подобралось: точное определение, а не выдумка модели. */
+    val senseDefinitionEn: String? = null,
+    val entryAvailable: Boolean = false
+)
+
+@Serializable
+data class ContextHintApiResponse(
+    val status: String = "",
+    val data: ContextHintDto? = null,
+    val message: String? = null
+)
+
 @Serializable
 data class ContextAnalysisApiResponse(
     val status: String = "",

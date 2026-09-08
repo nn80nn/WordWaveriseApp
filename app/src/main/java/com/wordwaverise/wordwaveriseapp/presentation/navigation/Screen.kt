@@ -3,6 +3,8 @@ package com.wordwaverise.wordwaveriseapp.presentation.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Search
@@ -24,38 +26,63 @@ sealed class Screen(
         icon = Icons.Outlined.Search
     )
 
-    data object Saved : Screen(
-        route = "saved",
-        title = "Слова",
-        icon = Icons.Outlined.MenuBook
-    ) {
-        /**
-         * Тот же экран, открытый по нажатой ссылке на общую папку (`/f/{token}`).
-         *
-         * Аргумент необязательный, поэтому переход на голый `saved` из нижней вкладки
-         * по-прежнему подходит под этот шаблон — второй вкладки не появляется.
-         */
-        const val ROUTE_WITH_IMPORT = "saved?import={import}"
-
-        fun createImportRoute(token: String) = "saved?import=$token"
-    }
-
-    data object Tasks : Screen(
-        route = "tasks",
-        title = "Задания",
+    /**
+     * Слова и задания под одной вкладкой, с переключателем сегментов сверху.
+     *
+     * Слились они ради четвёртого слота: пятая вкладка сжала бы подписи, а «Книги» открывают
+     * чаще, чем задания отдельно от слов. Ни одна из половин при этом не урезана — обе остались
+     * целыми экранами, у каждой свой ViewModel.
+     *
+     * ⚠️ Один маршрут, а не два. Подсветка вкладки сравнивает маршрут целиком
+     * ([BottomNavigationBar]), поэтому на втором маршруте вкладка бы гасла — то есть человек
+     * терял бы место ровно тогда, когда он внутри него.
+     */
+    data object Study : Screen(
+        route = "study",
+        title = "Учёба",
         icon = Icons.Outlined.Checklist
     ) {
         /**
-         * Тот же экран, открытый по заданию преподавателя.
-         *
-         * Аргумент необязательный, поэтому переход на голый `tasks` из нижней вкладки по-прежнему
-         * подходит под этот шаблон — второй вкладки не появляется.
+         * Оба аргумента необязательны, поэтому переход на голый `study` из нижней вкладки
+         * по-прежнему подходит под этот шаблон — второй вкладки не появляется.
          */
-        const val ROUTE_WITH_ASSIGNMENT = "tasks?assignment={assignment}"
+        const val ROUTE_FULL = "study?segment={segment}&import={import}&assignment={assignment}"
 
-        fun createAssignmentRoute(assignmentId: Int) = "tasks?assignment=$assignmentId"
+        const val SEGMENT_WORDS = "words"
+        const val SEGMENT_TASKS = "tasks"
 
         const val NO_ASSIGNMENT = -1
+
+        /**
+         * Тот же экран, открытый по нажатой ссылке на общую папку (`/f/{token}`).
+         *
+         * ⚠️ Сегмент назван явно: ссылка на папку — это про слова, и открыть её на «Заданиях»
+         * значило бы спрятать то, ради чего по ней нажали.
+         */
+        fun createImportRoute(token: String) = "study?segment=$SEGMENT_WORDS&import=$token"
+
+        /** Тот же экран, открытый по заданию преподавателя. */
+        fun createAssignmentRoute(assignmentId: Int) =
+            "study?segment=$SEGMENT_TASKS&assignment=$assignmentId"
+    }
+
+    /** Полка. Книга — это текст, который человек загрузил себе; чужой её не видит. */
+    data object Books : Screen(
+        route = "books",
+        title = "Книги",
+        icon = Icons.Outlined.AutoStories
+    )
+
+    /**
+     * Чтение. Вне [bottomNavigationScreens]: страница книги — это весь экран, и панель
+     * вкладок на нём скрывается (см. `showBottomBar` в MainActivity).
+     */
+    data object Reader : Screen(
+        route = "reader/{bookId}",
+        title = "Чтение",
+        icon = Icons.AutoMirrored.Outlined.MenuBook
+    ) {
+        fun createRoute(bookId: Int) = "reader/$bookId"
     }
 
     data object Profile : Screen(
@@ -97,6 +124,7 @@ sealed class Screen(
     }
 
     companion object {
-        val bottomNavigationScreens = listOf(Search, Saved, Tasks, Profile)
+        /** Порядок вкладок — тот же, что в вебе (`BottomTabBar.vue`). */
+        val bottomNavigationScreens = listOf(Search, Study, Books, Profile)
     }
 }
