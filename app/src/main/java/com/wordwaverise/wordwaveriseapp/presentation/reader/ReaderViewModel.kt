@@ -2,15 +2,18 @@ package com.wordwaverise.wordwaveriseapp.presentation.reader
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
 import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextHintDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BlockDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookmarkDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ChapterDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.SentenceDto
 import com.wordwaverise.wordwaveriseapp.data.repository.BookRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.CategoryRepository
+import com.wordwaverise.wordwaveriseapp.data.repository.FlashcardRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.SavedWordsRepository
 import com.wordwaverise.wordwaveriseapp.data.repository.SearchRepository
 import com.wordwaverise.wordwaveriseapp.data.local.entity.CategoryEntity
@@ -21,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,8 +40,27 @@ data class ReaderState(
     val chapters: List<ChapterDto> = emptyList(),
     val blocks: List<BlockDto> = emptyList(),
     val nextOrdinal: Int? = null,
+    /** Ordinal самого первого загруженного блока — граница, до которой можно листать назад. */
+    val firstOrdinal: Int = 0,
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
+    val isLoadingBefore: Boolean = false,
+    /**
+     * Блок, на который надо встать при открытии.
+     *
+     * Отдельно от позиции, потому что окно начинается **раньше** неё: листать назад человек
+     * должен мочь сразу, а не после того, как долистает до начала загруженного куска.
+     */
+    val openAt: Int? = null,
+    /** Листать страницами вместо скролла. Настройка на всё приложение, не на книгу. */
+    val paged: Boolean = false,
+    /** Точное место внутри абзаца, если его помнит это устройство. */
+    val openOffset: Int = 0,
+    val settingsOpen: Boolean = false,
+    val bookmarks: List<BookmarkDto> = emptyList(),
+    val bookmarksOpen: Boolean = false,
+    /** Абзац, который сейчас наверху экрана: по нему закладка знает, стоит она или нет. */
+    val currentOrdinal: Int = 0,
     val error: String? = null,
 
     val target: TapTarget? = null,
@@ -59,6 +82,10 @@ data class ReaderState(
     val message: String? = null
 ) {
     val atEnd: Boolean get() = nextOrdinal == null
+    val atStart: Boolean get() = firstOrdinal == 0
+
+    /** Отмечено ли **это** место. Закладка на соседнем абзаце — не эта закладка. */
+    val bookmarkedHere: Boolean get() = bookmarks.any { it.ordinal == currentOrdinal }
 
     fun sentenceOf(target: TapTarget): SentenceDto? =
         blocks.firstOrNull { it.ordinal == target.blockOrdinal }
@@ -104,7 +131,9 @@ class ReaderViewModel @Inject constructor(
     private val search: SearchRepository,
     private val savedWords: SavedWordsRepository,
     private val categories: CategoryRepository,
-    private val categoryDao: CategoryDao
+    private val flashcards: FlashcardRepository,
+    private val categoryDao: CategoryDao,
+    private val settings: SettingsDataStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ReaderState())
@@ -130,9 +159,18 @@ class ReaderViewModel @Inject constructor(
                         chapters = data.chapters,
                         bookFolderName = data.book.title
                     )
-                    // Окно начинается там, где книгу бросили: пролистывать 300 страниц руками
-                    // человек не должен, а число сервер помнил всё это время.
-                    loadWindow(data.book.position?.ordinal ?: 0, replace = true)
+                    // ⚠️ Окно начинается **раньше** сохранённого места, а не на нём. Иначе
+                    // единственное направление, куда можно листать, — вперёд: перечитать
+                    // предыдущий абзац, ради чего в книгу и возвращаются, было нечем.
+                    val position = data.book.position?.ordinal ?: 0
+                    val from = (position - BACKFILL_BLOCKS).coerceAtLeast(0)
+                    loadWindow(from, replace = true)
+                    loadBookmarks()
+                    // ⚠️ Пиксель применяется, только если абзац тот же: читали на другом
+                    // устройстве — сервер знает другое место, и локальное смещение не про него.
+                    val local = settings.readerOffset(id).first()
+                    val offset = local?.takeIf { it.first == position }?.second ?: 0
+                    _state.value = _state.value.copy(openAt = position, openOffset = offset)
                 }
                 else -> _state.value = _state.value.copy(
                     isLoading = false,
@@ -143,6 +181,9 @@ class ReaderViewModel @Inject constructor(
     }
 
     init {
+        viewModelScope.launch {
+            settings.readerPaged.collect { _state.value = _state.value.copy(paged = it) }
+        }
         // Папки и сохранённое читаются потоками из Room: закладка обязана знать своё состояние
         // сразу после сохранения, а список папок — сразу после того, как её завели.
         viewModelScope.launch {
@@ -163,8 +204,10 @@ class ReaderViewModel @Inject constructor(
         when (val page = books.blocks(bookId, from)) {
             is Resource.Success -> {
                 val data = page.data!!
+                val blocks = if (replace) data.blocks else _state.value.blocks + data.blocks
                 _state.value = _state.value.copy(
-                    blocks = if (replace) data.blocks else _state.value.blocks + data.blocks,
+                    blocks = blocks,
+                    firstOrdinal = blocks.firstOrNull()?.ordinal ?: from,
                     nextOrdinal = data.nextOrdinal,
                     isLoading = false,
                     isLoadingMore = false
@@ -187,12 +230,90 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { loadWindow(from, replace = false) }
     }
 
+    /**
+     * Кусок перед началом загруженного — то, чем листание назад вообще возможно.
+     *
+     * ⚠️ Дописывается спереди, поэтому список сдвигается: экран обязан подвинуть свою позицию
+     * на столько же элементов, иначе человек, долиставший до верха, прыгает вперёд ровно в тот
+     * момент, когда шёл назад.
+     */
+    fun loadBefore() {
+        val current = _state.value
+        if (current.atStart || current.isLoadingBefore || current.isLoading) return
+        val from = (current.firstOrdinal - BACKFILL_BLOCKS).coerceAtLeast(0)
+        _state.value = current.copy(isLoadingBefore = true)
+        viewModelScope.launch {
+            when (val page = books.blocks(bookId, from, limit = current.firstOrdinal - from)) {
+                is Resource.Success -> {
+                    val earlier = page.data!!.blocks
+                    _state.value = _state.value.copy(
+                        blocks = earlier + _state.value.blocks,
+                        firstOrdinal = earlier.firstOrNull()?.ordinal ?: from,
+                        isLoadingBefore = false
+                    )
+                }
+                else -> _state.value = _state.value.copy(isLoadingBefore = false)
+            }
+        }
+    }
+
+    fun loadBookmarks() {
+        viewModelScope.launch {
+            val result = books.bookmarks(bookId)
+            if (result is Resource.Success) {
+                _state.value = _state.value.copy(bookmarks = result.data.orEmpty())
+            }
+        }
+    }
+
+    fun showBookmarks(show: Boolean) {
+        if (show) loadBookmarks()
+        _state.value = _state.value.copy(bookmarksOpen = show)
+    }
+
+    /** Одна кнопка на оба действия: место либо отмечено, либо нет, третьего состояния нет. */
+    fun toggleBookmark() {
+        val ordinal = _state.value.currentOrdinal
+        viewModelScope.launch {
+            if (_state.value.bookmarkedHere) {
+                books.removeBookmark(bookId, ordinal)
+                _state.value = _state.value.copy(
+                    bookmarks = _state.value.bookmarks.filterNot { it.ordinal == ordinal },
+                    message = "Закладка убрана"
+                )
+            } else {
+                val result = books.addBookmark(bookId, ordinal)
+                if (result is Resource.Success) {
+                    _state.value = _state.value.copy(
+                        bookmarks = listOf(result.data!!) + _state.value.bookmarks,
+                        message = "Закладка поставлена"
+                    )
+                } else {
+                    _state.value = _state.value.copy(message = result.message)
+                }
+            }
+        }
+    }
+
+    fun setPaged(paged: Boolean) {
+        viewModelScope.launch { settings.setReaderPaged(paged) }
+    }
+
+    fun showSettings(show: Boolean) {
+        _state.value = _state.value.copy(settingsOpen = show)
+    }
+
+    fun openHandled() {
+        _state.value = _state.value.copy(openAt = null, openOffset = 0)
+    }
+
     fun jumpTo(ordinal: Int) {
         closeTap()
         _state.value = _state.value.copy(isLoading = true, blocks = emptyList(), nextOrdinal = null)
         viewModelScope.launch {
             loadWindow(ordinal, replace = true)
             savePosition(ordinal)
+            _state.value = _state.value.copy(openAt = ordinal)
         }
     }
 
@@ -202,7 +323,12 @@ class ReaderViewModel @Inject constructor(
      * ⚠️ Применяется то, что вернул сервер: он зажимает `ordinal` по размеру книги, и клиент с
      * устаревшим счётчиком блоков так исправляется сам, а не спорит.
      */
-    fun savePosition(ordinal: Int) {
+    /**
+     * @param offset точное место внутри абзаца — пиксель для скролла, верх строки для страниц.
+     */
+    fun savePosition(ordinal: Int, offset: Int = 0) {
+        _state.value = _state.value.copy(currentOrdinal = ordinal)
+        viewModelScope.launch { settings.setReaderOffset(bookId, ordinal, offset) }
         pendingOrdinal = ordinal
         if (positionJob?.isActive == true) return
         positionJob = viewModelScope.launch {
@@ -303,6 +429,7 @@ class ReaderViewModel @Inject constructor(
                 categoryLocalIds = listOfNotNull(local),
                 categoryServerIds = listOfNotNull(folderServerId)
             )
+            createCard(lemma)
             finishSave(
                 result,
                 lemma,
@@ -375,6 +502,7 @@ class ReaderViewModel @Inject constructor(
             val names = chosen.mapNotNull { local ->
                 _state.value.ownFolders.firstOrNull { it.id == local }?.name
             }
+            createCard(lemma)
             _state.value = _state.value.copy(folderSheetOpen = false)
             finishSave(result, lemma, _state.value.currentSenseId, names)
         }
@@ -395,6 +523,27 @@ class ReaderViewModel @Inject constructor(
             }
             _state.value = _state.value.copy(isSaving = false, message = message)
         }
+    }
+
+    /**
+     * Карточка заводится тем же действием, что и сохранение, — и живёт на подсказке.
+     *
+     * ⚠️ Статьи у слова из книги может не быть вовсе: она пишется минуты, а тап случился сейчас.
+     * Ждать её значит выронить слово из повторений на день, поэтому карточка берёт то, что было
+     * на экране: перевод и предложение, в котором слово встретилось. Английское определение
+     * допишет обычное обновление из корпуса, когда статья появится, — `customized` не ставится
+     * именно поэтому.
+     */
+    private suspend fun createCard(lemma: String) {
+        val sentence = _state.value.target?.let { _state.value.sentenceOf(it) }?.text
+        flashcards.createFlashcard(
+            word = lemma,
+            definition = _state.value.currentDefinition.orEmpty(),
+            example = sentence,
+            translation = _state.value.currentTranslation,
+            partOfSpeech = _state.value.hint?.pos ?: _state.value.analysis?.pos,
+            senseId = _state.value.currentSenseId
+        )
     }
 
     private fun finishSave(
@@ -442,5 +591,13 @@ class ReaderViewModel @Inject constructor(
 
     companion object {
         private const val POSITION_DEBOUNCE_MS = 2000L
+
+        /**
+         * Сколько блоков держать позади текущего места.
+         *
+         * Пятнадцать — это примерно экран назад: столько перечитывают, вернувшись к книге, и
+         * столько же стоит грузить вперёд одним куском, чтобы не дёргать сервер на каждый абзац.
+         */
+        private const val BACKFILL_BLOCKS = 15
     }
 }

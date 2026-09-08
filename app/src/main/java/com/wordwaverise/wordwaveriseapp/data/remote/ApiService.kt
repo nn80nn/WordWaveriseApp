@@ -52,6 +52,9 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SavedWordsResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SetWordFoldersRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BlockPageResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookmarkResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookmarksResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.SetBookmarkRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDetailResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BooksResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookImportResponse
@@ -446,6 +449,27 @@ interface ApiService {
     suspend fun deleteBook(
         @Header("Authorization") token: String,
         @Path("id") id: Int
+    ): DeleteResponse
+
+    /** Закладки: «сюда я хочу вернуться», в отличие от позиции — «где я сейчас». */
+    @GET("api/v2/library/books/{id}/bookmarks")
+    suspend fun getBookmarks(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): BookmarksResponse
+
+    @POST("api/v2/library/books/{id}/bookmarks")
+    suspend fun addBookmark(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body request: SetBookmarkRequest
+    ): BookmarkResponse
+
+    @DELETE("api/v2/library/books/{id}/bookmarks/{ordinal}")
+    suspend fun removeBookmark(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Path("ordinal") ordinal: Int
     ): DeleteResponse
 
     /** Папка книги — заводится при первом сохранении из неё. Идемпотентно. */

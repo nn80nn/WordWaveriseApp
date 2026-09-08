@@ -4,9 +4,12 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -101,6 +104,26 @@ fun StudyScreen(
         Segment(Screen.Study.SEGMENT_TASKS, "Задания", badge = hasOpenAssignments)
     )
 
+    /**
+     * Половины листаются и пальцем, и переключателем — это одно и то же движение, сказанное
+     * двумя способами. Пейджер здесь ведущий: у него есть промежуточные состояния, которых у
+     * булева переключателя нет, и синхронизировать их в обратную сторону значило бы дёргать
+     * экран на середине жеста.
+     */
+    val pages = listOf(Screen.Study.SEGMENT_WORDS, Screen.Study.SEGMENT_TASKS)
+    val pagerState = rememberPagerState(
+        initialPage = pages.indexOf(segment).coerceAtLeast(0),
+        pageCount = { pages.size }
+    )
+
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect { segment = pages[it] }
+    }
+    LaunchedEffect(segment) {
+        val index = pages.indexOf(segment)
+        if (index >= 0 && index != pagerState.currentPage) pagerState.animateScrollToPage(index)
+    }
+
     Column(modifier = modifier.fillMaxSize().waveSurface()) {
         SegmentedSwitch(
             segments = segments,
@@ -109,10 +132,11 @@ fun StudyScreen(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
 
-        when (segment) {
-            Screen.Study.SEGMENT_TASKS -> TasksScreen(startAssignmentId = startAssignmentId)
+        HorizontalPager(state = pagerState) { index ->
+            when (pages[index]) {
+                Screen.Study.SEGMENT_TASKS -> TasksScreen(startAssignmentId = startAssignmentId)
 
-            else -> SavedScreen(
+                else -> SavedScreen(
                 state = savedState,
                 onDeleteWord = savedViewModel::deleteEntry,
                 onWordClick = onWordClick,
@@ -135,8 +159,9 @@ fun StudyScreen(
                 onSortChange = savedViewModel::setSortBy,
                 onFolderQueryChange = savedViewModel::setFolderQuery,
                 onFolderSortChange = savedViewModel::setFolderSort,
-                onRefresh = savedViewModel::refresh
-            )
+                    onRefresh = savedViewModel::refresh
+                )
+            }
         }
     }
 }

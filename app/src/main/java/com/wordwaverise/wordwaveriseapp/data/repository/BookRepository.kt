@@ -6,6 +6,8 @@ import com.wordwaverise.wordwaveriseapp.data.local.TokenDataStore
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.category.CategoryDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BlockPageDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookmarkDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.SetBookmarkRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDetailDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookImportDto
@@ -107,6 +109,24 @@ class BookRepository @Inject constructor(
         val result = response.data
             ?: return@call Resource.Error(response.message ?: "Не удалось разобрать файл")
         Resource.Success(result)
+    }
+
+    suspend fun bookmarks(id: Int): Resource<List<BookmarkDto>> = call { token ->
+        val response = apiService.getBookmarks(token, id)
+        Resource.Success(response.data.orEmpty())
+    }
+
+    /** Идемпотентно: отметить одно место дважды — это одна закладка, а не две. */
+    suspend fun addBookmark(id: Int, ordinal: Int): Resource<BookmarkDto> = call { token ->
+        val response = apiService.addBookmark(token, id, SetBookmarkRequest(ordinal))
+        val mark = response.data
+            ?: return@call Resource.Error(response.message ?: "Не удалось поставить закладку")
+        Resource.Success(mark)
+    }
+
+    suspend fun removeBookmark(id: Int, ordinal: Int): Resource<Unit> = call { token ->
+        apiService.removeBookmark(token, id, ordinal)
+        Resource.Success(Unit)
     }
 
     suspend fun delete(id: Int): Resource<Unit> = call { token ->

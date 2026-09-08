@@ -53,6 +53,45 @@
                 <data android:scheme="https" android:host="wordwaverise.com" android:pathPrefix="/f/" />
                 <data android:scheme="https" android:host="wordwaverise.com" android:pathPrefix="/g/" />
             </intent-filter>
+
+            <!--
+                Книга, присланная в мессенджере или лежащая в «Загрузках», открывается этим
+                приложением: иначе путь к чтению — «сохранить файл, открыть приложение, найти
+                файл в пикере», то есть три шага там, где человек уже нажал на книгу.
+
+                ⚠️ Фильтров два, и оба нужны. Провайдеры отдают книги под каким угодно типом:
+                FB2 приезжает то `application/xml`, то `application/octet-stream`, а `.fb2.zip`
+                и вовсе `application/zip`. Поэтому один фильтр ловит типы, которые называют
+                себя честно, а второй — что угодно с нашим расширением в имени. Формат сервер
+                всё равно определяет по байтам, так что ошибиться типом не страшно.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-fictionbook+xml" />
+                <data android:mimeType="application/fb2" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/html" />
+            </intent-filter>
+
+            <intent-filter android:priority="1">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="*/*" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.epub" />
+                <data android:pathPattern=".*\\.fb2" />
+                <data android:pathPattern=".*\\.fb2\\.zip" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\.html" />
+                <data android:pathPattern=".*\\.htm" />
+            </intent-filter>
         </activity>
     </application>
 

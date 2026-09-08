@@ -118,6 +118,7 @@ fun ContextCard(
             }
 
             val translation = hint?.translationRu ?: analysis?.translationRu
+            val neighbours = hint?.translationsRu.orEmpty()
             val partOfSpeech = hint?.pos ?: analysis?.pos
             val matched = hint?.senseMatched ?: analysis?.senseMatched ?: false
             val hasEntry = hint?.entryAvailable ?: analysis?.entryAvailable ?: false
@@ -145,6 +146,10 @@ fun ContextCard(
                             fontWeight = FontWeight.Medium
                         )
                         partOfSpeech?.let { pos -> Badge(pos, colors.textMuted) }
+                        // Пометы значения — из корпуса, ни одна не спрашивается у модели.
+                        hint?.cefr?.let { Badge(it, colors.brass) }
+                        hint?.register?.let { Badge(registerLabel(it), colors.textMuted) }
+                        hint?.countability?.let { Badge(countabilityLabel(it), colors.textMuted) }
                         if (matched) {
                             Badge(stringResource(R.string.znachenie_iz_stati), colors.secondary)
                         }
@@ -152,6 +157,17 @@ fun ContextCard(
                 }
 
                 if (canSave) BookmarkButton(saved, saving, saveHint, onSave, onChooseFolders)
+            }
+
+            // Соседние переводы значения. Одного слова часто мало: «вести» не ложится в
+            // «lead the horse» так же, как «провожать», а выбирать читателю было не из чего.
+            if (neighbours.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = neighbours.joinToString(" · "),
+                    fontSize = 14.sp,
+                    color = colors.textSecondary
+                )
             }
 
             analysis?.translationLemmaRu?.takeIf { it != translation }?.let { lemmaRu ->
@@ -217,7 +233,7 @@ fun ContextCard(
                             Spacer(Modifier.width(8.dp))
                         }
                         Text(
-                            if (isAnalyzing) "Разбираем…" else "Почему так",
+                            if (isAnalyzing) "Разбираем…" else "Подробнее",
                             color = colors.textMuted,
                             fontSize = 14.sp
                         )
@@ -279,4 +295,24 @@ private fun BookmarkButton(
             )
         }
     }
+}
+
+/** Регистр значения по-русски: помета для читателя, а не имя enum'а. */
+private fun registerLabel(register: String): String = when (register) {
+    "FORMAL" -> "офиц."
+    "INFORMAL" -> "разг."
+    "SLANG" -> "сленг"
+    "VULGAR" -> "груб."
+    "DATED" -> "устар."
+    "LITERARY" -> "книжн."
+    "TECHNICAL" -> "спец."
+    else -> register.lowercase()
+}
+
+/** ⚠️ Исчисляемость — свойство значения, а не слова: `paper`-материал и `paper`-документ разные. */
+private fun countabilityLabel(countability: String): String = when (countability) {
+    "COUNTABLE" -> "исчисл."
+    "UNCOUNTABLE" -> "неисчисл."
+    "BOTH" -> "исчисл. и неисчисл."
+    else -> countability.lowercase()
 }

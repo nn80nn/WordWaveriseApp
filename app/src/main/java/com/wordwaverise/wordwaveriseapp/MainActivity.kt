@@ -46,6 +46,9 @@ import com.wordwaverise.wordwaveriseapp.ui.theme.WordWaveriseAppTheme
  * приложение не умеет открыть.
  */
 private sealed interface PendingLink {
+    /** Файл книги, открытый в чужом приложении и отданный нам. */
+    data class BookFile(val uri: android.net.Uri) : PendingLink
+
     /** Общая папка: `https://wordwaverise.com/f/{token}`. */
     data class SharedFolder(val token: String) : PendingLink
 
@@ -54,7 +57,25 @@ private sealed interface PendingLink {
 }
 
 private fun parseLink(intent: Intent?): PendingLink? {
-    if (intent?.action != Intent.ACTION_VIEW) return null
+    if (intent == null) return null
+
+    /**
+     * Книга приезжает двумя способами: «открыть с помощью» отдаёт её в `data`, «поделиться» —
+     * в `EXTRA_STREAM`. Оба ведут в одно место, и различать их дальше незачем.
+     *
+     * ⚠️ Проверяется **раньше** ссылок: у файлового адреса нет ни хоста, ни путей `/f/`, но
+     * разбирать его как ссылку тоже нельзя — `pathSegments` у `content://` это части адреса
+     * провайдера, и первый из них случайно совпал бы с чем угодно.
+     */
+    val file = when (intent.action) {
+        Intent.ACTION_VIEW -> intent.data?.takeIf { it.scheme == "content" || it.scheme == "file" }
+        Intent.ACTION_SEND -> @Suppress("DEPRECATION")
+            (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? android.net.Uri)
+        else -> null
+    }
+    if (file != null) return PendingLink.BookFile(file)
+
+    if (intent.action != Intent.ACTION_VIEW) return null
     val segments = intent.data?.pathSegments ?: return null
     if (segments.size < 2) return null
     val token = segments[1].takeIf { it.isNotBlank() } ?: return null
@@ -142,6 +163,10 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate(Screen.Study.createImportRoute(link.token))
                                 is PendingLink.GroupInvite ->
                                     navController.navigate(Screen.Groups.createInviteRoute(link.token))
+                                // Полка сама загрузит файл и откроет книгу: нажатие по книге —
+                                // это уже просьба её читать, а не просьба показать список книг.
+                                is PendingLink.BookFile ->
+                                    navController.navigate(Screen.Books.createImportRoute(link.uri))
                                 null -> Unit
                             }
                             if (pendingLink != null) pendingLink = null
@@ -220,8 +245,18 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            composable(Screen.Books.route) {
+                            composable(
+                                route = Screen.Books.ROUTE_WITH_FILE,
+                                arguments = listOf(
+                                    navArgument("file") {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = null
+                                    }
+                                )
+                            ) { entry ->
                                 BooksScreen(
+                                    incomingFile = entry.arguments?.getString("file"),
                                     onOpenBook = { bookId ->
                                         navController.navigate(Screen.Reader.createRoute(bookId))
                                     }

@@ -103,6 +103,37 @@ data class ImportBookTextRequest(
     val author: String? = null
 )
 
+/**
+ * Место, которое читатель отметил сам.
+ *
+ * [preview] — начало отмеченного абзаца: список закладок без него это список чисел, по которому
+ * нельзя узнать ни одно из отмеченных мест.
+ */
+@Serializable
+data class BookmarkDto(
+    val ordinal: Int = 0,
+    val chapterIndex: Int = 0,
+    val preview: String = "",
+    val createdAt: String = ""
+)
+
+@Serializable
+data class SetBookmarkRequest(val ordinal: Int)
+
+@Serializable
+data class BookmarksResponse(
+    val status: String = "",
+    val data: List<BookmarkDto>? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class BookmarkResponse(
+    val status: String = "",
+    val data: BookmarkDto? = null,
+    val message: String? = null
+)
+
 @Serializable
 data class SetPositionRequest(val ordinal: Int)
 

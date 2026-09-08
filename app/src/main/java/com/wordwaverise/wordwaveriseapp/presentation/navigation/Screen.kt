@@ -71,7 +71,18 @@ sealed class Screen(
         route = "books",
         title = "Книги",
         icon = Icons.Outlined.AutoStories
-    )
+    ) {
+        /**
+         * Та же полка, открытая книгой из чужого приложения.
+         *
+         * Аргумент необязательный, поэтому переход на голые `books` из нижней вкладки подходит
+         * под тот же шаблон — второй вкладки не появляется.
+         */
+        const val ROUTE_WITH_FILE = "books?file={file}"
+
+        fun createImportRoute(uri: android.net.Uri): String =
+            "books?file=" + android.net.Uri.encode(uri.toString())
+    }
 
     /**
      * Чтение. Вне [bottomNavigationScreens]: страница книги — это весь экран, и панель

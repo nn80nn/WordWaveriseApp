@@ -266,6 +266,11 @@ data class ContextHintDto(
     val senseMatched: Boolean = false,
     /** Из корпуса, когда значение подобралось: точное определение, а не выдумка модели. */
     val senseDefinitionEn: String? = null,
+    /** Соседние переводы того же значения: «вести» одно редко ложится в предложение. */
+    val translationsRu: List<String> = emptyList(),
+    val cefr: String? = null,
+    val register: String? = null,
+    val countability: String? = null,
     val entryAvailable: Boolean = false
 )
 

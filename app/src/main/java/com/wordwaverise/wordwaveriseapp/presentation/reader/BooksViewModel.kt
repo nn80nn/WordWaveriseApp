@@ -25,7 +25,15 @@ data class BooksState(
     val pasteOpen: Boolean = false,
     val pasteText: String = "",
     val pasteTitle: String = "",
-    val confirmDelete: BookDto? = null
+    /**
+     * Удаление книги спрашивают дважды, и это не перестраховка.
+     *
+     * Корзина стоит в строке книги, рядом с самой книгой: промах пальцем — и книга вместе с
+     * местом, где её бросили, исчезает. Отменить это нечем, а вернуть можно только новой
+     * загрузкой файла, которого под рукой может уже не быть.
+     */
+    val confirmDelete: BookDto? = null,
+    val confirmDeleteAgain: BookDto? = null
 )
 
 @HiltViewModel
@@ -122,13 +130,23 @@ class BooksViewModel @Inject constructor(
     }
 
     fun askDelete(book: BookDto?) {
-        _state.value = _state.value.copy(confirmDelete = book)
+        _state.value = _state.value.copy(confirmDelete = book, confirmDeleteAgain = null)
+    }
+
+    /** Первое «удалить» ничего не удаляет — оно только переводит вопрос во второй шаг. */
+    fun askDeleteAgain() {
+        val book = _state.value.confirmDelete ?: return
+        _state.value = _state.value.copy(confirmDelete = null, confirmDeleteAgain = book)
+    }
+
+    fun cancelDelete() {
+        _state.value = _state.value.copy(confirmDelete = null, confirmDeleteAgain = null)
     }
 
     fun confirmDelete() {
-        val book = _state.value.confirmDelete ?: return
+        val book = _state.value.confirmDeleteAgain ?: return
         viewModelScope.launch {
-            _state.value = _state.value.copy(confirmDelete = null)
+            _state.value = _state.value.copy(confirmDelete = null, confirmDeleteAgain = null)
             when (repository.delete(book.id)) {
                 is Resource.Success -> _state.value = _state.value.copy(
                     books = _state.value.books.filterNot { it.id == book.id }

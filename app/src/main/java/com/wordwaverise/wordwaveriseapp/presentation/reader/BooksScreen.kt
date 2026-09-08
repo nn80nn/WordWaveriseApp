@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDto
 import com.wordwaverise.wordwaveriseapp.ui.theme.Comfortaa
 import com.wordwaverise.wordwaveriseapp.ui.theme.Eyebrow
@@ -41,6 +42,8 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BooksScreen(
+    /** Книга, открытая в чужом приложении: загружается сама, как только экран появился. */
+    incomingFile: String? = null,
     onOpenBook: (Int) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BooksViewModel = hiltViewModel()
@@ -56,6 +59,20 @@ fun BooksScreen(
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) viewModel.importFile(uri) }
+
+    // Полка перечитывается при каждом возврате: прогресс книги меняется в читалке, а не
+    // здесь, и без этого шкала показывала бы то, что было до чтения.
+    LifecycleResumeEffect(Unit) {
+        viewModel.refresh()
+        onPauseOrDispose { }
+    }
+
+    LaunchedEffect(incomingFile) {
+        // Нажатие по книге — это уже просьба её открыть, поэтому подтверждения не спрашиваем:
+        // это был бы второй вопрос про то же самое.
+        val uri = incomingFile?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        viewModel.importFile(android.net.Uri.parse(uri))
+    }
 
     LaunchedEffect(state.openBookId) {
         val id = state.openBookId ?: return@LaunchedEffect
@@ -204,7 +221,7 @@ fun BooksScreen(
 
     state.confirmDelete?.let { book ->
         AlertDialog(
-            onDismissRequest = { viewModel.askDelete(null) },
+            onDismissRequest = viewModel::cancelDelete,
             shape = RoundedCornerShape(24.dp),
             containerColor = colors.surface,
             title = {
@@ -225,13 +242,51 @@ fun BooksScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = viewModel::confirmDelete) {
+                TextButton(onClick = viewModel::askDeleteAgain) {
                     Text("Удалить", color = colors.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.askDelete(null) }) {
+                TextButton(onClick = viewModel::cancelDelete) {
                     Text("Отмена", color = colors.textMuted)
+                }
+            }
+        )
+    }
+
+    // Второй вопрос — про то же, но другими словами и с другим ответом: «удалить» здесь стоит
+    // там, где у первого диалога стояла «отмена», поэтому дважды промахнуться одним движением
+    // нельзя. Корзина живёт в строке книги, и промах пальцем стоил бы книги целиком.
+    state.confirmDeleteAgain?.let { book ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelDelete,
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colors.surface,
+            title = {
+                Text(
+                    "Точно удалить?",
+                    fontFamily = Comfortaa,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = colors.error
+                )
+            },
+            text = {
+                Text(
+                    "Это последнее подтверждение. Вернуть «${book.title}» можно будет только " +
+                        "новой загрузкой файла, и читать её придётся с начала.",
+                    fontSize = 14.sp,
+                    color = colors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::cancelDelete) {
+                    Text("Оставить", color = colors.secondary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::confirmDelete) {
+                    Text("Удалить навсегда", color = colors.error)
                 }
             }
         )
