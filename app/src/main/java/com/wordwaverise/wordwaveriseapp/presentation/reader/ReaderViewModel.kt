@@ -170,7 +170,13 @@ class ReaderViewModel @Inject constructor(
                     // устройстве — сервер знает другое место, и локальное смещение не про него.
                     val local = settings.readerOffset(id).first()
                     val offset = local?.takeIf { it.first == position }?.second ?: 0
-                    _state.value = _state.value.copy(openAt = position, openOffset = offset)
+                    _state.value = _state.value.copy(
+                        openAt = position,
+                        openOffset = offset,
+                        // Место известно с самого открытия: до первой прокрутки читатель уже
+                        // стоит здесь, и закладка с переключением режима обязаны это знать.
+                        currentOrdinal = position
+                    )
                 }
                 else -> _state.value = _state.value.copy(
                     isLoading = false,
@@ -182,7 +188,22 @@ class ReaderViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settings.readerPaged.collect { _state.value = _state.value.copy(paged = it) }
+            /**
+             * ⚠️ Смена режима и метка места — **одно** обновление состояния.
+             *
+             * Скролл и страницы читают одну и ту же метку `openAt`, и тот, кто увидит её
+             * первым, её же и снимает. Поставленная отдельным шагом, она доставалась
+             * уходящему режиму, а приходящий открывался с начала книги — то есть человек
+             * терял место ровно тем действием, которое места не касается.
+             */
+            settings.readerPaged.collect { paged ->
+                val current = _state.value
+                _state.value = if (current.paged == paged) {
+                    current.copy(paged = paged)
+                } else {
+                    current.copy(paged = paged, openAt = current.currentOrdinal, openOffset = 0)
+                }
+            }
         }
         // Папки и сохранённое читаются потоками из Room: закладка обязана знать своё состояние
         // сразу после сохранения, а список папок — сразу после того, как её завели.

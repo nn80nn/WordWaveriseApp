@@ -4,9 +4,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -35,10 +38,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BlockDto
@@ -281,6 +284,20 @@ fun ReaderScreen(
 private const val SCROLL_MODE = "scroll"
 private const val PAGED_MODE = "paged"
 
+/**
+ * Поля страницы.
+ *
+ * ⚠️ Это не украшение, а часть арифметики: высота страницы считается **по этому же полю**.
+ * Пока поля вычитались из текста, но не из высоты, страница вмещала на строку больше, чем
+ * показывала, — и первая строка выезжала под панель обрезанной пополам.
+ */
+private val PAGE_PAD_H = 20.dp
+private val PAGE_PAD_TOP = 14.dp
+private val PAGE_PAD_BOTTOM = 18.dp
+
+/** Скорость броска, после которой страница переворачивается независимо от пройденного пути. */
+private const val FLICK_VELOCITY = 250f
+
 @Composable
 private fun subtitleOf(state: ReaderState): String? {
     val percent = ((state.book?.position?.progress ?: 0.0) * 100).roundToInt()
@@ -308,7 +325,8 @@ private fun ReaderTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 4.dp),
+                .padding(horizontal = 4.dp)
+                .height(52.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
@@ -408,6 +426,9 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel) {
     LaunchedEffect(listState, state.blocks.size) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
             .collect { (first, offset) ->
+                // ⚠️ То же, что и у страниц: список ещё стоит в начале, потому что не доехал
+                // до места, а не потому, что человек туда вернулся.
+                if (viewModel.state.value.openAt != null) return@collect
                 /**
                  * ⚠️ Место — это абзац, который человек **читает**, а не тот, что задел верхний
                  * край экрана одной строкой. `firstVisibleItemIndex` — второе: абзац считается
@@ -435,7 +456,12 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel) {
 
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 96.dp)
+        contentPadding = PaddingValues(
+            start = PAGE_PAD_H,
+            end = PAGE_PAD_H,
+            top = PAGE_PAD_TOP,
+            bottom = 48.dp
+        )
     ) {
         items(state.blocks, key = { it.ordinal }) { block ->
             BlockText(
@@ -485,10 +511,19 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
 
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     var pageHeightPx by remember { mutableStateOf(0) }
+    val insetPx = with(LocalDensity.current) { (PAGE_PAD_TOP + PAGE_PAD_BOTTOM).roundToPx() }
     var page by remember { mutableStateOf(0) }
     /** Абзац, за который держится текущая страница. Переживает перекладку текста. */
     var anchorOrdinal by remember { mutableStateOf<Int?>(null) }
     val drag = remember { Animatable(0f) }
+    /**
+     * ⚠️ Сколько палец увёл страницу — считается **здесь**, а не читается из `drag`.
+     *
+     * `Animatable.snapTo` — suspend, поэтому каждый шаг жеста уезжает в отдельную корутину и
+     * значение отстаёт от пальца на несколько кадров. Решение «листать или вернуть», принятое
+     * по нему в момент отпускания, видело почти ноль — короткий бросок не листал вовсе.
+     */
+    var shift by remember { mutableStateOf(0f) }
     var widthPx by remember { mutableStateOf(1) }
 
     val pageTops = remember(layout, pageHeightPx) {
@@ -523,8 +558,15 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
         pageOf(anchor)?.let { if (it != page) page = it }
     }
 
-    // Место запоминается по абзацу, который стоит наверху страницы.
-    LaunchedEffect(page, pageTops.size) {
+    /**
+     * Место запоминается по абзацу, который стоит наверху страницы.
+     *
+     * ⚠️ Пока место не восстановлено (`openAt`), писать нечего: экран стоит на нулевой
+     * странице просто потому, что ещё не доехал до нужной, и запись отсюда стирала бы
+     * настоящее место — именно так переключение режима отправляло книгу в начало.
+     */
+    LaunchedEffect(page, pageTops.size, state.openAt) {
+        if (state.openAt != null) return@LaunchedEffect
         val top = pageTops.getOrNull(page) ?: return@LaunchedEffect
         ordinalAt(top)?.let {
             anchorOrdinal = it
@@ -546,6 +588,7 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
     fun turn(direction: Int) {
         val next = page + direction
         if (next < 0 || next > pageTops.lastIndex) return
+        shift = 0f
         scope.launch {
             drag.animateTo(-direction * widthPx.toFloat(), tween(220))
             page = next
@@ -559,53 +602,60 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
             .fillMaxSize()
             .onSizeChanged {
                 widthPx = it.width.coerceAtLeast(1)
-                pageHeightPx = it.height
+                // Ровно то, что видно между полями: страница обязана вмещать столько же,
+                // сколько показывает, иначе её край режет строку пополам.
+                pageHeightPx = (it.height - insetPx).coerceAtLeast(1)
             }
             .clipToBounds()
-            // ⚠️ Оба жеста живут в одном `pointerInput`. Два соседних модификатора делят один
-            // поток событий и спорят за него: детектор тапа забирал нажатие себе, и страница
-            // не листалась вовсе. В одной корутине они договариваются сами.
-            .pointerInput(flow, pageTops, page) {
-                coroutineScope {
-                    launch {
-                        detectHorizontalDragGestures(
-                            onDragEnd = {
-                                val shift = drag.value
-                                when {
-                                    shift < -widthPx / 5f && page < pageTops.lastIndex -> turn(1)
-                                    shift > widthPx / 5f && page > 0 -> turn(-1)
-                                    else -> scope.launch {
-                                        drag.animateTo(0f, tween(180))
-                                        pending = 0
-                                    }
-                                }
-                            },
-                            onHorizontalDrag = { change, amount ->
-                                change.consume()
-                                val next = drag.value + amount
-                                // У края книги следующей страницы нет, и резинка здесь врала бы,
-                                // что она есть: палец идёт втрое медленнее и ничего не открывает.
-                                val atEdge = (page == 0 && next > 0) ||
-                                    (page == pageTops.lastIndex && next < 0)
-                                val clamped = if (atEdge) next / 3f else next
-                                pending = when {
-                                    atEdge -> 0
-                                    clamped < 0f -> 1
-                                    clamped > 0f -> -1
-                                    else -> 0
-                                }
-                                scope.launch { drag.snapTo(clamped) }
-                            }
-                        )
+            /**
+             * ⚠️ Страницу листает **бросок**, а не длинный протяг.
+             *
+             * Порог в пятую часть экрана требовал провести палец через полтелефона — движение,
+             * которое нельзя делать на каждой странице. `draggable` отдаёт в `onDragStopped`
+             * скорость, поэтому короткий быстрый бросок засчитывается наравне с медленным
+             * протягом на шестую часть ширины, как в любой другой читалке.
+             *
+             * ⚠️ Тап живёт отдельным `pointerInput` **после** `draggable`: у жестов разные оси,
+             * и делить один поток событий им больше незачем — `draggable` сам отпускает
+             * нажатие, которое никуда не поехало.
+             */
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = rememberDraggableState { amount ->
+                    val next = shift + amount
+                    // У края книги следующей страницы нет, и резинка здесь врала бы,
+                    // что она есть: палец идёт втрое медленнее и ничего не открывает.
+                    val atEdge = (page == 0 && next > 0) ||
+                        (page == pageTops.lastIndex && next < 0)
+                    val clamped = if (atEdge) next / 3f else next
+                    pending = when {
+                        atEdge -> 0
+                        clamped < 0f -> 1
+                        clamped > 0f -> -1
+                        else -> 0
                     }
-                    launch {
-                        detectTapGestures { position ->
-                            val result = layout ?: return@detectTapGestures
-                            val top = pageTops.getOrNull(page) ?: return@detectTapGestures
-                            val at = result.getOffsetForPosition(position + Offset(0f, top))
-                            flow.locate(at)?.let(viewModel::analyze)
+                    shift = clamped
+                    scope.launch { drag.snapTo(clamped) }
+                },
+                onDragStopped = { velocity ->
+                    val enough = abs(velocity) > FLICK_VELOCITY || abs(shift) > widthPx / 8f
+                    when {
+                        enough && shift < 0 && page < pageTops.lastIndex -> turn(1)
+                        enough && shift > 0 && page > 0 -> turn(-1)
+                        else -> {
+                            shift = 0f
+                            drag.animateTo(0f, tween(180))
+                            pending = 0
                         }
                     }
+                }
+            )
+            .pointerInput(flow, pageTops, page) {
+                detectTapGestures { position ->
+                    val result = layout ?: return@detectTapGestures
+                    val top = pageTops.getOrNull(page) ?: return@detectTapGestures
+                    val at = result.getOffsetForPosition(position + Offset(0f, top))
+                    flow.locate(at)?.let(viewModel::analyze)
                 }
             }
     ) {
@@ -657,6 +707,10 @@ private fun PageLayer(
             .fillMaxSize()
             .graphicsLayer { translationX = offsetX }
             .background(colors.background)
+            // ⚠️ Поля стоят **до** обрезки, поэтому обрезается именно то поле текста, которое
+            // человек видит. Раньше поля были внутри текста, и строка, не влезшая в страницу,
+            // дорисовывалась в отступ — сверху из-под панели торчала её половина.
+            .padding(start = PAGE_PAD_H, end = PAGE_PAD_H, top = PAGE_PAD_TOP, bottom = PAGE_PAD_BOTTOM)
             .clipToBounds()
     ) {
         Text(
@@ -671,8 +725,9 @@ private fun PageLayer(
                 // экран строк: сдвиг на вторую страницу открывал пустоту, потому что рисовать
                 // там было нечего. Обрезает внешний Box, а не сам текст.
                 .wrapContentHeight(align = Alignment.Top, unbounded = true)
-                .padding(horizontal = 20.dp, vertical = 10.dp)
-                .graphicsLayer { translationY = -top }
+                // Сдвиг целыми пикселями: дробный оставляет над первой строкой полоску
+                // предыдущей — ровно тот мусор, ради которого и стоит обрезка.
+                .offset { IntOffset(0, -top.roundToInt()) }
         )
     }
 }
