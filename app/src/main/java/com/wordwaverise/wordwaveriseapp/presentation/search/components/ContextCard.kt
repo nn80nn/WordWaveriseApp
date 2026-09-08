@@ -85,23 +85,48 @@ fun ContextCard(
                 return@Column
             }
 
-            // ⚠️ Сказать нечего: модель не ответила или запрос не дошёл. Пустая карточка без
-            // единого слова — худший ответ: она читается как поломка, а не как «не вышло».
-            val lemma = hint?.lemma
+            // ⚠️ Подсказка идёт одной попыткой без ретраев, поэтому занятый шлюз означает
+            // пустой ответ. Полный разбор пишет другая модель и с ретраями, а поля у них
+            // называются одинаково — значит он заменяет подсказку целиком, а не дополняет её.
+            val lemma = hint?.lemma ?: analysis?.lemma
             if (lemma == null) {
+                // Пустая карточка без единого слова — худший ответ: читается как поломка, а не
+                // как «не вышло». И это не тупик: полному разбору есть что попробовать.
                 Text(
-                    "Разбор не получился. Слово можно открыть в словаре — там оно со всеми значениями.",
+                    "Быстрый разбор не получился — так бывает, когда словарь занят.",
                     fontSize = 13.sp,
                     color = colors.textMuted
                 )
+                if (onDetails != null) {
+                    TextButton(onClick = onDetails, enabled = !isAnalyzing) {
+                        if (isAnalyzing) {
+                            CircularProgressIndicator(
+                                color = colors.secondary,
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(
+                            if (isAnalyzing) "Разбираем…" else "Разобрать подробно",
+                            color = colors.secondary,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
                 return@Column
             }
 
+            val translation = hint?.translationRu ?: analysis?.translationRu
+            val partOfSpeech = hint?.pos ?: analysis?.pos
+            val matched = hint?.senseMatched ?: analysis?.senseMatched ?: false
+            val hasEntry = hint?.entryAvailable ?: analysis?.entryAvailable ?: false
+
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    hint.translationRu?.let { translation ->
+                    translation?.let { text ->
                         Text(
-                            text = translation,
+                            text = text,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = colors.textPrimary
@@ -119,8 +144,8 @@ fun ContextCard(
                             color = colors.secondary,
                             fontWeight = FontWeight.Medium
                         )
-                        hint.pos?.let { pos -> Badge(pos, colors.textMuted) }
-                        if (hint.senseMatched) {
+                        partOfSpeech?.let { pos -> Badge(pos, colors.textMuted) }
+                        if (matched) {
                             Badge(stringResource(R.string.znachenie_iz_stati), colors.secondary)
                         }
                     }
@@ -129,12 +154,12 @@ fun ContextCard(
                 if (canSave) BookmarkButton(saved, saving, saveHint, onSave, onChooseFolders)
             }
 
-            analysis?.translationLemmaRu?.takeIf { it != hint.translationRu }?.let { lemmaRu ->
+            analysis?.translationLemmaRu?.takeIf { it != translation }?.let { lemmaRu ->
                 Spacer(Modifier.height(4.dp))
                 Text("словарная форма: $lemmaRu", fontSize = 12.sp, color = colors.textMuted)
             }
 
-            (hint.senseDefinitionEn ?: analysis?.senseDefinitionEn)?.takeIf { it.isNotBlank() }?.let { gloss ->
+            (hint?.senseDefinitionEn ?: analysis?.senseDefinitionEn)?.takeIf { it.isNotBlank() }?.let { gloss ->
                 Spacer(Modifier.height(10.dp))
                 Text(gloss, fontSize = 14.sp, color = colors.textSecondary, lineHeight = 19.sp)
             }
@@ -176,7 +201,7 @@ fun ContextCard(
             // Два предложения, а не одно действие. Подсказка ответила на вопрос, который был;
             // остальное — то, что человек может захотеть дальше, и захотеть по-разному.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (hint.entryAvailable) {
+                if (hasEntry) {
                     TextButton(onClick = { onOpenArticle(lemma) }) {
                         Text("Открыть статью «$lemma»", color = colors.secondary, fontSize = 14.sp)
                     }
