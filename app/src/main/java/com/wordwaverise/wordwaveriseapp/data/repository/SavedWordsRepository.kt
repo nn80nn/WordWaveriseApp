@@ -8,6 +8,7 @@ import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.SavedWordDao
 import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveContext
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveWordRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SetWordFoldersRequest
 import com.wordwaverise.wordwaveriseapp.util.NetworkError
@@ -53,7 +54,9 @@ class SavedWordsRepository @Inject constructor(
         definition: String? = null,
         senseId: String? = null,
         categoryLocalIds: List<Long> = emptyList(),
-        categoryServerIds: List<Int> = emptyList()
+        categoryServerIds: List<Int> = emptyList(),
+        /** Предложение из книги: по нему сервер выберет значение, когда статья появится. */
+        context: SaveContext? = null
     ): Resource<Boolean> {
         return try {
             Log.d(TAG, "Saving word: $word (sense=${senseId ?: "—"})")
@@ -101,7 +104,8 @@ class SavedWordsRepository @Inject constructor(
                             word, translation, definition, senseId,
                             // ⚠️ Пустой список не отправляется вовсе: сервер различает «никуда»
                             // и «в эти папки», и `[]` читалось бы как просьба вынуть слово.
-                            categoryIds = categoryServerIds.takeIf { it.isNotEmpty() }
+                            categoryIds = categoryServerIds.takeIf { it.isNotEmpty() },
+                            context = context
                         )
                     )
 

@@ -8,6 +8,7 @@ import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextAnalysisDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextHintDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BlockDto
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.saved.SaveContext
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookmarkDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ChapterDto
@@ -501,6 +502,23 @@ class ReaderViewModel @Inject constructor(
     // ── Сохранение ────────────────────────────────────────────────────
 
     /** Короткое нажатие: молча в папку книги. Чтение не прерывается — в этом вся разница. */
+    /**
+     * Предложение, из которого слово сохраняют, — и место слова в нём.
+     *
+     * ⚠️ Отправляется всегда, а не только когда значение не выбрано. Статья могла быть написана
+     * прошлой версией промпта, подсказка могла сопоставить смысл впритык — сервер решает сам,
+     * нужен ли ему контекст, но взять его потом будет неоткуда: книгу закроют.
+     */
+    private fun saveContext(): SaveContext? {
+        val target = _state.value.target ?: return null
+        val sentence = _state.value.sentenceOf(target)?.text ?: return null
+        return SaveContext(
+            sentence = sentence,
+            tokenIndex = target.tokenIndex,
+            pos = _state.value.hint?.pos ?: _state.value.analysis?.pos
+        )
+    }
+
     fun saveQuietly() {
         val lemma = _state.value.currentLemma ?: return
         if (_state.value.isSaving) return
@@ -515,7 +533,8 @@ class ReaderViewModel @Inject constructor(
                 definition = _state.value.currentDefinition,
                 senseId = _state.value.currentSenseId,
                 categoryLocalIds = listOfNotNull(local),
-                categoryServerIds = listOfNotNull(folderServerId)
+                categoryServerIds = listOfNotNull(folderServerId),
+                context = saveContext()
             )
             createCard(lemma)
             finishSave(
@@ -585,7 +604,8 @@ class ReaderViewModel @Inject constructor(
                 definition = _state.value.currentDefinition,
                 senseId = _state.value.currentSenseId,
                 categoryLocalIds = chosen,
-                categoryServerIds = serverIds
+                categoryServerIds = serverIds,
+                context = saveContext()
             )
             val names = chosen.mapNotNull { local ->
                 _state.value.ownFolders.firstOrNull { it.id == local }?.name
