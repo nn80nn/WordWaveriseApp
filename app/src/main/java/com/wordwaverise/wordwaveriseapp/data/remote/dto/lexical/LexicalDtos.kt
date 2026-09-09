@@ -238,6 +238,9 @@ data class ContextAnalysisDto(
     val senseId: String? = null,
     val senseMatched: Boolean = false,
     val senseDefinitionEn: String? = null,
+    /** Транскрипция и запись — те же, что у карточки этого значения. */
+    val phonetic: String? = null,
+    val audioUrl: String? = null,
     /** Russian for the word as it appears here, in the right grammatical form. */
     val translationRu: String? = null,
     val translationLemmaRu: String? = null,
@@ -266,6 +269,14 @@ data class ContextHintDto(
     val senseMatched: Boolean = false,
     /** Из корпуса, когда значение подобралось: точное определение, а не выдумка модели. */
     val senseDefinitionEn: String? = null,
+    /**
+     * Как слово звучит: транскрипция части речи выбранного значения и запись к ней.
+     *
+     * ⚠️ Пустой [audioUrl] при заполненном [phonetic] — это ответ, а не дыра: `lead`-металл,
+     * произнесённый как /liːd/, учит вслух другому слову.
+     */
+    val phonetic: String? = null,
+    val audioUrl: String? = null,
     /** Соседние переводы того же значения: «вести» одно редко ложится в предложение. */
     val translationsRu: List<String> = emptyList(),
     val cefr: String? = null,

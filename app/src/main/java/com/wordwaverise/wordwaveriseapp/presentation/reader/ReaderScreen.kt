@@ -1,6 +1,7 @@
 package com.wordwaverise.wordwaveriseapp.presentation.reader
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,7 +25,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -42,6 +49,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BlockDto
@@ -84,6 +92,21 @@ fun ReaderScreen(
     // Последний скролл не должен пропасть в дебаунсе.
     DisposableEffect(Unit) { onDispose { viewModel.commitPosition() } }
 
+    /**
+     * Вспышку считает экран, а не модель.
+     *
+     * ⚠️ И начинает считать не раньше, чем страница нарисована: переход перезагружает окно и
+     * заново размечает страницы, и таймер, запущенный по ответу сервера, успевал догореть,
+     * пока на экране крутился спиннер. Ждём, пока место применено (`openAt` снят) и загрузка
+     * кончилась.
+     */
+    LaunchedEffect(state.flashOrdinal, state.openAt, state.isLoading) {
+        if (state.flashOrdinal != null && state.openAt == null && !state.isLoading) {
+            delay(FLASH_MS)
+            viewModel.flashShown()
+        }
+    }
+
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
         snackbar.showSnackbar(message)
@@ -108,30 +131,39 @@ fun ReaderScreen(
             )
         }
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .waveSurface()
-                .padding(padding)
-        ) {
-            when {
-                state.isLoading && state.blocks.isEmpty() -> Box(
-                    Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) { CircularProgressIndicator(color = colors.secondary) }
+        /**
+         * ⚠️ Отступ `Scaffold` получает **страница книги**, а не весь экран.
+         *
+         * Лист подсказки стоит ниже него и доходит до низа экрана: иначе его фон обрывался над
+         * системной панелью, и под карточкой оставалась мёртвая полоса высотой в эту панель —
+         * пустая, того же цвета, ни на что не годная. Отступ от панели теперь берёт на себя
+         * содержимое листа, а фон уходит под неё.
+         */
+        Box(modifier = Modifier.fillMaxSize().waveSurface()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                when {
+                    state.isLoading && state.blocks.isEmpty() -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) { CircularProgressIndicator(color = colors.secondary) }
 
-                state.error != null && state.blocks.isEmpty() -> Text(
-                    text = state.error!!,
-                    color = colors.error,
-                    fontSize = 15.sp,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(32.dp)
-                )
+                    state.error != null && state.blocks.isEmpty() -> Text(
+                        text = state.error!!,
+                        color = colors.error,
+                        fontSize = 15.sp,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(32.dp)
+                    )
 
-                state.paged -> PagedReader(state = state, viewModel = viewModel)
+                    state.paged -> PagedReader(state = state, viewModel = viewModel)
 
-                else -> ScrollReader(state = state, viewModel = viewModel)
+                    else -> ScrollReader(state = state, viewModel = viewModel)
+                }
             }
 
             if (state.target != null) {
@@ -297,6 +329,14 @@ private val PAGE_PAD_BOTTOM = 18.dp
 
 /** Скорость броска, после которой страница переворачивается независимо от пройденного пути. */
 private const val FLICK_VELOCITY = 250f
+
+/** Волна под выбранным словом: тоньше и мельче, чем у заголовков, — она под строкой текста. */
+private val WAVE_STROKE = 1.6.dp
+private val WAVE_AMPLITUDE = 1.8.dp
+private val WAVE_LENGTH = 12.dp
+
+/** Сколько живёт вспышка на абзаце, к которому перешли. */
+private const val FLASH_MS = 2000L
 
 @Composable
 private fun subtitleOf(state: ReaderState): String? {
@@ -469,6 +509,7 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel) {
             BlockText(
                 block = block,
                 selected = state.target?.takeIf { it.blockOrdinal == block.ordinal },
+                flash = state.flashOrdinal == block.ordinal,
                 onTap = viewModel::analyze
             )
         }
@@ -511,6 +552,29 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
 
     val flow = remember(state.blocks, state.target) { buildFlow(state, colors) }
 
+    /** Абзац, к которому перешли, — тем же способом, что и волна: куском общего текста. */
+    val flashRange = remember(flow, state.flashOrdinal) {
+        val ordinal = state.flashOrdinal ?: return@remember null
+        val start = flow.startOf(ordinal) ?: return@remember null
+        val end = flow.endOf(ordinal) ?: return@remember null
+        start until end
+    }
+    val flashAlpha by animateFloatAsState(
+        targetValue = if (flashRange != null) 0.16f else 0f,
+        animationSpec = tween(durationMillis = if (flashRange != null) 180 else 700),
+        label = "flashPage"
+    )
+
+    // Смещения выбранного слова в общем тексте: у страницы своя система координат, и волну
+    // рисовать надо по ней, а не по блоку.
+    val waveRanges = remember(flow, state.target) {
+        val hit = state.target ?: return@remember emptyList<IntRange>()
+        val block = state.blocks.firstOrNull { it.ordinal == hit.blockOrdinal }
+            ?: return@remember emptyList()
+        val base = flow.startOf(hit.blockOrdinal) ?: return@remember emptyList()
+        selectedRanges(block, hit).map { (base + it.first)..(base + it.last) }
+    }
+
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     var pageHeightPx by remember { mutableStateOf(0) }
     val density = LocalDensity.current
@@ -527,6 +591,15 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
     var page by remember { mutableStateOf(0) }
     /** Абзац, за который держится текущая страница. Переживает перекладку текста. */
     var anchorOrdinal by remember { mutableStateOf<Int?>(null) }
+    /**
+     * Листал ли человек с момента перехода.
+     *
+     * ⚠️ До первого перелиста предыдущие абзацы не подгружаются. Иначе переход по оглавлению
+     * или закладке дописывал кусок **перед** целью сразу же, и глава, которую только что
+     * открыли, оказывалась в середине страницы, а то и внизу — то есть переход выглядел
+     * промахом. Дочитал до края и пошёл назад — тогда подгрузка и нужна.
+     */
+    var turned by remember { mutableStateOf(false) }
     val drag = remember { Animatable(0f) }
     /**
      * ⚠️ Сколько палец увёл страницу — считается **здесь**, а не читается из `drag`.
@@ -575,6 +648,7 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
     // Открыть там, где бросили.
     LaunchedEffect(state.openAt, pageTops.size) {
         val target = state.openAt ?: return@LaunchedEffect
+        turned = false
         val found = pageOf(target) ?: return@LaunchedEffect
         page = found
         anchorOrdinal = target
@@ -604,7 +678,7 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
         visibleAt(top)?.let(viewModel::setVisible)
 
         if (page >= pageTops.size - 2) viewModel.loadMore()
-        if (page == 0 && !state.atStart) viewModel.loadBefore()
+        if (page == 0 && !state.atStart && turned) viewModel.loadBefore()
     }
 
     /**
@@ -619,6 +693,7 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
         val next = page + direction
         if (next < 0 || next > pageTops.lastIndex) return
         shift = 0f
+        turned = true
         scope.launch {
             drag.animateTo(-direction * widthPx.toFloat(), tween(220))
             page = next
@@ -699,7 +774,8 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
                     top = pageTops[neighbour],
                     offsetX = drag.value + pending * widthPx.toFloat(),
                     onLayout = null,
-                    colors = colors
+                    colors = colors,
+                    waves = waveRanges
                 )
             }
         }
@@ -709,7 +785,10 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
             top = pageTops.getOrNull(page) ?: 0f,
             offsetX = drag.value,
             onLayout = { layout = it },
-            colors = colors
+            colors = colors,
+            waves = waveRanges,
+            flash = flashRange,
+            flashAlpha = flashAlpha
         )
 
         if (state.atEnd && page == pageTops.lastIndex && pending == 0) {
@@ -730,8 +809,17 @@ private fun PageLayer(
     top: Float,
     offsetX: Float,
     onLayout: ((TextLayoutResult) -> Unit)?,
-    colors: com.wordwaverise.wordwaveriseapp.ui.theme.WaveColors
+    colors: com.wordwaverise.wordwaveriseapp.ui.theme.WaveColors,
+    /** Куски текста, под которыми идёт волна выбранного слова. */
+    waves: List<IntRange> = emptyList(),
+    /** Абзац под вспышкой — тот, к которому только что перешли. */
+    flash: IntRange? = null,
+    flashAlpha: Float = 0f
 ) {
+    var drawn by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val stroke = with(LocalDensity.current) { WAVE_STROKE.toPx() }
+    val amplitude = with(LocalDensity.current) { WAVE_AMPLITUDE.toPx() }
+    val wavelength = with(LocalDensity.current) { WAVE_LENGTH.toPx() }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -748,7 +836,10 @@ private fun PageLayer(
             fontSize = 18.sp,
             lineHeight = 31.sp,
             color = colors.textPrimary,
-            onTextLayout = { onLayout?.invoke(it) },
+            onTextLayout = {
+                drawn = it
+                onLayout?.invoke(it)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 // ⚠️ Без `unbounded` текст меряется высотой экрана и рисует только первый
@@ -758,6 +849,17 @@ private fun PageLayer(
                 // Сдвиг целыми пикселями: дробный оставляет над первой строкой полоску
                 // предыдущей — ровно тот мусор, ради которого и стоит обрезка.
                 .offset { IntOffset(0, -top.roundToInt()) }
+                .drawWithContent {
+                    val result = drawn
+                    // Подсветка идёт **под** текстом: поверх она бы его притушила.
+                    if (flash != null && flashAlpha > 0f && result != null) {
+                        drawParagraphFlash(result, flash, colors.secondary, flashAlpha)
+                    }
+                    drawContent()
+                    if (waves.isNotEmpty() && result != null) {
+                        drawWordWave(result, waves, colors.secondary, stroke, amplitude, wavelength)
+                    }
+                }
         )
     }
 }
@@ -788,6 +890,8 @@ private class TextFlow(
 
     /** Начала блоков по порядку: смещение в тексте и адрес абзаца. */
     fun starts(): List<Pair<Int, Int>> = blocks.map { it.first to it.third.ordinal }
+
+    fun endOf(ordinal: Int): Int? = blocks.firstOrNull { it.third.ordinal == ordinal }?.second
 
     fun blockAt(offset: Int): Int? =
         blocks.firstOrNull { offset >= it.first && offset < it.second }?.third?.ordinal
@@ -854,12 +958,11 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendBlock(
             if (token.start > inner) append(sentence.text.substring(inner, token.start))
             val piece = sentence.text.substring(token.start, token.end)
             if (token.index in highlighted) {
-                withStyle(
-                    SpanStyle(
-                        background = colors.secondary.copy(alpha = 0.24f),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                ) { append(piece) }
+                // ⚠️ Без заливки: прямоугольник поверх строки — это выделение из текстового
+                // поля, оно спорит с текстом за внимание и в тёмной теме читается как ошибка
+                // отрисовки. Слово подчёркивает волна (`drawWordWave`) — та же подпись, что и
+                // везде в приложении, и текста она не трогает.
+                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(piece) }
             } else {
                 append(piece)
             }
@@ -904,6 +1007,8 @@ private fun locateInBlock(block: BlockDto, at: Int): TapTarget? {
 private fun BlockText(
     block: BlockDto,
     selected: TapTarget?,
+    /** Абзац, к которому только что перешли: гаснущая подсветка вместо «где-то здесь». */
+    flash: Boolean = false,
     onTap: (TapTarget) -> Unit
 ) {
     val colors = WaveTheme.colors
@@ -917,6 +1022,14 @@ private fun BlockText(
 
     var layout by remember(block) { mutableStateOf<TextLayoutResult?>(null) }
 
+    // Загорается быстро, гаснет медленно: вспышка отвечает на вопрос «куда я попал», а
+    // мигание в обе стороны читалось бы как ошибка отрисовки.
+    val flashAlpha by animateFloatAsState(
+        targetValue = if (flash) 0.16f else 0f,
+        animationSpec = tween(durationMillis = if (flash) 180 else 700),
+        label = "flash"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -924,6 +1037,7 @@ private fun BlockText(
                 top = if (isHeading) 24.dp else 0.dp,
                 bottom = if (isHeading) 10.dp else 14.dp
             )
+            .background(colors.secondary.copy(alpha = flashAlpha), MaterialTheme.shapes.small)
     ) {
         if (isQuote) {
             Box(
@@ -941,6 +1055,11 @@ private fun BlockText(
             Spacer(Modifier.width(8.dp))
         }
 
+        val ranges = remember(block, selected) { selectedRanges(block, selected) }
+        val stroke = with(LocalDensity.current) { WAVE_STROKE.toPx() }
+        val amplitude = with(LocalDensity.current) { WAVE_AMPLITUDE.toPx() }
+        val wavelength = with(LocalDensity.current) { WAVE_LENGTH.toPx() }
+
         Text(
             text = text,
             fontFamily = if (isHeading) Comfortaa else null,
@@ -950,12 +1069,114 @@ private fun BlockText(
             fontStyle = if (isQuote) FontStyle.Italic else FontStyle.Normal,
             color = colors.textPrimary,
             onTextLayout = { layout = it },
-            modifier = Modifier.pointerInput(block) {
-                detectTapGestures { position ->
-                    val result = layout ?: return@detectTapGestures
-                    locateInBlock(block, result.getOffsetForPosition(position))?.let(onTap)
+            modifier = Modifier
+                .pointerInput(block) {
+                    detectTapGestures { position ->
+                        val result = layout ?: return@detectTapGestures
+                        locateInBlock(block, result.getOffsetForPosition(position))?.let(onTap)
+                    }
+                }
+                .drawWithContent {
+                    drawContent()
+                    val result = layout
+                    if (ranges.isNotEmpty() && result != null) {
+                        drawWordWave(result, ranges, colors.secondary, stroke, amplitude, wavelength)
+                    }
+                }
+        )
+    }
+}
+
+/**
+ * Смещения выбранных слов внутри блока.
+ *
+ * Фразовый глагол подчёркивается по словам, а не одной дугой от первого до последнего: между
+ * «give» и «up» стоит «it», и общая волна утверждала бы, что выбрано и оно.
+ */
+private fun selectedRanges(block: BlockDto, target: TapTarget?): List<IntRange> {
+    val hit = target?.takeIf { it.blockOrdinal == block.ordinal } ?: return emptyList()
+    val sentence = block.sentences.firstOrNull { it.index == hit.sentenceIndex } ?: return emptyList()
+    val chosen = sentence.tokens.firstOrNull { it.index == hit.tokenIndex } ?: return emptyList()
+    val group = buildSet {
+        add(chosen.index)
+        chosen.groupWith?.let { addAll(it) }
+    }
+    return sentence.tokens
+        .filter { it.index in group }
+        .map { (sentence.start + it.start) until (sentence.start + it.end) }
+}
+
+/**
+ * Волна под выбранным словом — та же, что подчёркивает акценты в остальном приложении
+ * (`Modifier.waveUnderline`), только здесь она ложится под кусок строки, а не под элемент.
+ *
+ * ⚠️ Рисуется по строкам раскладки: слово может перенестись, и одна дуга через перенос
+ * прочертила бы пустоту справа от строки и слева от следующей.
+ */
+private fun DrawScope.drawWordWave(
+    layout: TextLayoutResult,
+    ranges: List<IntRange>,
+    color: Color,
+    stroke: Float,
+    amplitude: Float,
+    wavelength: Float
+) {
+    for (range in ranges) {
+        if (range.isEmpty()) continue
+        val startLine = layout.getLineForOffset(range.first)
+        val endLine = layout.getLineForOffset(range.last)
+        for (line in startLine..endLine) {
+            val left = if (line == startLine) {
+                layout.getHorizontalPosition(range.first, usePrimaryDirection = true)
+            } else {
+                layout.getLineLeft(line)
+            }
+            val right = if (line == endLine) {
+                layout.getHorizontalPosition(range.last + 1, usePrimaryDirection = true)
+            } else {
+                layout.getLineRight(line)
+            }
+            if (right <= left) continue
+            val y = layout.getLineBottom(line) - amplitude * 2f
+            val path = Path().apply {
+                moveTo(left, y)
+                var x = left
+                var up = true
+                while (x < right) {
+                    val half = wavelength / 2f
+                    val peak = if (up) y - amplitude else y + amplitude
+                    cubicTo(x + half * 0.35f, peak, x + half * 0.65f, peak, x + half, y)
+                    x += half
+                    up = !up
                 }
             }
+            clipRect(left = left, top = y - amplitude * 2f, right = right, bottom = y + amplitude * 2f) {
+                drawPath(path, color = color, style = Stroke(width = stroke))
+            }
+        }
+    }
+}
+
+/** Мягкая подсветка абзаца, к которому перешли: по строкам, как и волна. */
+private fun DrawScope.drawParagraphFlash(
+    layout: TextLayoutResult,
+    range: IntRange,
+    color: Color,
+    alpha: Float
+) {
+    if (range.isEmpty()) return
+    val first = layout.getLineForOffset(range.first)
+    val last = layout.getLineForOffset(range.last)
+    for (line in first..last) {
+        val top = layout.getLineTop(line)
+        val bottom = layout.getLineBottom(line)
+        val left = layout.getLineLeft(line)
+        val right = layout.getLineRight(line)
+        if (right <= left) continue
+        drawRect(
+            color = color.copy(alpha = alpha),
+            topLeft = Offset(left - 4f, top),
+            size = androidx.compose.ui.geometry.Size(right - left + 8f, bottom - top)
         )
     }
 }
@@ -1012,9 +1233,10 @@ private fun HintSheet(
                 modifier = Modifier
                     .heightIn(max = 360.dp)
                     .padding(horizontal = 16.dp)
-                    .padding(bottom = 8.dp)
-                // ⚠️ Никакого `navigationBarsPadding`: `Scaffold` уже отступил от системной
-                // панели, и второй отступ оставлял под карточкой пустую полосу в треть листа.
+                    .padding(bottom = 2.dp)
+                    // Единственный отступ от системной панели: страница книги свой получает от
+                    // `Scaffold`, а лист лежит ниже и отступает сам.
+                    .navigationBarsPadding()
             ) {
                 ContextCard(
                     hint = state.hint,
@@ -1030,7 +1252,8 @@ private fun HintSheet(
                         if (state.currentSaved) viewModel.unsave() else viewModel.saveQuietly()
                     },
                     onChooseFolders = viewModel::openFolderSheet,
-                    onOpenArticle = onOpenArticle
+                    onOpenArticle = onOpenArticle,
+                    onPlayAudio = viewModel::playAudio
                 )
             }
         }

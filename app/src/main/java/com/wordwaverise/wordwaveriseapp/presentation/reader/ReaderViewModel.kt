@@ -1,5 +1,6 @@
 package com.wordwaverise.wordwaveriseapp.presentation.reader
 
+import android.media.MediaPlayer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
@@ -70,6 +71,13 @@ data class ReaderState(
      * Закладка отмечает первый абзац, который на этой странице **начинается**.
      */
     val visibleOrdinal: Int = 0,
+    /**
+     * Абзац, к которому только что перешли, — его подсвечивает короткая вспышка.
+     *
+     * Переход по закладке или оглавлению меняет весь экран разом, и без метки человеку негде
+     * узнать, туда ли он попал: страница новая, а какая на ней строка та самая — непонятно.
+     */
+    val flashOrdinal: Int? = null,
     val error: String? = null,
 
     val target: TapTarget? = null,
@@ -152,6 +160,9 @@ class ReaderViewModel @Inject constructor(
     /** Тап по второму слову, не дождавшись первого, — обычное дело: разбор отменяется, а не гонится. */
     private var analysisJob: Job? = null
     private var positionJob: Job? = null
+
+    /** Плеер произношения. Живёт не дольше экрана — иначе слово звучит из закрытой книги. */
+    private var player: MediaPlayer? = null
     private var pendingOrdinal: Int? = null
     private var bookFolderServerId: Int? = null
 
@@ -338,13 +349,20 @@ class ReaderViewModel @Inject constructor(
         _state.value = _state.value.copy(openAt = null, openOffset = 0)
     }
 
+    /** Вспышку гасит экран, а не таймер модели: считать её надо с момента, когда её видно. */
+    fun flashShown() {
+        if (_state.value.flashOrdinal != null) {
+            _state.value = _state.value.copy(flashOrdinal = null)
+        }
+    }
+
     fun jumpTo(ordinal: Int) {
         closeTap()
         _state.value = _state.value.copy(isLoading = true, blocks = emptyList(), nextOrdinal = null)
         viewModelScope.launch {
             loadWindow(ordinal, replace = true)
             savePosition(ordinal)
-            _state.value = _state.value.copy(openAt = ordinal)
+            _state.value = _state.value.copy(openAt = ordinal, flashOrdinal = ordinal)
         }
     }
 
@@ -363,6 +381,33 @@ class ReaderViewModel @Inject constructor(
      * Отдельный вызов, а не поле в [savePosition]: место записывается с дебаунсом и уезжает на
      * сервер, а видимый абзац меняется на каждой странице и нужен только флажку в панели.
      */
+    /**
+     * Прослушать слово.
+     *
+     * Плеер один на экран и освобождается перед каждым запуском: два нажатия подряд — это
+     * замена записи, а не хор. Ошибку не показываем: звук — приятное дополнение к подсказке,
+     * и сообщение о нём поверх чтения стоит больше, чем сам звук.
+     */
+    override fun onCleared() {
+        super.onCleared()
+        player?.release()
+        player = null
+    }
+
+    fun playAudio(url: String) {
+        viewModelScope.launch {
+            runCatching {
+                player?.release()
+                player = MediaPlayer().apply {
+                    setDataSource(url)
+                    setOnPreparedListener { it.start() }
+                    setOnCompletionListener { it.release(); if (player === it) player = null }
+                    prepareAsync()
+                }
+            }
+        }
+    }
+
     fun setVisible(ordinal: Int) {
         if (_state.value.visibleOrdinal != ordinal) {
             _state.value = _state.value.copy(visibleOrdinal = ordinal)

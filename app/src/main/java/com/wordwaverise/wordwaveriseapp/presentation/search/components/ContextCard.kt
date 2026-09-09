@@ -2,11 +2,15 @@ package com.wordwaverise.wordwaveriseapp.presentation.search.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
@@ -36,6 +40,7 @@ import com.wordwaverise.wordwaveriseapp.ui.theme.*
  * долгое открывает выбор папок. Прерывать чтение вопросом на каждом слове — самый быстрый способ
  * отучить от сохранения вообще.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ContextCard(
     /** Быстрый ответ: что слово значит здесь. Приезжает за пару секунд. */
@@ -53,7 +58,9 @@ fun ContextCard(
     /** Куда слово ляжет по короткому нажатию — название папки книги. */
     saveHint: String? = null,
     onSave: () -> Unit = {},
-    onChooseFolders: () -> Unit = {}
+    onChooseFolders: () -> Unit = {},
+    /** Прослушать слово. Без него ряд произношения показывает одну транскрипцию. */
+    onPlayAudio: ((String) -> Unit)? = null
 ) {
     val colors = WaveTheme.colors
 
@@ -64,7 +71,7 @@ fun ContextCard(
         border = BorderStroke(1.dp, colors.border),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             if (isHinting) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -118,11 +125,27 @@ fun ContextCard(
             }
 
             val translation = hint?.translationRu ?: analysis?.translationRu
+            // Форма, по которой нажали: «popholes», а не «pophole». Словарную форму она не
+            // заменяет — читателю нужны обе, иначе слово в тексте и слово в словаре выглядят
+            // разными словами.
+            val surface = (hint?.target?.surface ?: analysis?.target?.surface)
+                ?.takeIf { !it.equals(lemma, ignoreCase = true) }
+            val ipa = (hint?.phonetic ?: analysis?.phonetic)?.takeIf { it.isNotBlank() }
+            val audio = (hint?.audioUrl ?: analysis?.audioUrl)?.takeIf { it.isNotBlank() }
             val neighbours = hint?.translationsRu.orEmpty()
             val partOfSpeech = hint?.pos ?: analysis?.pos
             val matched = hint?.senseMatched ?: analysis?.senseMatched ?: false
             val hasEntry = hint?.entryAvailable ?: analysis?.entryAvailable ?: false
 
+            /**
+             * Ответ сначала, аппарат потом.
+             *
+             * ⚠️ Порядок не косметика: человек нажал слово, чтобы узнать, что оно здесь значит,
+             * и перевод обязан стоять там, куда падает взгляд. Ниже тонкой линии — то же слово
+             * по-английски со всем, что о нём известно: форма, словарная форма, часть речи,
+             * произношение и пометы. Раньше эти строки шли вперемешку, и карточка читалась как
+             * набор обрывков, а не как один ответ.
+             */
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     translation?.let { text ->
@@ -130,44 +153,68 @@ fun ContextCard(
                             text = text,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            color = colors.textPrimary
+                            color = colors.textPrimary,
+                            lineHeight = 26.sp
                         )
                     }
-
-                    Row(
-                        modifier = Modifier.padding(top = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    // Соседние переводы значения — той же строкой мысли, что и главный: одного
+                    // слова часто мало, «вести» не ложится в «lead the horse» как «провожать».
+                    if (neighbours.isNotEmpty()) {
+                        Spacer(Modifier.height(3.dp))
                         Text(
-                            lemma,
+                            text = neighbours.joinToString(", "),
                             fontSize = 14.sp,
-                            color = colors.secondary,
-                            fontWeight = FontWeight.Medium
+                            color = colors.textSecondary,
+                            lineHeight = 18.sp
                         )
-                        partOfSpeech?.let { pos -> Badge(pos, colors.textMuted) }
-                        // Пометы значения — из корпуса, ни одна не спрашивается у модели.
-                        hint?.cefr?.let { Badge(it, colors.brass) }
-                        hint?.register?.let { Badge(registerLabel(it), colors.textMuted) }
-                        hint?.countability?.let { Badge(countabilityLabel(it), colors.textMuted) }
-                        if (matched) {
-                            Badge(stringResource(R.string.znachenie_iz_stati), colors.secondary)
-                        }
                     }
                 }
 
                 if (canSave) BookmarkButton(saved, saving, saveHint, onSave, onChooseFolders)
             }
 
-            // Соседние переводы значения. Одного слова часто мало: «вести» не ложится в
-            // «lead the horse» так же, как «провожать», а выбирать читателю было не из чего.
-            if (neighbours.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(10.dp))
+            RuleFade()
+            Spacer(Modifier.height(8.dp))
+
+            // Аппарат слова одной лентой: она переносится, а не рвётся на отдельные ряды.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
-                    text = neighbours.joinToString(" · "),
-                    fontSize = 14.sp,
-                    color = colors.textSecondary
+                    text = if (surface != null) "$surface ($lemma)" else lemma,
+                    fontSize = 15.sp,
+                    color = colors.secondary,
+                    fontWeight = FontWeight.Medium
                 )
+                // ⚠️ Слот транскрипции занят всегда: прочерк говорит «произношения у нас нет»,
+                // а исчезнувшая строка — «его не бывает». Это разные утверждения.
+                Text(
+                    text = ipa ?: "—",
+                    style = ApparatusStyle,
+                    fontSize = 13.sp,
+                    color = colors.textMuted
+                )
+                if (audio != null && onPlayAudio != null) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = "Прослушать произношение",
+                        tint = colors.secondary,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .clickable { onPlayAudio(audio) }
+                    )
+                }
+                partOfSpeech?.let { pos -> Badge(pos, colors.textMuted) }
+                // Пометы значения — из корпуса, ни одна не спрашивается у модели.
+                hint?.cefr?.let { Badge(it, colors.brass) }
+                hint?.register?.let { Badge(registerLabel(it), colors.textMuted) }
+                hint?.countability?.let { Badge(countabilityLabel(it), colors.textMuted) }
+                if (matched) {
+                    Badge(stringResource(R.string.znachenie_iz_stati), colors.secondary)
+                }
             }
 
             analysis?.translationLemmaRu?.takeIf { it != translation }?.let { lemmaRu ->
@@ -175,9 +222,36 @@ fun ContextCard(
                 Text("словарная форма: $lemmaRu", fontSize = 12.sp, color = colors.textMuted)
             }
 
-            (hint?.senseDefinitionEn ?: analysis?.senseDefinitionEn)?.takeIf { it.isNotBlank() }?.let { gloss ->
-                Spacer(Modifier.height(10.dp))
-                Text(gloss, fontSize = 14.sp, color = colors.textSecondary, lineHeight = 19.sp)
+            /**
+             * Одна и та же строка на этом месте у каждого слова.
+             *
+             * ⚠️ У карточки обязан быть постоянный набор строк. Раньше слово со статьёй
+             * показывало определение и пометы, а слово без статьи — ничего, и разница читалась
+             * как «приложение то показывает, то нет». Пропуск теперь **назван**: человек видит,
+             * чего именно не хватает и почему, а не гадает, куда делась половина карточки.
+             */
+            val definition = (hint?.senseDefinitionEn ?: analysis?.senseDefinitionEn)
+                ?.takeIf { it.isNotBlank() }
+            Spacer(Modifier.height(10.dp))
+            when {
+                definition != null -> Text(
+                    definition,
+                    fontSize = 14.sp,
+                    color = colors.textSecondary,
+                    lineHeight = 19.sp
+                )
+                !hasEntry -> Text(
+                    "Статьи в словаре пока нет — перевод по этому предложению.",
+                    fontSize = 13.sp,
+                    color = colors.textMuted,
+                    lineHeight = 18.sp
+                )
+                else -> Text(
+                    "В статье это значение не нашлось — перевод по этому предложению.",
+                    fontSize = 13.sp,
+                    color = colors.textMuted,
+                    lineHeight = 18.sp
+                )
             }
 
             analysis?.whyRu?.takeIf { it.isNotBlank() }?.let { why ->
@@ -214,29 +288,54 @@ fun ContextCard(
                 )
             }
 
-            // Два предложения, а не одно действие. Подсказка ответила на вопрос, который был;
-            // остальное — то, что человек может захотеть дальше, и захотеть по-разному.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (hasEntry) {
-                    TextButton(onClick = { onOpenArticle(lemma) }) {
-                        Text("Открыть статью «$lemma»", color = colors.secondary, fontSize = 14.sp)
-                    }
-                }
-                if (analysis == null && onDetails != null) {
-                    TextButton(onClick = onDetails, enabled = !isAnalyzing) {
-                        if (isAnalyzing) {
-                            CircularProgressIndicator(
-                                color = colors.textMuted,
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                        }
+            /**
+             * Два предложения, а не одно действие. Подсказка ответила на вопрос, который был;
+             * остальное — то, что человек может захотеть дальше, и захотеть по-разному.
+             *
+             * ⚠️ Строки, а не `TextButton`: у кнопки минимальная высота в 48 dp и свои поля, и
+             * ряд из двух таких занимал под карточкой больше места, чем сам разбор. Область
+             * нажатия остаётся пальцевой за счёт вертикального отступа строки.
+             */
+            if (hasEntry || (analysis == null && onDetails != null)) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    if (hasEntry) {
                         Text(
-                            if (isAnalyzing) "Разбираем…" else "Подробнее",
-                            color = colors.textMuted,
-                            fontSize = 14.sp
+                            text = "Открыть статью «$lemma»",
+                            color = colors.secondary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onOpenArticle(lemma) }
+                                .padding(vertical = 4.dp)
                         )
+                    }
+                    if (analysis == null && onDetails != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable(enabled = !isAnalyzing) { onDetails() }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            if (isAnalyzing) {
+                                CircularProgressIndicator(
+                                    color = colors.textMuted,
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                            Text(
+                                if (isAnalyzing) "Разбираем…" else "Подробнее",
+                                color = colors.textMuted,
+                                fontSize = 14.sp
+                            )
+                        }
                     }
                 }
             }
