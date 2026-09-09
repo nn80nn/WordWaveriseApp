@@ -442,6 +442,8 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel) {
                 state.blocks.getOrNull(index)?.let {
                     // Смещение внутри абзаца имеет смысл только для того, что стоит наверху.
                     viewModel.savePosition(it.ordinal, if (index == first) offset else 0)
+                    // В скролле видно ровно его: абзац, начало которого на экране.
+                    viewModel.setVisible(it.ordinal)
                 }
 
                 val last = info.lastOrNull()?.index ?: 0
@@ -511,7 +513,17 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
 
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     var pageHeightPx by remember { mutableStateOf(0) }
-    val insetPx = with(LocalDensity.current) { (PAGE_PAD_TOP + PAGE_PAD_BOTTOM).roundToPx() }
+    val density = LocalDensity.current
+    val insetPx = with(density) { (PAGE_PAD_TOP + PAGE_PAD_BOTTOM).roundToPx() }
+    /**
+     * ⚠️ Поля страницы — это сдвиг **между пальцем и текстом**.
+     *
+     * Жест ловит внешний бокс, а текст нарисован внутри полей, поэтому нажатие приходит в
+     * координатах, где текста ещё нет: без вычитания читалка спрашивала букву на 20 dp правее
+     * и на 14 dp ниже — то есть соседнее слово, а у нижней половины строки и вовсе следующую.
+     */
+    val padLeftPx = with(density) { PAGE_PAD_H.toPx() }
+    val padTopPx = with(density) { PAGE_PAD_TOP.toPx() }
     var page by remember { mutableStateOf(0) }
     /** Абзац, за который держится текущая страница. Переживает перекладку текста. */
     var anchorOrdinal by remember { mutableStateOf<Int?>(null) }
@@ -534,6 +546,23 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
     fun ordinalAt(top: Float): Int? {
         val result = layout ?: return null
         return flow.blockAt(result.getOffsetForPosition(Offset(0f, top + 1f)))
+    }
+
+    /**
+     * Первый абзац, который **начинается** на этой странице.
+     *
+     * Именно его отмечает закладка: абзац, накрывающий верх страницы, начался страницей раньше,
+     * и возврат по такой закладке уводил назад — «ставится на абзац выше». Если на странице не
+     * начинается ни один (середина длинного абзаца), отмечать больше нечего, кроме него самого.
+     */
+    fun visibleAt(top: Float): Int? {
+        val result = layout ?: return null
+        val bottom = top + pageHeightPx
+        val started = flow.starts().firstOrNull { (offset, _) ->
+            val y = result.getLineTop(result.getLineForOffset(offset))
+            y >= top && y < bottom
+        }
+        return started?.second ?: ordinalAt(top)
     }
 
     fun pageOf(ordinal: Int): Int? {
@@ -572,6 +601,7 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
             anchorOrdinal = it
             viewModel.savePosition(it, top.toInt())
         }
+        visibleAt(top)?.let(viewModel::setVisible)
 
         if (page >= pageTops.size - 2) viewModel.loadMore()
         if (page == 0 && !state.atStart) viewModel.loadBefore()
@@ -654,8 +684,8 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
                 detectTapGestures { position ->
                     val result = layout ?: return@detectTapGestures
                     val top = pageTops.getOrNull(page) ?: return@detectTapGestures
-                    val at = result.getOffsetForPosition(position + Offset(0f, top))
-                    flow.locate(at)?.let(viewModel::analyze)
+                    val inText = position - Offset(padLeftPx, padTopPx - top)
+                    flow.locate(result.getOffsetForPosition(inText))?.let(viewModel::analyze)
                 }
             }
     ) {
@@ -755,6 +785,9 @@ private class TextFlow(
     private val blocks: List<Triple<Int, Int, BlockDto>>
 ) {
     fun startOf(ordinal: Int): Int? = blocks.firstOrNull { it.third.ordinal == ordinal }?.first
+
+    /** Начала блоков по порядку: смещение в тексте и адрес абзаца. */
+    fun starts(): List<Pair<Int, Int>> = blocks.map { it.first to it.third.ordinal }
 
     fun blockAt(offset: Int): Int? =
         blocks.firstOrNull { offset >= it.first && offset < it.second }?.third?.ordinal
@@ -980,7 +1013,8 @@ private fun HintSheet(
                     .heightIn(max = 360.dp)
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 8.dp)
-                    .navigationBarsPadding()
+                // ⚠️ Никакого `navigationBarsPadding`: `Scaffold` уже отступил от системной
+                // панели, и второй отступ оставлял под карточкой пустую полосу в треть листа.
             ) {
                 ContextCard(
                     hint = state.hint,

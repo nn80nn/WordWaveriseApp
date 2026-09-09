@@ -61,6 +61,15 @@ data class ReaderState(
     val bookmarksOpen: Boolean = false,
     /** Абзац, который сейчас наверху экрана: по нему закладка знает, стоит она или нет. */
     val currentOrdinal: Int = 0,
+    /**
+     * Абзац, который человек **видит**, — то, что отмечает закладка.
+     *
+     * ⚠️ Это не то же самое, что [currentOrdinal]. Место хранит абзац, накрывающий верх
+     * страницы, чтобы книга открылась ровно там же; но длинный абзац начинается страницей
+     * раньше, и закладка на него приводила читателя назад — «ставится на абзац выше».
+     * Закладка отмечает первый абзац, который на этой странице **начинается**.
+     */
+    val visibleOrdinal: Int = 0,
     val error: String? = null,
 
     val target: TapTarget? = null,
@@ -85,7 +94,7 @@ data class ReaderState(
     val atStart: Boolean get() = firstOrdinal == 0
 
     /** Отмечено ли **это** место. Закладка на соседнем абзаце — не эта закладка. */
-    val bookmarkedHere: Boolean get() = bookmarks.any { it.ordinal == currentOrdinal }
+    val bookmarkedHere: Boolean get() = bookmarks.any { it.ordinal == visibleOrdinal }
 
     fun sentenceOf(target: TapTarget): SentenceDto? =
         blocks.firstOrNull { it.ordinal == target.blockOrdinal }
@@ -175,7 +184,8 @@ class ReaderViewModel @Inject constructor(
                         openOffset = offset,
                         // Место известно с самого открытия: до первой прокрутки читатель уже
                         // стоит здесь, и закладка с переключением режима обязаны это знать.
-                        currentOrdinal = position
+                        currentOrdinal = position,
+                        visibleOrdinal = position
                     )
                 }
                 else -> _state.value = _state.value.copy(
@@ -294,7 +304,7 @@ class ReaderViewModel @Inject constructor(
 
     /** Одна кнопка на оба действия: место либо отмечено, либо нет, третьего состояния нет. */
     fun toggleBookmark() {
-        val ordinal = _state.value.currentOrdinal
+        val ordinal = _state.value.visibleOrdinal
         viewModelScope.launch {
             if (_state.value.bookmarkedHere) {
                 books.removeBookmark(bookId, ordinal)
@@ -347,6 +357,18 @@ class ReaderViewModel @Inject constructor(
     /**
      * @param offset точное место внутри абзаца — пиксель для скролла, верх строки для страниц.
      */
+    /**
+     * Что сейчас на экране целиком: закладке этого достаточно, а месту — нет.
+     *
+     * Отдельный вызов, а не поле в [savePosition]: место записывается с дебаунсом и уезжает на
+     * сервер, а видимый абзац меняется на каждой странице и нужен только флажку в панели.
+     */
+    fun setVisible(ordinal: Int) {
+        if (_state.value.visibleOrdinal != ordinal) {
+            _state.value = _state.value.copy(visibleOrdinal = ordinal)
+        }
+    }
+
     fun savePosition(ordinal: Int, offset: Int = 0) {
         _state.value = _state.value.copy(currentOrdinal = ordinal)
         viewModelScope.launch { settings.setReaderOffset(bookId, ordinal, offset) }
