@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
@@ -86,6 +87,14 @@ fun ReaderScreen(
     val colors = WaveTheme.colors
     val snackbar = remember { SnackbarHostState() }
     var contentsOpen by remember { mutableStateOf(false) }
+    /**
+     * Сколько снизу закрывает лист подсказки.
+     *
+     * ⚠️ Нужна обоим режимам: слово, по которому нажали, обязано остаться видимым. Нажатие по
+     * нижней строке иначе открывает разбор поверх самого слова — то есть прячет ровно то, о чём
+     * спросили, и понять, туда ли попал, нельзя вовсе.
+     */
+    var sheetHeightPx by remember { mutableStateOf(0) }
 
     LaunchedEffect(bookId) { viewModel.start(bookId) }
 
@@ -160,9 +169,17 @@ fun ReaderScreen(
                             .padding(32.dp)
                     )
 
-                    state.paged -> PagedReader(state = state, viewModel = viewModel)
+                    state.paged -> PagedReader(
+                        state = state,
+                        viewModel = viewModel,
+                        coveredPx = if (state.target != null) sheetHeightPx else 0
+                    )
 
-                    else -> ScrollReader(state = state, viewModel = viewModel)
+                    else -> ScrollReader(
+                        state = state,
+                        viewModel = viewModel,
+                        coveredPx = if (state.target != null) sheetHeightPx else 0
+                    )
                 }
             }
 
@@ -171,7 +188,9 @@ fun ReaderScreen(
                     state = state,
                     viewModel = viewModel,
                     onOpenArticle = onOpenArticle,
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { sheetHeightPx = it.height }
                 )
             }
         }
@@ -348,6 +367,9 @@ private val WAVE_STROKE = 1.6.dp
 private val WAVE_AMPLITUDE = 1.8.dp
 private val WAVE_LENGTH = 12.dp
 
+/** Небольшой запас над листом разбора: слово вплотную к его краю читается как закрытое. */
+private const val LINE_MARGIN_PX = 24f
+
 /** Сколько живёт вспышка на абзаце, к которому перешли. */
 private const val FLASH_MS = 2000L
 
@@ -448,8 +470,28 @@ private fun ReaderTopBar(
 // ── Скролл ────────────────────────────────────────────────────────────
 
 @Composable
-private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel) {
+private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel, coveredPx: Int = 0) {
     val listState = rememberLazyListState()
+    /** Абзац и низ строки, по которой нажали: экран прокручивается, если её закрыл лист. */
+    var tappedLine by remember { mutableStateOf<Pair<Int, Float>?>(null) }
+
+    /**
+     * ⚠️ Нажатие по нижней строке открывает разбор **поверх самого слова**.
+     *
+     * Человек спросил про слово и перестал его видеть — то есть спросил впустую. Экран
+     * прокручивается ровно настолько, чтобы строка осталась над листом, и не больше: лишняя
+     * прокрутка уводит взгляд с того места, куда человек смотрел.
+     */
+    LaunchedEffect(state.target, coveredPx, tappedLine) {
+        val (ordinal, lineBottom) = tappedLine ?: return@LaunchedEffect
+        if (state.target?.blockOrdinal != ordinal || coveredPx <= 0) return@LaunchedEffect
+        val info = listState.layoutInfo.visibleItemsInfo.firstOrNull {
+            state.blocks.getOrNull(it.index)?.ordinal == ordinal
+        } ?: return@LaunchedEffect
+        val visible = listState.layoutInfo.viewportEndOffset - coveredPx
+        val delta = info.offset + lineBottom - visible
+        if (delta > 0f) listState.animateScrollBy(delta + LINE_MARGIN_PX)
+    }
 
     // Встать туда, где книгу бросили. Окно начинается раньше этого места, поэтому индекс
     // ищется по ordinal, а не берётся нулём, а смещение возвращает в ту же строку абзаца.
@@ -523,6 +565,7 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel) {
                 block = block,
                 selected = state.target?.takeIf { it.blockOrdinal == block.ordinal },
                 flash = state.flashOrdinal == block.ordinal,
+                onTapLine = { tappedLine = block.ordinal to it },
                 onTap = viewModel::analyze
             )
         }
@@ -559,7 +602,7 @@ private fun EndOfBook() {
  * до конца загруженного, отлетал бы в начало ровно в момент подгрузки.
  */
 @Composable
-private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
+private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel, coveredPx: Int = 0) {
     val colors = WaveTheme.colors
     val scope = rememberCoroutineScope()
 
@@ -578,6 +621,13 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
         label = "flashPage"
     )
 
+    /**
+     * На сколько поднять страницу, чтобы выбранное слово осталось над листом подсказки.
+     *
+     * ⚠️ Иначе нажатие по нижней строке открывает разбор **поверх самого слова**: человек
+     * спросил про слово и перестал его видеть. Сдвиг живёт только пока лист открыт, места в
+     * книге не меняет и на запись позиции не влияет — это взгляд, а не переход.
+     */
     // Смещения выбранного слова в общем тексте: у страницы своя система координат, и волну
     // рисовать надо по ней, а не по блоку.
     val waveRanges = remember(flow, state.target) {
@@ -723,6 +773,19 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
      */
     var pending by remember { mutableStateOf(0) }
 
+    val peek = run {
+        val result = layout
+        val range = waveRanges.lastOrNull()
+        val top = pageTops.getOrNull(page)
+        if (coveredPx <= 0 || result == null || range == null || top == null) {
+            0f
+        } else {
+            val lineBottom = result.getLineBottom(result.getLineForOffset(range.last))
+            val visible = top + pageHeightPx - coveredPx
+            (lineBottom - visible).coerceAtLeast(0f)
+        }
+    }
+
     fun turn(direction: Int) {
         val next = page + direction
         if (next < 0 || next > pageTops.lastIndex) return
@@ -794,7 +857,7 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
                 detectTapGestures { position ->
                     val result = layout ?: return@detectTapGestures
                     val top = pageTops.getOrNull(page) ?: return@detectTapGestures
-                    val inText = position - Offset(padLeftPx, padTopPx - top)
+                    val inText = position - Offset(padLeftPx, padTopPx - top - peek)
                     flow.locate(result.getOffsetForPosition(inText))?.let(viewModel::analyze)
                 }
             }
@@ -807,6 +870,7 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
                 PageLayer(
                     flow = flow,
                     top = pageTops[neighbour],
+                    limit = pageTops.getOrNull(neighbour + 1)?.minus(pageTops[neighbour]),
                     offsetX = drag.value + pending * widthPx.toFloat(),
                     onLayout = null,
                     colors = colors,
@@ -817,7 +881,12 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
 
         PageLayer(
             flow = flow,
-            top = pageTops.getOrNull(page) ?: 0f,
+            top = (pageTops.getOrNull(page) ?: 0f) + peek,
+            // ⚠️ Низ страницы обрезается по её последней строке, а не по свободному месту:
+            // строка, не влезшая в страницу, всё равно попадала в окно верхушками букв — снизу
+            // оставались «остатки» чужого текста. Пока страница поднята под лист, обрезать
+            // нечего: то, что ниже, и так закрыто.
+            limit = if (peek > 0f) null else pageTops.getOrNull(page + 1)?.minus(pageTops[page]),
             offsetX = drag.value,
             onLayout = { layout = it },
             colors = colors,
@@ -842,6 +911,8 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
 private fun PageLayer(
     flow: TextFlow,
     top: Float,
+    /** Высота текста этой страницы: ниже начинается следующая, и её здесь быть не должно. */
+    limit: Float? = null,
     offsetX: Float,
     onLayout: ((TextLayoutResult) -> Unit)?,
     colors: com.wordwaverise.wordwaveriseapp.ui.theme.WaveColors,
@@ -866,6 +937,21 @@ private fun PageLayer(
             .padding(start = PAGE_PAD_H, end = PAGE_PAD_H, top = PAGE_PAD_TOP, bottom = PAGE_PAD_BOTTOM)
             .clipToBounds()
     ) {
+        /**
+         * ⚠️ Окно ровно в высоту текста этой страницы.
+         *
+         * Разбиение решает, какие строки к странице относятся, по **низу** строки, а рисуется
+         * всё, что попало в прямоугольник. Строка, у которой в страницу влез только верх, так и
+         * оставалась снизу торчащими верхушками букв — «остатки» чужого текста под последней
+         * строкой. Обрезка по границе следующей страницы их убирает.
+         */
+        val window = limit?.let { with(LocalDensity.current) { it.toDp() } }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (window != null) Modifier.height(window) else Modifier.fillMaxHeight())
+                .clipToBounds()
+        ) {
         Text(
             text = flow.text,
             fontSize = 18.sp,
@@ -896,6 +982,7 @@ private fun PageLayer(
                     }
                 }
         )
+        }
     }
 }
 
@@ -1044,6 +1131,8 @@ private fun BlockText(
     selected: TapTarget?,
     /** Абзац, к которому только что перешли: гаснущая подсветка вместо «где-то здесь». */
     flash: Boolean = false,
+    /** Низ нажатой строки внутри блока — по нему экран решает, не закрыл ли её лист разбора. */
+    onTapLine: (Float) -> Unit = {},
     onTap: (TapTarget) -> Unit
 ) {
     val colors = WaveTheme.colors
@@ -1108,7 +1197,11 @@ private fun BlockText(
                 .pointerInput(block) {
                     detectTapGestures { position ->
                         val result = layout ?: return@detectTapGestures
-                        locateInBlock(block, result.getOffsetForPosition(position))?.let(onTap)
+                        val at = result.getOffsetForPosition(position)
+                        locateInBlock(block, at)?.let {
+                            onTapLine(result.getLineBottom(result.getLineForOffset(at)))
+                            onTap(it)
+                        }
                     }
                 }
                 .drawWithContent {
