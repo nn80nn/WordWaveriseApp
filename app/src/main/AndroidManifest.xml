@@ -75,6 +75,7 @@
                 <data android:mimeType="application/fb2" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="text/html" />
+                <data android:mimeType="application/pdf" />
             </intent-filter>
 
             <intent-filter android:priority="1">
@@ -88,6 +89,7 @@
                 <data android:pathPattern=".*\\.epub" />
                 <data android:pathPattern=".*\\.fb2" />
                 <data android:pathPattern=".*\\.fb2\\.zip" />
+                <data android:pathPattern=".*\\.pdf" />
                 <data android:pathPattern=".*\\.txt" />
                 <data android:pathPattern=".*\\.html" />
                 <data android:pathPattern=".*\\.htm" />

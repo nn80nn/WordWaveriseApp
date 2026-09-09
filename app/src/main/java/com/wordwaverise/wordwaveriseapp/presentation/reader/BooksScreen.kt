@@ -125,7 +125,7 @@ fun BooksScreen(
 
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "EPUB, FB2 (в том числе .fb2.zip), TXT и HTML. До 32 МБ.",
+                    text = "EPUB, FB2 (в том числе .fb2.zip), PDF, TXT и HTML. До 32 МБ.",
                     fontSize = 12.sp,
                     color = colors.textMuted
                 )
