@@ -71,7 +71,7 @@ fun ContextCard(
         border = BorderStroke(1.dp, colors.border),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             if (isHinting) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -297,7 +297,7 @@ fun ContextCard(
              * нажатия остаётся пальцевой за счёт вертикального отступа строки.
              */
             if (hasEntry || (analysis == null && onDetails != null)) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(18.dp)

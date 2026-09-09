@@ -325,10 +325,23 @@ private const val PAGED_MODE = "paged"
  */
 private val PAGE_PAD_H = 20.dp
 private val PAGE_PAD_TOP = 14.dp
-private val PAGE_PAD_BOTTOM = 18.dp
+/**
+ * ⚠️ Маленькое намеренно. Разбиение по строкам и так оставляет внизу остаток — от нуля до
+ * целой строки, — и большое поле складывалось с ним в пустой сантиметр под текстом.
+ */
+private val PAGE_PAD_BOTTOM = 6.dp
 
-/** Скорость броска, после которой страница переворачивается независимо от пройденного пути. */
-private const val FLICK_VELOCITY = 250f
+/**
+ * Скорость броска, после которой страница переворачивается независимо от пройденного пути.
+ *
+ * ⚠️ Одной скорости мало. Палец, снятый с экрана чуть смазанно, летит быстро, но проходит
+ * десяток пикселей — и нажатие на слово оборачивалось перелистом. Бросок засчитывается только
+ * вместе с [FLICK_MIN_TRAVEL]: жест, никуда не уехавший, — это нажатие, а не бросок.
+ */
+private const val FLICK_VELOCITY = 500f
+
+/** Сколько палец обязан пройти, чтобы это считалось броском, а не смазанным нажатием. */
+private val FLICK_MIN_TRAVEL = 28.dp
 
 /** Волна под выбранным словом: тоньше и мельче, чем у заголовков, — она под строкой текста. */
 private val WAVE_STROKE = 1.6.dp
@@ -588,9 +601,20 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
      */
     val padLeftPx = with(density) { PAGE_PAD_H.toPx() }
     val padTopPx = with(density) { PAGE_PAD_TOP.toPx() }
+    val minTravelPx = with(density) { FLICK_MIN_TRAVEL.toPx() }
     var page by remember { mutableStateOf(0) }
     /** Абзац, за который держится текущая страница. Переживает перекладку текста. */
     var anchorOrdinal by remember { mutableStateOf<Int?>(null) }
+    /**
+     * Буква внутри абзаца, с которой начинается страница.
+     *
+     * ⚠️ Одного абзаца мало. Длинный абзац занимает несколько страниц, а страница искалась по
+     * его **началу** — то есть по первой из них. Любая перекладка текста (а нажатие по слову
+     * перекладывает его: подсветка меняет разметку) возвращала читателя на страницу назад.
+     * Смещение внутри абзаца — потому что общее смещение сдвигается, когда спереди дописывают
+     * кусок книги, а место в абзаце от этого не меняется.
+     */
+    var anchorChar by remember { mutableStateOf(0) }
     /**
      * Листал ли человек с момента перехода.
      *
@@ -638,11 +662,19 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
         return started?.second ?: ordinalAt(top)
     }
 
-    fun pageOf(ordinal: Int): Int? {
+    fun pageOf(ordinal: Int, inBlock: Int = 0): Int? {
         val result = layout ?: return null
         val start = flow.startOf(ordinal) ?: return null
-        val top = result.getLineTop(result.getLineForOffset(start))
+        val at = (start + inBlock).coerceIn(0, flow.text.length)
+        val top = result.getLineTop(result.getLineForOffset(at))
         return pageTops.indexOfLast { it <= top }.coerceAtLeast(0)
+    }
+
+    /** Сколько букв абзаца уже осталось выше верха страницы. */
+    fun charAt(top: Float, ordinal: Int): Int {
+        val result = layout ?: return 0
+        val start = flow.startOf(ordinal) ?: return 0
+        return (result.getOffsetForPosition(Offset(0f, top + 1f)) - start).coerceAtLeast(0)
     }
 
     // Открыть там, где бросили.
@@ -652,13 +684,14 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
         val found = pageOf(target) ?: return@LaunchedEffect
         page = found
         anchorOrdinal = target
+        anchorChar = 0
         viewModel.openHandled()
     }
 
     // Текст переложили — страница ищется заново по абзацу, а не остаётся номером.
     LaunchedEffect(pageTops, flow) {
         val anchor = anchorOrdinal ?: return@LaunchedEffect
-        pageOf(anchor)?.let { if (it != page) page = it }
+        pageOf(anchor, anchorChar)?.let { if (it != page) page = it }
     }
 
     /**
@@ -673,6 +706,7 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
         val top = pageTops.getOrNull(page) ?: return@LaunchedEffect
         ordinalAt(top)?.let {
             anchorOrdinal = it
+            anchorChar = charAt(top, it)
             viewModel.savePosition(it, top.toInt())
         }
         visibleAt(top)?.let(viewModel::setVisible)
@@ -743,7 +777,8 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel) {
                     scope.launch { drag.snapTo(clamped) }
                 },
                 onDragStopped = { velocity ->
-                    val enough = abs(velocity) > FLICK_VELOCITY || abs(shift) > widthPx / 8f
+                    val flick = abs(velocity) > FLICK_VELOCITY && abs(shift) > minTravelPx
+                    val enough = flick || abs(shift) > widthPx / 8f
                     when {
                         enough && shift < 0 && page < pageTops.lastIndex -> turn(1)
                         enough && shift > 0 && page > 0 -> turn(-1)
@@ -1233,7 +1268,7 @@ private fun HintSheet(
                 modifier = Modifier
                     .heightIn(max = 360.dp)
                     .padding(horizontal = 16.dp)
-                    .padding(bottom = 2.dp)
+                    .padding(bottom = 0.dp)
                     // Единственный отступ от системной панели: страница книги свой получает от
                     // `Scaffold`, а лист лежит ниже и отступает сам.
                     .navigationBarsPadding()
