@@ -1,3 +1,7 @@
-Saving words is fixed.
+The app now has a reader: upload your own books and read with tap-to-translate.
 
-Clearing the search box between two words used to empty the folder list: the save dialog then offered only "No folder" and a field for a new one. Your folders now survive clearing the search.
+• EPUB, FB2, PDF, TXT and pasted text are all supported
+• Tap any word for its translation and meaning right in that sentence, no dictionary lookup needed
+• A word saved from a book gets the sense that actually fits that sentence
+• Bookmarks, table of contents and your reading position are remembered automatically
+• PDF files open directly in the app
