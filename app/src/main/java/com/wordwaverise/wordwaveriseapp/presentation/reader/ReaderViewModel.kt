@@ -41,11 +41,14 @@ data class TapTarget(
      */
     val tokenEnd: Int? = null
 ) {
-    /** Диапазон шире одного слова — это уже не словарная единица, сохранять в словарь нечего. */
+    /**
+     * Диапазон шире одного слова.
+     *
+     * У фразы нет словарной формы — при сохранении в ход идёт не `currentLemma`
+     * (`ReaderState.currentSaveWord`), а сам выделенный текст.
+     */
     val isPhrase: Boolean get() = (tokenEnd ?: tokenIndex) > tokenIndex
 }
-
-enum class ExtendDirection { LEFT, RIGHT }
 
 data class ReaderState(
     val book: BookDto? = null,
@@ -119,21 +122,30 @@ data class ReaderState(
         blocks.firstOrNull { it.ordinal == target.blockOrdinal }
             ?.sentences?.firstOrNull { it.index == target.sentenceIndex }
 
-    /** Есть ли куда расти — выделение никогда не переходит границу своего предложения. */
-    fun canExtend(direction: ExtendDirection): Boolean {
-        val current = target ?: return false
-        val tappable = sentenceOf(current)?.tokens?.filter { it.tappable } ?: return false
-        return when (direction) {
-            ExtendDirection.LEFT -> tappable.any { it.index < current.tokenIndex }
-            ExtendDirection.RIGHT -> tappable.any { it.index > (current.tokenEnd ?: current.tokenIndex) }
-        }
-    }
-
     /** Слово, о котором сейчас речь: подсказка отвечает первой, полный разбор её уточняет. */
     val currentLemma: String? get() = hint?.lemma ?: analysis?.lemma
     val currentSenseId: String? get() = hint?.senseId ?: analysis?.senseId
     val currentDefinition: String? get() = hint?.senseDefinitionEn ?: analysis?.senseDefinitionEn
     val currentTranslation: String? get() = hint?.translationRu ?: analysis?.translationRu
+
+    /**
+     * Что сохранять как «слово».
+     *
+     * ⚠️ Для фразы — ровно то, что выделено, а не `currentLemma`: модель всё равно называет
+     * лемму для фразы — часто это лемма головного слова («sale» для «sale of»), — и сохранить
+     * фразу под ней значило бы сохранить не то, что выделили. У фразы нет словарной формы, к
+     * которой стоило бы приводить произвольный кусок текста, поэтому текст режется напрямую из
+     * предложения по смещениям токенов — то же самое, что уже подсвечено волной на экране.
+     */
+    val currentSaveWord: String?
+        get() {
+            val current = target?.takeIf { it.isPhrase } ?: return currentLemma
+            val sentence = sentenceOf(current) ?: return currentLemma
+            val start = sentence.tokens.firstOrNull { it.index == current.tokenIndex }?.start
+            val end = sentence.tokens.firstOrNull { it.index == (current.tokenEnd ?: current.tokenIndex) }?.end
+            if (start == null || end == null) return currentLemma
+            return sentence.text.substring(start, end)
+        }
 
     /**
      * Сохранено ли то, что сейчас разобрано.
@@ -145,10 +157,10 @@ data class ReaderState(
      */
     val currentSaved: Boolean
         get() {
-            val lemma = currentLemma ?: return false
+            val word = currentSaveWord ?: return false
             val senseId = currentSenseId
-                ?: return savedKeys.any { it.startsWith("${lemma.trim().lowercase()}#") }
-            return key(lemma, senseId) in savedKeys
+                ?: return savedKeys.any { it.startsWith("${word.trim().lowercase()}#") }
+            return key(word, senseId) in savedKeys
         }
 
     companion object {
@@ -491,25 +503,22 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    /** Растит выделение на одно слово влево или вправо — не дальше границы предложения. */
-    fun extendSelection(direction: ExtendDirection) {
+    /**
+     * Двигает ручку выделения вживую, при перетаскивании — без похода за разбором.
+     *
+     * ⚠️ Не трогает `hint`/`analysis`: они по-прежнему говорят про прошлый диапазон, пока палец
+     * не отпущен, — мигать пустой карточкой на каждый снэп к соседнему слову не нужно, и
+     * `commitSelection` всё равно спросит заново, как только жест закончится.
+     */
+    fun previewSelection(target: TapTarget) {
         val current = _state.value.target ?: return
-        val sentence = _state.value.sentenceOf(current) ?: return
-        val tappable = sentence.tokens.filter { it.tappable }
-        val start = current.tokenIndex
-        val end = current.tokenEnd ?: start
+        if (current.blockOrdinal != target.blockOrdinal || current.sentenceIndex != target.sentenceIndex) return
+        _state.value = _state.value.copy(target = target)
+    }
 
-        val next = when (direction) {
-            ExtendDirection.LEFT -> tappable.filter { it.index < start }.maxByOrNull { it.index }
-            ExtendDirection.RIGHT -> tappable.filter { it.index > end }.minByOrNull { it.index }
-        } ?: return
-
-        analyze(
-            when (direction) {
-                ExtendDirection.LEFT -> current.copy(tokenIndex = next.index, tokenEnd = end)
-                ExtendDirection.RIGHT -> current.copy(tokenIndex = start, tokenEnd = next.index)
-            }
-        )
+    /** Ручку отпустили — теперь можно и спросить, что получившийся диапазон значит. */
+    fun commitSelection() {
+        _state.value.target?.let(::analyze)
     }
 
     /** Подробности того же слова: почему это значение и как звучит всё предложение. */
@@ -561,7 +570,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun saveQuietly() {
-        val lemma = _state.value.currentLemma ?: return
+        val word = _state.value.currentSaveWord ?: return
         if (_state.value.isSaving) return
 
         viewModelScope.launch {
@@ -569,7 +578,7 @@ class ReaderViewModel @Inject constructor(
             val folderServerId = ensureBookFolder()
             val local = folderServerId?.let { categoryDao.getByServerId(it)?.id }
             val result = savedWords.saveWord(
-                word = lemma,
+                word = word,
                 translation = _state.value.currentTranslation,
                 definition = _state.value.currentDefinition,
                 senseId = _state.value.currentSenseId,
@@ -577,10 +586,10 @@ class ReaderViewModel @Inject constructor(
                 categoryServerIds = listOfNotNull(folderServerId),
                 context = saveContext()
             )
-            createCard(lemma)
+            createCard(word)
             finishSave(
                 result,
-                lemma,
+                word,
                 _state.value.currentSenseId,
                 _state.value.bookFolderName?.let { listOf(it) }
             )
@@ -589,7 +598,7 @@ class ReaderViewModel @Inject constructor(
 
     /** Долгое нажатие: тот же лист папок, что в словаре, с уже отмеченной папкой книги. */
     fun openFolderSheet() {
-        if (_state.value.currentLemma == null) return
+        if (_state.value.currentSaveWord == null) return
         viewModelScope.launch {
             val folderServerId = ensureBookFolder()
             val local = folderServerId?.let { categoryDao.getByServerId(it)?.id }
@@ -632,7 +641,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun confirmFolders() {
-        val lemma = _state.value.currentLemma ?: return
+        val word = _state.value.currentSaveWord ?: return
         val chosen = _state.value.chosenFolders
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true)
@@ -640,7 +649,7 @@ class ReaderViewModel @Inject constructor(
                 _state.value.ownFolders.firstOrNull { it.id == local }?.serverId
             }
             val result = savedWords.saveWord(
-                word = lemma,
+                word = word,
                 translation = _state.value.currentTranslation,
                 definition = _state.value.currentDefinition,
                 senseId = _state.value.currentSenseId,
@@ -651,18 +660,18 @@ class ReaderViewModel @Inject constructor(
             val names = chosen.mapNotNull { local ->
                 _state.value.ownFolders.firstOrNull { it.id == local }?.name
             }
-            createCard(lemma)
+            createCard(word)
             _state.value = _state.value.copy(folderSheetOpen = false)
-            finishSave(result, lemma, _state.value.currentSenseId, names)
+            finishSave(result, word, _state.value.currentSenseId, names)
         }
     }
 
     /** Снятие закладки ничего не спрашивает: убрать — это уже ответ. */
     fun unsave() {
-        val lemma = _state.value.currentLemma ?: return
+        val word = _state.value.currentSaveWord ?: return
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true)
-            val entry = savedWords.entryFor(lemma, _state.value.currentSenseId)
+            val entry = savedWords.entryFor(word, _state.value.currentSenseId)
             val message = if (entry == null) {
                 "Это значение не сохранено"
             } else if (savedWords.deleteEntry(entry) is Resource.Success) {

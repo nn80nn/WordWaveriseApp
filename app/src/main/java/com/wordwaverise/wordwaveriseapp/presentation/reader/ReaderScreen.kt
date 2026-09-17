@@ -7,9 +7,11 @@ import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -23,8 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.*
@@ -602,7 +602,9 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel, covered
                 flash = state.flashOrdinal == block.ordinal,
                 onTapLine = { tappedLine = block.ordinal to it },
                 onTap = viewModel::analyze,
-                onLinkTap = viewModel::jumpTo
+                onLinkTap = viewModel::jumpTo,
+                onSelectionPreview = viewModel::previewSelection,
+                onSelectionCommit = viewModel::commitSelection
             )
         }
         if (state.atEnd && state.blocks.isNotEmpty()) {
@@ -940,6 +942,41 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel, coveredP
         if (state.atEnd && page == pageTops.lastIndex && pending == 0) {
             Box(Modifier.align(Alignment.BottomCenter)) { EndOfBook() }
         }
+
+        // Ручки выделения — тот же приём, что в скролле, только через ту же поправку
+        // координат, что уже применяет тап по странице: у текста здесь одна система координат
+        // на всю книгу, а у страницы — своя, сдвинутая на высоту уже прочитанного.
+        val pageLayout = layout
+        val target = state.target
+        val hitBlock = target?.let { t -> state.blocks.firstOrNull { it.ordinal == t.blockOrdinal } }
+        if (pageLayout != null && target != null && hitBlock != null && waveRanges.isNotEmpty() && pending == 0) {
+            val flowBase = flow.startOf(hitBlock.ordinal)
+            if (flowBase != null) {
+                val correction = Offset(padLeftPx, padTopPx - (pageTops.getOrNull(page) ?: 0f) - peek)
+                val startOffset = waveRanges.first().first
+                val endOffset = waveRanges.last().last + 1
+                SelectionHandle(
+                    layout = pageLayout,
+                    charOffset = startOffset,
+                    color = colors.secondary,
+                    screenCorrection = correction,
+                    onMove = { at ->
+                        dragTarget(hitBlock, target, at - flowBase, leading = true)?.let(viewModel::previewSelection)
+                    },
+                    onRelease = viewModel::commitSelection
+                )
+                SelectionHandle(
+                    layout = pageLayout,
+                    charOffset = endOffset,
+                    color = colors.secondary,
+                    screenCorrection = correction,
+                    onMove = { at ->
+                        dragTarget(hitBlock, target, at - flowBase, leading = false)?.let(viewModel::previewSelection)
+                    },
+                    onRelease = viewModel::commitSelection
+                )
+            }
+        }
     }
 }
 
@@ -1208,7 +1245,11 @@ private fun BlockText(
     onTapLine: (Float) -> Unit = {},
     onTap: (TapTarget) -> Unit,
     /** Тап по сноске или перекрёстной ссылке — несёт ordinal блока, на который она указывает. */
-    onLinkTap: (Int) -> Unit = {}
+    onLinkTap: (Int) -> Unit = {},
+    /** Ручку тащат — диапазон меняется вживую, без похода за разбором. */
+    onSelectionPreview: (TapTarget) -> Unit = {},
+    /** Ручку отпустили — самое время спросить, что получившийся диапазон значит. */
+    onSelectionCommit: () -> Unit = {}
 ) {
     val colors = WaveTheme.colors
     val text = remember(block, selected) {
@@ -1259,39 +1300,172 @@ private fun BlockText(
         val amplitude = with(LocalDensity.current) { WAVE_AMPLITUDE.toPx() }
         val wavelength = with(LocalDensity.current) { WAVE_LENGTH.toPx() }
 
-        Text(
-            text = text,
-            fontFamily = if (isHeading) Comfortaa else null,
-            fontSize = if (isHeading) 22.sp else 18.sp,
-            lineHeight = if (isHeading) 28.sp else 31.sp,
-            fontWeight = if (isHeading) FontWeight.Bold else FontWeight.Normal,
-            fontStyle = if (isQuote) FontStyle.Italic else FontStyle.Normal,
-            color = colors.textPrimary,
-            onTextLayout = { layout = it },
-            modifier = Modifier
-                .pointerInput(block) {
-                    detectTapGestures { position ->
-                        val result = layout ?: return@detectTapGestures
-                        val at = result.getOffsetForPosition(position)
-                        val link = text.getStringAnnotations(LINK_TAG, at, at).firstOrNull()
-                        if (link != null) {
-                            onLinkTap(link.item.toInt())
-                            return@detectTapGestures
-                        }
-                        locateInBlock(block, at)?.let {
-                            onTapLine(result.getLineBottom(result.getLineForOffset(at)))
-                            onTap(it)
+        Box {
+            Text(
+                text = text,
+                fontFamily = if (isHeading) Comfortaa else null,
+                fontSize = if (isHeading) 22.sp else 18.sp,
+                lineHeight = if (isHeading) 28.sp else 31.sp,
+                fontWeight = if (isHeading) FontWeight.Bold else FontWeight.Normal,
+                fontStyle = if (isQuote) FontStyle.Italic else FontStyle.Normal,
+                color = colors.textPrimary,
+                onTextLayout = { layout = it },
+                modifier = Modifier
+                    .pointerInput(block) {
+                        detectTapGestures { position ->
+                            val result = layout ?: return@detectTapGestures
+                            val at = result.getOffsetForPosition(position)
+                            val link = text.getStringAnnotations(LINK_TAG, at, at).firstOrNull()
+                            if (link != null) {
+                                onLinkTap(link.item.toInt())
+                                return@detectTapGestures
+                            }
+                            locateInBlock(block, at)?.let {
+                                onTapLine(result.getLineBottom(result.getLineForOffset(at)))
+                                onTap(it)
+                            }
                         }
                     }
-                }
-                .drawWithContent {
-                    drawContent()
-                    val result = layout
-                    if (ranges.isNotEmpty() && result != null) {
-                        drawWordWave(result, ranges, colors.secondary, stroke, amplitude, wavelength)
+                    .drawWithContent {
+                        drawContent()
+                        val result = layout
+                        if (ranges.isNotEmpty() && result != null) {
+                            drawWordWave(result, ranges, colors.secondary, stroke, amplitude, wavelength)
+                        }
                     }
+            )
+
+            // Ручки — телефонный аналог выделения, вместо кнопок «шире/уже» в панели разбора:
+            // диапазон подгоняется прямо на тексте, а место в панели не занято ничем лишним.
+            val result = layout
+            if (selected != null && result != null && ranges.isNotEmpty()) {
+                val startOffset = ranges.first().first
+                val endOffset = ranges.last().last + 1
+                SelectionHandle(
+                    layout = result,
+                    charOffset = startOffset,
+                    color = colors.secondary,
+                    onMove = { at -> dragTarget(block, selected, at, leading = true)?.let(onSelectionPreview) },
+                    onRelease = onSelectionCommit
+                )
+                SelectionHandle(
+                    layout = result,
+                    charOffset = endOffset,
+                    color = colors.secondary,
+                    onMove = { at -> dragTarget(block, selected, at, leading = false)?.let(onSelectionPreview) },
+                    onRelease = onSelectionCommit
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Новый диапазон при перетаскивании одной из ручек.
+ *
+ * Ручка тянется только внутри своего предложения — то же ограничение, что было у кнопок
+ * «шире/уже» — и никогда не переходит за другую ручку: ведущая не может обогнать хвостовую.
+ */
+private fun dragTarget(block: BlockDto, current: TapTarget, blockOffset: Int, leading: Boolean): TapTarget? {
+    val sentence = block.sentences.firstOrNull { it.index == current.sentenceIndex } ?: return null
+    val inner = (blockOffset - sentence.start).coerceIn(0, sentence.text.length)
+    val token = nearestTappableToken(sentence, inner) ?: return null
+    val start = current.tokenIndex
+    val end = current.tokenEnd ?: start
+    return if (leading) {
+        current.copy(tokenIndex = token.index.coerceAtMost(end), tokenEnd = end)
+    } else {
+        current.copy(tokenIndex = start, tokenEnd = token.index.coerceAtLeast(start))
+    }
+}
+
+/** Ближайший тапабельный токен предложения к смещению внутри него самого. */
+private fun nearestTappableToken(
+    sentence: com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.SentenceDto,
+    at: Int
+) = sentence.tokens.filter { it.tappable }.minByOrNull { token ->
+    when {
+        at < token.start -> token.start - at
+        at > token.end -> at - token.end
+        else -> 0
+    }
+}
+
+private val HANDLE_TOUCH_SIZE = 32.dp
+
+/**
+ * Ручка выделения: кружок под краем текста, который таскают пальцем.
+ *
+ * ⚠️ Во время перетаскивания рисуется по сырому положению пальца (`dragOffset`), а не по
+ * тому токену, к которому уже привязался диапазон, — иначе при каждом снэпе на соседнее слово
+ * ручка прыгала бы вместе с ним, обгоняя палец. Отпустили — `dragOffset` сбрасывается, и ручка
+ * возвращается на `charOffset`, к тому моменту уже указывающий на итоговый токен.
+ */
+@Composable
+private fun SelectionHandle(
+    layout: TextLayoutResult,
+    charOffset: Int,
+    color: Color,
+    onMove: (Int) -> Unit,
+    onRelease: () -> Unit,
+    /**
+     * Сдвиг между координатами `layout` (текста) и координатами, в которых живёт сама ручка.
+     *
+     * У блока в скролле это одно и то же — ручка сидит прямо над своим `Text`, сдвига нет.
+     * У страницы текст общий на всю книгу и нарисован внутри полей со сдвигом на высоту уже
+     * прочитанного (`top`, `peek`) — та же поправка, что уже стоит у тапа по странице
+     * (`inText = position - Offset(padLeftPx, padTopPx - top - peek)`), только в другую сторону:
+     * тут известна точка в `layout`, а нужна точка на экране.
+     */
+    screenCorrection: Offset = Offset.Zero
+) {
+    val clamped = charOffset.coerceIn(0, layout.layoutInput.text.length)
+    val rect = layout.getCursorRect(clamped)
+    val currentRect by rememberUpdatedState(rect)
+    val currentCorrection by rememberUpdatedState(screenCorrection)
+    val currentOnMove by rememberUpdatedState(onMove)
+    val currentOnRelease by rememberUpdatedState(onRelease)
+    val handleSizePx = with(LocalDensity.current) { HANDLE_TOUCH_SIZE.toPx() }
+    var dragOffset by remember { mutableStateOf<Offset?>(null) }
+    val x = dragOffset?.x ?: (rect.left + screenCorrection.x)
+    val y = dragOffset?.y ?: (rect.bottom + screenCorrection.y)
+
+    Box(
+        modifier = Modifier
+            .offset {
+                IntOffset(
+                    (x - handleSizePx / 2f).roundToInt(),
+                    (y - handleSizePx * 0.2f).roundToInt()
+                )
+            }
+            .size(HANDLE_TOUCH_SIZE)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = {
+                        dragOffset = Offset(currentRect.left, currentRect.bottom) + currentCorrection
+                    },
+                    onDragEnd = { dragOffset = null; currentOnRelease() },
+                    onDragCancel = { dragOffset = null; currentOnRelease() }
+                ) { change, amount ->
+                    change.consume()
+                    val base = Offset(currentRect.left, currentRect.bottom) + currentCorrection
+                    val moved = (dragOffset ?: base) + amount
+                    dragOffset = moved
+                    // Обратно в координаты layout — вычесть ту же поправку — и чуть выше низа
+                    // строки — в саму строку, а не в промежуток под ней, где hit-тест иногда
+                    // засчитывает следующую.
+                    val inLayout = moved - currentCorrection - Offset(0f, handleSizePx * 0.6f)
+                    currentOnMove(layout.getOffsetForPosition(inLayout))
                 }
-        )
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(
+                color = color,
+                radius = size.minDimension * 0.2f,
+                center = Offset(size.width / 2f, size.height * 0.22f)
+            )
+        }
     }
 }
 
@@ -1452,43 +1626,13 @@ private fun HintSheet(
                     .navigationBarsPadding()
             ) {
                 Column {
-                    // Кнопки роста выделения: тап выбрал слово, дальше — до целого предложения.
-                    // Неактивны на границе предложения — дальше расти некуда.
-                    Row(
-                        modifier = Modifier.padding(bottom = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        IconButton(
-                            onClick = { viewModel.extendSelection(ExtendDirection.LEFT) },
-                            enabled = state.canExtend(ExtendDirection.LEFT)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.KeyboardArrowLeft,
-                                contentDescription = "Расширить выделение влево",
-                                tint = if (state.canExtend(ExtendDirection.LEFT)) colors.textSecondary
-                                    else colors.textMuted.copy(alpha = 0.4f)
-                            )
-                        }
-                        IconButton(
-                            onClick = { viewModel.extendSelection(ExtendDirection.RIGHT) },
-                            enabled = state.canExtend(ExtendDirection.RIGHT)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.KeyboardArrowRight,
-                                contentDescription = "Расширить выделение вправо",
-                                tint = if (state.canExtend(ExtendDirection.RIGHT)) colors.textSecondary
-                                    else colors.textMuted.copy(alpha = 0.4f)
-                            )
-                        }
-                    }
                     ContextCard(
                     hint = state.hint,
                     isHinting = state.isHinting,
                     analysis = state.analysis,
                     isAnalyzing = state.isAnalyzing,
                     onDetails = viewModel::loadDetails,
-                    // Диапазон шире одного слова — не словарная единица, закладка на него не про то.
-                    canSave = state.target?.isPhrase != true,
+                    canSave = true,
                     saved = state.currentSaved,
                     saving = state.isSaving,
                     saveHint = state.bookFolderName,
