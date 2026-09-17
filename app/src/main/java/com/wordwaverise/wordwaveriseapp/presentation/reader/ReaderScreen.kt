@@ -1,5 +1,9 @@
 package com.wordwaverise.wordwaveriseapp.presentation.reader
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -36,6 +40,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -100,6 +105,14 @@ fun ReaderScreen(
 
     // Последний скролл не должен пропасть в дебаунсе.
     DisposableEffect(Unit) { onDispose { viewModel.commitPosition() } }
+
+    // Экран не должен гаснуть по таймауту, пока открыт — иначе телефон засыпает посреди
+    // страницы. Флаг окна, а не WakeLock: экран и так на переднем плане всё время чтения.
+    val activity = LocalContext.current.findActivity()
+    DisposableEffect(activity) {
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
 
     /**
      * Вспышку считает экран, а не модель.
@@ -1386,4 +1399,11 @@ private fun HintSheet(
             }
         }
     }
+}
+
+/** Compose даёт обёрнутый `Context`; окно, которому ставится флаг, есть только у `Activity`. */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
