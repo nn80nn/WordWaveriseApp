@@ -536,12 +536,29 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel, covered
         anchor = null
     }
 
-    LaunchedEffect(listState, state.blocks.size) {
+    /**
+     * ⚠️ Ключ — только `listState`, не размер списка. Подгрузка вперёд или назад меняет
+     * `state.blocks.size`, и эффект с таким ключом перезапускался бы на каждую из них: старая
+     * подписка на `snapshotFlow` отменяется, новая — начинает читать `firstVisibleItemIndex`
+     * заново, причём именно в тот момент, когда список ещё не доехал до восстановленного места
+     * (см. `LaunchedEffect(state.firstOrdinal)` ниже — это отдельный эффект, и порядок между
+     * двумя запущенными «одновременно» корутинами не гарантирован). Гонка читала позицию ДО
+     * компенсирующего `scrollToItem` и сохраняла её как настоящее место чтения — абзац из
+     * самого начала списка, только что дописанного слева. Отсюда и «откидывает назад» при
+     * следующем открытии, и «дальше листать некуда»: после такой порчи сохранённое место и
+     * правда оказывается у самого начала книги.
+     *
+     * Раз эффект больше не перезапускается, `state`, пойманный в замыкание при первом запуске,
+     * дальше не обновляется сам — читаем текущее состояние явно, как уже сделано чуть ниже для
+     * `openAt`.
+     */
+    LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
             .collect { (first, offset) ->
+                val current = viewModel.state.value
                 // ⚠️ То же, что и у страниц: список ещё стоит в начале, потому что не доехал
                 // до места, а не потому, что человек туда вернулся.
-                if (viewModel.state.value.openAt != null) return@collect
+                if (current.openAt != null) return@collect
                 /**
                  * ⚠️ Место — это абзац, который человек **читает**, а не тот, что задел верхний
                  * край экрана одной строкой. `firstVisibleItemIndex` — второе: абзац считается
@@ -552,7 +569,7 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel, covered
                     ?: info.firstOrNull { it.offset + it.size > it.size / 2 }
                     ?: info.firstOrNull()
                 val index = reading?.index ?: first
-                state.blocks.getOrNull(index)?.let {
+                current.blocks.getOrNull(index)?.let {
                     // Смещение внутри абзаца имеет смысл только для того, что стоит наверху.
                     viewModel.savePosition(it.ordinal, if (index == first) offset else 0)
                     // В скролле видно ровно его: абзац, начало которого на экране.
@@ -560,10 +577,10 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel, covered
                 }
 
                 val last = info.lastOrNull()?.index ?: 0
-                if (last >= state.blocks.size - 6) viewModel.loadMore()
+                if (last >= current.blocks.size - 6) viewModel.loadMore()
 
-                if (first <= 2 && !state.atStart && anchor == null) {
-                    state.blocks.getOrNull(first)?.let { anchor = it.ordinal to offset }
+                if (first <= 2 && !current.atStart && anchor == null) {
+                    current.blocks.getOrNull(first)?.let { anchor = it.ordinal to offset }
                     viewModel.loadBefore()
                 }
             }
