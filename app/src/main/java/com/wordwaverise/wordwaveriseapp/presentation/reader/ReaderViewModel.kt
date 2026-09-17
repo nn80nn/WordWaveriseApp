@@ -30,12 +30,22 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Какое слово открыто в листе — адресуется так же, как адресуется текст. */
+/** Какое слово (или диапазон слов) открыто в листе — адресуется так же, как адресуется текст. */
 data class TapTarget(
     val blockOrdinal: Int,
     val sentenceIndex: Int,
-    val tokenIndex: Int
-)
+    val tokenIndex: Int,
+    /**
+     * Последний токен выделения, включительно. `null` — «только это слово», а не диапазон
+     * шириной в один токен: так выглядит любой тап до первого расширения.
+     */
+    val tokenEnd: Int? = null
+) {
+    /** Диапазон шире одного слова — это уже не словарная единица, сохранять в словарь нечего. */
+    val isPhrase: Boolean get() = (tokenEnd ?: tokenIndex) > tokenIndex
+}
+
+enum class ExtendDirection { LEFT, RIGHT }
 
 data class ReaderState(
     val book: BookDto? = null,
@@ -108,6 +118,16 @@ data class ReaderState(
     fun sentenceOf(target: TapTarget): SentenceDto? =
         blocks.firstOrNull { it.ordinal == target.blockOrdinal }
             ?.sentences?.firstOrNull { it.index == target.sentenceIndex }
+
+    /** Есть ли куда расти — выделение никогда не переходит границу своего предложения. */
+    fun canExtend(direction: ExtendDirection): Boolean {
+        val current = target ?: return false
+        val tappable = sentenceOf(current)?.tokens?.filter { it.tappable } ?: return false
+        return when (direction) {
+            ExtendDirection.LEFT -> tappable.any { it.index < current.tokenIndex }
+            ExtendDirection.RIGHT -> tappable.any { it.index > (current.tokenEnd ?: current.tokenIndex) }
+        }
+    }
 
     /** Слово, о котором сейчас речь: подсказка отвечает первой, полный разбор её уточняет. */
     val currentLemma: String? get() = hint?.lemma ?: analysis?.lemma
@@ -462,13 +482,34 @@ class ReaderViewModel @Inject constructor(
         analysisJob = viewModelScope.launch {
             // ⚠️ Предложение, а не абзац: это ключ серверного кэша разбора, и второй читатель
             // той же строки не платит ничего.
-            val result = search.contextHint(sentence.text, target.tokenIndex)
+            val result = search.contextHint(sentence.text, target.tokenIndex, target.tokenEnd)
             _state.value = _state.value.copy(
                 // Пустой ответ при успехе — это «модель не ответила», а не ошибка.
                 hint = (result as? Resource.Success)?.data,
                 isHinting = false
             )
         }
+    }
+
+    /** Растит выделение на одно слово влево или вправо — не дальше границы предложения. */
+    fun extendSelection(direction: ExtendDirection) {
+        val current = _state.value.target ?: return
+        val sentence = _state.value.sentenceOf(current) ?: return
+        val tappable = sentence.tokens.filter { it.tappable }
+        val start = current.tokenIndex
+        val end = current.tokenEnd ?: start
+
+        val next = when (direction) {
+            ExtendDirection.LEFT -> tappable.filter { it.index < start }.maxByOrNull { it.index }
+            ExtendDirection.RIGHT -> tappable.filter { it.index > end }.minByOrNull { it.index }
+        } ?: return
+
+        analyze(
+            when (direction) {
+                ExtendDirection.LEFT -> current.copy(tokenIndex = next.index, tokenEnd = end)
+                ExtendDirection.RIGHT -> current.copy(tokenIndex = start, tokenEnd = next.index)
+            }
+        )
     }
 
     /** Подробности того же слова: почему это значение и как звучит всё предложение. */
@@ -478,7 +519,7 @@ class ReaderViewModel @Inject constructor(
         val sentence = _state.value.sentenceOf(current) ?: return
         _state.value = _state.value.copy(isAnalyzing = true)
         viewModelScope.launch {
-            val result = search.analyzeInContext(sentence.text, current.tokenIndex)
+            val result = search.analyzeInContext(sentence.text, current.tokenIndex, current.tokenEnd)
             // Пока разбор писался, могли тапнуть другое слово — тогда он уже не про то.
             if (_state.value.target != current) return@launch
             _state.value = _state.value.copy(

@@ -313,7 +313,9 @@ data class TokenizeRequest(val text: String)
 data class ContextAnalyzeRequest(
     val text: String,
     val tokenIndex: Int? = null,
-    val token: String? = null
+    val token: String? = null,
+    /** Last token of a multi-word selection, inclusive. Null or equal to [tokenIndex] — one word. */
+    val tokenEnd: Int? = null
 )
 
 @Serializable

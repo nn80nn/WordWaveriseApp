@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.*
@@ -1080,12 +1082,19 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendBlock(
     var cursor = 0
     for (sentence in block.sentences) {
         if (sentence.start > cursor) append(block.text.substring(cursor, sentence.start))
-        val chosen = selected?.takeIf { it.sentenceIndex == sentence.index }?.tokenIndex
+        val target = selected?.takeIf { it.sentenceIndex == sentence.index }
+        val chosen = target?.tokenIndex
+        val end = target?.tokenEnd
         val group = sentence.tokens.firstOrNull { it.index == chosen }
-        // Фразовый глагол подсвечивается целиком, потому что целиком и разрешается.
+        // Диапазон шире одного слова подсвечивается целиком; иначе — слово и его фразовый
+        // глагол (если есть), подсвечивающиеся вместе, потому что вместе и разрешаются.
         val highlighted = buildSet {
-            if (chosen != null) add(chosen)
-            group?.groupWith?.let { addAll(it) }
+            if (chosen != null && end != null && end > chosen) {
+                addAll(chosen..end)
+            } else {
+                if (chosen != null) add(chosen)
+                group?.groupWith?.let { addAll(it) }
+            }
         }
 
         var inner = 0
@@ -1238,9 +1247,14 @@ private fun selectedRanges(block: BlockDto, target: TapTarget?): List<IntRange> 
     val hit = target?.takeIf { it.blockOrdinal == block.ordinal } ?: return emptyList()
     val sentence = block.sentences.firstOrNull { it.index == hit.sentenceIndex } ?: return emptyList()
     val chosen = sentence.tokens.firstOrNull { it.index == hit.tokenIndex } ?: return emptyList()
+    val end = hit.tokenEnd
     val group = buildSet {
-        add(chosen.index)
-        chosen.groupWith?.let { addAll(it) }
+        if (end != null && end > chosen.index) {
+            addAll(chosen.index..end)
+        } else {
+            add(chosen.index)
+            chosen.groupWith?.let { addAll(it) }
+        }
     }
     return sentence.tokens
         .filter { it.index in group }
@@ -1379,13 +1393,44 @@ private fun HintSheet(
                     // `Scaffold`, а лист лежит ниже и отступает сам.
                     .navigationBarsPadding()
             ) {
-                ContextCard(
+                Column {
+                    // Кнопки роста выделения: тап выбрал слово, дальше — до целого предложения.
+                    // Неактивны на границе предложения — дальше расти некуда.
+                    Row(
+                        modifier = Modifier.padding(bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.extendSelection(ExtendDirection.LEFT) },
+                            enabled = state.canExtend(ExtendDirection.LEFT)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.KeyboardArrowLeft,
+                                contentDescription = "Расширить выделение влево",
+                                tint = if (state.canExtend(ExtendDirection.LEFT)) colors.textSecondary
+                                    else colors.textMuted.copy(alpha = 0.4f)
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.extendSelection(ExtendDirection.RIGHT) },
+                            enabled = state.canExtend(ExtendDirection.RIGHT)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.KeyboardArrowRight,
+                                contentDescription = "Расширить выделение вправо",
+                                tint = if (state.canExtend(ExtendDirection.RIGHT)) colors.textSecondary
+                                    else colors.textMuted.copy(alpha = 0.4f)
+                            )
+                        }
+                    }
+                    ContextCard(
                     hint = state.hint,
                     isHinting = state.isHinting,
                     analysis = state.analysis,
                     isAnalyzing = state.isAnalyzing,
                     onDetails = viewModel::loadDetails,
-                    canSave = true,
+                    // Диапазон шире одного слова — не словарная единица, закладка на него не про то.
+                    canSave = state.target?.isPhrase != true,
                     saved = state.currentSaved,
                     saving = state.isSaving,
                     saveHint = state.bookFolderName,
@@ -1396,6 +1441,7 @@ private fun HintSheet(
                     onOpenArticle = onOpenArticle,
                     onPlayAudio = viewModel::playAudio
                 )
+                }
             }
         }
     }

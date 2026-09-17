@@ -167,9 +167,9 @@ class SearchRepository @Inject constructor(
      * Отдельный вызов, а не флаг у [analyzeInContext]: у них разная цена и разное назначение —
      * подсказку ждут секунду, полный разбор просят намеренно.
      */
-    suspend fun contextHint(text: String, tokenIndex: Int): Resource<ContextHintDto> {
+    suspend fun contextHint(text: String, tokenIndex: Int, tokenEnd: Int? = null): Resource<ContextHintDto> {
         return try {
-            val response = apiService.contextHint(ContextAnalyzeRequest(text, tokenIndex))
+            val response = apiService.contextHint(ContextAnalyzeRequest(text, tokenIndex, tokenEnd = tokenEnd))
             if (response.status == "ok" && response.data != null) Resource.Success(response.data)
             else Resource.Error(response.message ?: "Не удалось разобрать слово")
         } catch (e: Exception) {
@@ -178,9 +178,13 @@ class SearchRepository @Inject constructor(
         }
     }
 
-    suspend fun analyzeInContext(text: String, tokenIndex: Int): Resource<ContextAnalysisDto> {
+    suspend fun analyzeInContext(
+        text: String,
+        tokenIndex: Int,
+        tokenEnd: Int? = null
+    ): Resource<ContextAnalysisDto> {
         return try {
-            val response = apiService.analyzeInContext(ContextAnalyzeRequest(text, tokenIndex))
+            val response = apiService.analyzeInContext(ContextAnalyzeRequest(text, tokenIndex, tokenEnd = tokenEnd))
             if (response.status == "ok" && response.data != null) Resource.Success(response.data)
             else Resource.Error(response.message ?: "Не удалось разобрать слово в контексте")
         } catch (e: Exception) {
