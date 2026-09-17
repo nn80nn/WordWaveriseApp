@@ -51,6 +51,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
@@ -349,6 +350,8 @@ fun ReaderScreen(
 
 private const val SCROLL_MODE = "scroll"
 private const val PAGED_MODE = "paged"
+/** Тег строковой аннотации, которой помечен диапазон ссылки в AnnotatedString блока. */
+private const val LINK_TAG = "link"
 
 /**
  * Поля страницы.
@@ -581,7 +584,8 @@ private fun ScrollReader(state: ReaderState, viewModel: ReaderViewModel, covered
                 selected = state.target?.takeIf { it.blockOrdinal == block.ordinal },
                 flash = state.flashOrdinal == block.ordinal,
                 onTapLine = { tappedLine = block.ordinal to it },
-                onTap = viewModel::analyze
+                onTap = viewModel::analyze,
+                onLinkTap = viewModel::jumpTo
             )
         }
         if (state.atEnd && state.blocks.isNotEmpty()) {
@@ -873,7 +877,13 @@ private fun PagedReader(state: ReaderState, viewModel: ReaderViewModel, coveredP
                     val result = layout ?: return@detectTapGestures
                     val top = pageTops.getOrNull(page) ?: return@detectTapGestures
                     val inText = position - Offset(padLeftPx, padTopPx - top - peek)
-                    flow.locate(result.getOffsetForPosition(inText))?.let(viewModel::analyze)
+                    val at = result.getOffsetForPosition(inText)
+                    val link = flow.text.getStringAnnotations(LINK_TAG, at, at).firstOrNull()
+                    if (link != null) {
+                        viewModel.jumpTo(link.item.toInt())
+                        return@detectTapGestures
+                    }
+                    flow.locate(at)?.let(viewModel::analyze)
                 }
             }
     ) {
@@ -1070,12 +1080,18 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendBlock(
      */
     styled: Boolean = false
 ) {
+    // ⚠️ Блок пишется в билдер посимвольно тем же текстом, что и block.text (пробелы между
+    // предложениями и токенами копируются как есть) — поэтому смещение ссылки в block.text
+    // совпадает со смещением в билдере минус то, что уже было в нём до этого блока.
+    val blockStart = length
+
     val heading = styled && block.kind == "HEADING"
     if (heading) {
         pushStyle(SpanStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold))
     }
     if (block.sentences.isEmpty()) {
         append(block.text)
+        applyLinks(block, blockStart, colors)
         if (heading) pop()
         return
     }
@@ -1116,7 +1132,25 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendBlock(
         cursor = sentence.end
     }
     if (cursor < block.text.length) append(block.text.substring(cursor))
+    applyLinks(block, blockStart, colors)
     if (heading) pop()
+}
+
+/** Сноска или перекрёстная ссылка — подчёркнута и помечена аннотацией `LINK_TAG` для тапа. */
+private fun androidx.compose.ui.text.AnnotatedString.Builder.applyLinks(
+    block: BlockDto,
+    blockStart: Int,
+    colors: com.wordwaverise.wordwaveriseapp.ui.theme.WaveColors
+) {
+    for (link in block.links) {
+        val start = blockStart + link.start
+        val end = blockStart + link.end
+        addStyle(
+            SpanStyle(color = colors.secondary, textDecoration = TextDecoration.Underline),
+            start, end
+        )
+        addStringAnnotation(LINK_TAG, link.targetOrdinal.toString(), start, end)
+    }
 }
 
 /**
@@ -1155,7 +1189,9 @@ private fun BlockText(
     flash: Boolean = false,
     /** Низ нажатой строки внутри блока — по нему экран решает, не закрыл ли её лист разбора. */
     onTapLine: (Float) -> Unit = {},
-    onTap: (TapTarget) -> Unit
+    onTap: (TapTarget) -> Unit,
+    /** Тап по сноске или перекрёстной ссылке — несёт ordinal блока, на который она указывает. */
+    onLinkTap: (Int) -> Unit = {}
 ) {
     val colors = WaveTheme.colors
     val text = remember(block, selected) {
@@ -1220,6 +1256,11 @@ private fun BlockText(
                     detectTapGestures { position ->
                         val result = layout ?: return@detectTapGestures
                         val at = result.getOffsetForPosition(position)
+                        val link = text.getStringAnnotations(LINK_TAG, at, at).firstOrNull()
+                        if (link != null) {
+                            onLinkTap(link.item.toInt())
+                            return@detectTapGestures
+                        }
                         locateInBlock(block, at)?.let {
                             onTapLine(result.getLineBottom(result.getLineForOffset(at)))
                             onTap(it)

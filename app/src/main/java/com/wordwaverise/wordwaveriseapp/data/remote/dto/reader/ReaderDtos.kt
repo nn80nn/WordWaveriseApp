@@ -25,6 +25,14 @@ data class SentenceDto(
     val tokens: List<TokenDto> = emptyList()
 )
 
+/** Внутритекстовая ссылка (сноска, перекрёстная ссылка), уже разрешённая до целевого ordinal. */
+@Serializable
+data class LinkDto(
+    val start: Int = 0,
+    val end: Int = 0,
+    val targetOrdinal: Int = 0
+)
+
 @Serializable
 data class BlockDto(
     /** Сквозной по всей книге — адрес, который хранит позиция чтения. */
@@ -33,7 +41,8 @@ data class BlockDto(
     /** `HEADING` | `PARAGRAPH` | `QUOTE` | `LIST_ITEM`. */
     val kind: String = "PARAGRAPH",
     val text: String = "",
-    val sentences: List<SentenceDto> = emptyList()
+    val sentences: List<SentenceDto> = emptyList(),
+    val links: List<LinkDto> = emptyList()
 )
 
 @Serializable
