@@ -137,12 +137,22 @@ data class BookmarkResponse(
 @Serializable
 data class SetPositionRequest(val ordinal: Int)
 
+@Serializable
+data class RenameBookRequest(val title: String)
+
 // ── Конверты ──────────────────────────────────────────────────────────
 
 @Serializable
 data class BooksResponse(
     val status: String = "",
     val data: List<BookDto>? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class BookResponse(
+    val status: String = "",
+    val data: BookDto? = null,
     val message: String? = null
 )
 

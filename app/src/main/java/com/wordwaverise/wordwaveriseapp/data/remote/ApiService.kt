@@ -61,6 +61,8 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookImportRespons
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ImportBookTextRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ReadingPositionResponse
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.SetPositionRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.RenameBookRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookResponse
 import okhttp3.MultipartBody
 import retrofit2.http.*
 
@@ -444,6 +446,14 @@ interface ApiService {
         @Path("id") id: Int,
         @Body request: SetPositionRequest
     ): ReadingPositionResponse
+
+    /** Папка книги, если она уже есть, переименуется вместе с ней — переносит сервер. */
+    @PUT("api/v2/library/books/{id}")
+    suspend fun renameBook(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body request: RenameBookRequest
+    ): BookResponse
 
     @DELETE("api/v2/library/books/{id}")
     suspend fun deleteBook(

@@ -33,7 +33,11 @@ data class BooksState(
      * загрузкой файла, которого под рукой может уже не быть.
      */
     val confirmDelete: BookDto? = null,
-    val confirmDeleteAgain: BookDto? = null
+    val confirmDeleteAgain: BookDto? = null,
+    /** Книга, для которой открыт диалог переименования. */
+    val renameTarget: BookDto? = null,
+    val renameTitle: String = "",
+    val isRenaming: Boolean = false
 )
 
 @HiltViewModel
@@ -127,6 +131,40 @@ class BooksViewModel @Inject constructor(
 
     fun setPasteTitle(title: String) {
         _state.value = _state.value.copy(pasteTitle = title)
+    }
+
+    fun startRename(book: BookDto) {
+        _state.value = _state.value.copy(renameTarget = book, renameTitle = book.title)
+    }
+
+    fun setRenameTitle(title: String) {
+        _state.value = _state.value.copy(renameTitle = title)
+    }
+
+    fun cancelRename() {
+        _state.value = _state.value.copy(renameTarget = null, renameTitle = "")
+    }
+
+    fun confirmRename() {
+        val book = _state.value.renameTarget ?: return
+        val title = _state.value.renameTitle.trim()
+        if (title.isEmpty() || _state.value.isRenaming) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isRenaming = true)
+            when (val result = repository.rename(book.id, title)) {
+                is Resource.Success -> _state.value = _state.value.copy(
+                    books = _state.value.books.map { if (it.id == book.id) result.data!! else it },
+                    renameTarget = null,
+                    renameTitle = "",
+                    isRenaming = false,
+                    notice = "Книга переименована"
+                )
+                else -> _state.value = _state.value.copy(
+                    isRenaming = false,
+                    error = result.message ?: "Не удалось переименовать книгу"
+                )
+            }
+        }
     }
 
     fun askDelete(book: BookDto?) {

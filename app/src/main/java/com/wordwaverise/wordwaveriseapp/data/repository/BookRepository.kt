@@ -14,6 +14,7 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookImportDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ImportBookTextRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ReadingPositionDto
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.SetPositionRequest
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.RenameBookRequest
 import com.wordwaverise.wordwaveriseapp.util.NetworkError
 import com.wordwaverise.wordwaveriseapp.util.Resource
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -132,6 +133,14 @@ class BookRepository @Inject constructor(
     suspend fun delete(id: Int): Resource<Unit> = call { token ->
         apiService.deleteBook(token, id)
         Resource.Success(Unit)
+    }
+
+    /** Папка книги, если уже есть, переименуется вместе с ней — это делает сервер. */
+    suspend fun rename(id: Int, title: String): Resource<BookDto> = call { token ->
+        val response = apiService.renameBook(token, id, RenameBookRequest(title))
+        val book = response.data
+            ?: return@call Resource.Error(response.message ?: "Не удалось переименовать книгу")
+        Resource.Success(book)
     }
 
     /**

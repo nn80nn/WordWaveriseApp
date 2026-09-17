@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -155,6 +156,7 @@ fun BooksScreen(
                         BookCard(
                             book = book,
                             onOpen = { onOpenBook(book.id) },
+                            onRename = { viewModel.startRename(book) },
                             onDelete = { viewModel.askDelete(book) }
                         )
                     }
@@ -213,6 +215,55 @@ fun BooksScreen(
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.showPaste(false) }) {
+                    Text("Отмена", color = colors.textMuted)
+                }
+            }
+        )
+    }
+
+    state.renameTarget?.let {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelRename,
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colors.surface,
+            title = {
+                Text(
+                    "Переименовать книгу",
+                    fontFamily = Comfortaa,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = colors.textPrimary
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = state.renameTitle,
+                        onValueChange = viewModel::setRenameTitle,
+                        placeholder = { Text("Название") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    // ⚠️ Папка книги названа по её заголовку в момент создания и сама по себе
+                    // не сверяется с ним — сервер переносит новое имя на папку заодно.
+                    Text(
+                        "Папка книги, если она уже есть, переименуется вместе с ней.",
+                        fontSize = 12.sp,
+                        color = colors.textMuted
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmRename,
+                    enabled = state.renameTitle.isNotBlank() && !state.isRenaming
+                ) {
+                    Text("Сохранить", color = colors.secondary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelRename) {
                     Text("Отмена", color = colors.textMuted)
                 }
             }
@@ -294,7 +345,7 @@ fun BooksScreen(
 }
 
 @Composable
-private fun BookCard(book: BookDto, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun BookCard(book: BookDto, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
     val colors = WaveTheme.colors
     val percent = ((book.position?.progress ?: 0.0) * 100).roundToInt().coerceIn(0, 100)
 
@@ -364,6 +415,14 @@ private fun BookCard(book: BookDto, onOpen: () -> Unit, onDelete: () -> Unit) {
                 }
             }
 
+            IconButton(onClick = onRename) {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = "Переименовать книгу",
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Outlined.Delete,
