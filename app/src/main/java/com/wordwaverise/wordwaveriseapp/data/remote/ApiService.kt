@@ -63,6 +63,8 @@ import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.ReadingPositionRe
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.SetPositionRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.RenameBookRequest
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.OfflineBundleResponse
+import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.OfflineStatusResponse
 import okhttp3.MultipartBody
 import retrofit2.http.*
 
@@ -488,6 +490,31 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("id") id: Int
     ): CategoryResponse
+
+    /**
+     * Ставит книгу на прогрев для офлайн-чтения. Идемпотентно на уже идущий джоб; дневной лимит
+     * считается на сервере и приезжает кодом `offline_daily_limit_reached`, а не текстом.
+     */
+    @POST("api/v2/library/books/{id}/offline/start")
+    suspend fun startOfflineDownload(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): OfflineStatusResponse
+
+    @GET("api/v2/library/books/{id}/offline/status")
+    suspend fun getOfflineStatus(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): OfflineStatusResponse
+
+    /** Готовые подсказки, окном блоков — тем же контрактом, что `/blocks`. */
+    @GET("api/v2/library/books/{id}/offline/bundle")
+    suspend fun getOfflineBundle(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Query("from") from: Int,
+        @Query("limit") limit: Int = 200
+    ): OfflineBundleResponse
 
     @GET("api/ai/summary")
     suspend fun getAiSummary(

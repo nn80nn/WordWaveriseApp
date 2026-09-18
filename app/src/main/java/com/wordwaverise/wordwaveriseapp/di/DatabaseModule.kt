@@ -19,12 +19,16 @@ import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_8_9
 import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_10_11
 import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_11_12
 import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_12_13
+import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_13_14
 import com.wordwaverise.wordwaveriseapp.data.local.MIGRATION_9_10
 import com.wordwaverise.wordwaveriseapp.data.local.SettingsDataStore
 import com.wordwaverise.wordwaveriseapp.data.local.TokenDataStore
 import com.wordwaverise.wordwaveriseapp.data.local.dao.ArticleCacheDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.FlashcardDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.OfflineBlockDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.OfflineBookDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.OfflineHintDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.SavedWordDao
 import javax.inject.Singleton
 
@@ -43,7 +47,8 @@ object DatabaseModule {
             .addMigrations(
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
                 MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
-                MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13
+                MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
+                MIGRATION_13_14
             )
             .build()
     }
@@ -70,6 +75,24 @@ object DatabaseModule {
     @Singleton
     fun provideArticleCacheDao(database: AppDatabase): ArticleCacheDao {
         return database.articleCacheDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideOfflineBookDao(database: AppDatabase): OfflineBookDao {
+        return database.offlineBookDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideOfflineBlockDao(database: AppDatabase): OfflineBlockDao {
+        return database.offlineBlockDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideOfflineHintDao(database: AppDatabase): OfflineHintDao {
+        return database.offlineHintDao()
     }
 
     @Provides

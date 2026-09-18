@@ -275,3 +275,46 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
         db.execSQL("ALTER TABLE `categories` ADD COLUMN `bookServerId` INTEGER")
     }
 }
+
+/**
+ * Офлайн-чтение (только Android): три новых таблицы, ни одна не трогает существующие.
+ *
+ * `offline_books` — одна строка на книгу, поставленную на скачивание, и её прогресс; экран
+ * читает именно её, а не отдельное состояние во ViewModel, потому что загрузка переживает
+ * закрытие экрана — прогрев идёт на сервере, а не здесь.
+ * `offline_blocks` — текст книги (абзац, предложения, токены — тот же `BlockDto`, что и `/blocks`).
+ * `offline_hints` — готовый ответ на тап, адресованный местом в книге, а не текстом предложения.
+ *
+ * Все три хранят содержимое JSON-строкой, как уже делает `article_cache`: нормализованная схема
+ * не окупилась бы — каждое чтение всё равно хочет DTO целиком.
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `offline_books` (
+                `bookId` INTEGER PRIMARY KEY NOT NULL,
+                `detailPayload` TEXT NOT NULL,
+                `blockCount` INTEGER NOT NULL,
+                `status` TEXT NOT NULL,
+                `totalTokens` INTEGER NOT NULL,
+                `processedTokens` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL)"""
+        )
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `offline_blocks` (
+                `bookId` INTEGER NOT NULL,
+                `ordinal` INTEGER NOT NULL,
+                `payload` TEXT NOT NULL,
+                PRIMARY KEY(`bookId`, `ordinal`))"""
+        )
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `offline_hints` (
+                `bookId` INTEGER NOT NULL,
+                `blockOrdinal` INTEGER NOT NULL,
+                `sentenceIndex` INTEGER NOT NULL,
+                `tokenIndex` INTEGER NOT NULL,
+                `payload` TEXT NOT NULL,
+                PRIMARY KEY(`bookId`, `blockOrdinal`, `sentenceIndex`, `tokenIndex`))"""
+        )
+    }
+}

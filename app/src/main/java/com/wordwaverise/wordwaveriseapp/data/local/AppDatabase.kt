@@ -6,10 +6,16 @@ import androidx.room.TypeConverters
 import com.wordwaverise.wordwaveriseapp.data.local.dao.ArticleCacheDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.CategoryDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.FlashcardDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.OfflineBlockDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.OfflineBookDao
+import com.wordwaverise.wordwaveriseapp.data.local.dao.OfflineHintDao
 import com.wordwaverise.wordwaveriseapp.data.local.dao.SavedWordDao
 import com.wordwaverise.wordwaveriseapp.data.local.entity.ArticleCacheEntity
 import com.wordwaverise.wordwaveriseapp.data.local.entity.CategoryEntity
 import com.wordwaverise.wordwaveriseapp.data.local.entity.FlashcardEntity
+import com.wordwaverise.wordwaveriseapp.data.local.entity.OfflineBlockEntity
+import com.wordwaverise.wordwaveriseapp.data.local.entity.OfflineBookEntity
+import com.wordwaverise.wordwaveriseapp.data.local.entity.OfflineHintEntity
 import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
 
 @Database(
@@ -17,9 +23,12 @@ import com.wordwaverise.wordwaveriseapp.data.local.entity.SavedWordEntity
         SavedWordEntity::class,
         FlashcardEntity::class,
         CategoryEntity::class,
-        ArticleCacheEntity::class
+        ArticleCacheEntity::class,
+        OfflineBookEntity::class,
+        OfflineBlockEntity::class,
+        OfflineHintEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -28,4 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun flashcardDao(): FlashcardDao
     abstract fun categoryDao(): CategoryDao
     abstract fun articleCacheDao(): ArticleCacheDao
+    abstract fun offlineBookDao(): OfflineBookDao
+    abstract fun offlineBlockDao(): OfflineBlockDao
+    abstract fun offlineHintDao(): OfflineHintDao
 }

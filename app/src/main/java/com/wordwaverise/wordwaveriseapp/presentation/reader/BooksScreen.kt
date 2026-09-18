@@ -12,6 +12,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
@@ -19,6 +22,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -26,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.wordwaverise.wordwaveriseapp.data.local.entity.OfflineBookEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDto
 import com.wordwaverise.wordwaveriseapp.ui.theme.Comfortaa
 import com.wordwaverise.wordwaveriseapp.ui.theme.Eyebrow
@@ -155,9 +161,12 @@ fun BooksScreen(
                     items(state.books, key = { it.id }) { book ->
                         BookCard(
                             book = book,
+                            offline = state.offline[book.id],
                             onOpen = { onOpenBook(book.id) },
                             onRename = { viewModel.startRename(book) },
-                            onDelete = { viewModel.askDelete(book) }
+                            onDelete = { viewModel.askDelete(book) },
+                            onDownloadOffline = { viewModel.downloadOffline(book.id) },
+                            onRemoveOffline = { viewModel.removeOffline(book.id) }
                         )
                     }
                 }
@@ -345,7 +354,15 @@ fun BooksScreen(
 }
 
 @Composable
-private fun BookCard(book: BookDto, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+private fun BookCard(
+    book: BookDto,
+    offline: OfflineBookEntity?,
+    onOpen: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onDownloadOffline: () -> Unit,
+    onRemoveOffline: () -> Unit
+) {
     val colors = WaveTheme.colors
     val percent = ((book.position?.progress ?: 0.0) * 100).roundToInt().coerceIn(0, 100)
 
@@ -415,6 +432,7 @@ private fun BookCard(book: BookDto, onOpen: () -> Unit, onRename: () -> Unit, on
                 }
             }
 
+            OfflineButton(offline = offline, onDownload = onDownloadOffline, onRemove = onRemoveOffline)
             IconButton(onClick = onRename) {
                 Icon(
                     imageVector = Icons.Outlined.Edit,
@@ -427,6 +445,62 @@ private fun BookCard(book: BookDto, onOpen: () -> Unit, onRename: () -> Unit, on
                 Icon(
                     imageVector = Icons.Outlined.Delete,
                     contentDescription = "Удалить книгу",
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Один и тот же слот на все состояния офлайн-копии — не отдельная строка, а замена значка
+ * рядом с «Переименовать»/«Удалить»: скачивание книги не событие, ради которого стоит двигать
+ * карточку, оно просто меняет то, что нарисовано в этом углу.
+ */
+@Composable
+private fun OfflineButton(offline: OfflineBookEntity?, onDownload: () -> Unit, onRemove: () -> Unit) {
+    val colors = WaveTheme.colors
+    val downloading = offline != null &&
+        offline.status != OfflineBookEntity.STATUS_READY &&
+        offline.status != OfflineBookEntity.STATUS_FAILED
+
+    Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        when {
+            downloading -> {
+                val percent = if (offline!!.totalTokens > 0) {
+                    (offline.processedTokens * 100 / offline.totalTokens).coerceIn(0, 100)
+                } else null
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .semantics {
+                            contentDescription = if (percent != null) "Скачивается офлайн: $percent%" else "Скачивается офлайн"
+                        },
+                    strokeWidth = 2.dp,
+                    color = colors.secondary
+                )
+            }
+            offline?.status == OfflineBookEntity.STATUS_READY -> IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Outlined.CloudDone,
+                    contentDescription = "Доступна офлайн — нажмите, чтобы освободить место",
+                    tint = colors.secondary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            offline?.status == OfflineBookEntity.STATUS_FAILED -> IconButton(onClick = onDownload) {
+                Icon(
+                    imageVector = Icons.Outlined.CloudOff,
+                    contentDescription = "Не удалось скачать офлайн — нажмите, чтобы повторить",
+                    tint = colors.error,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            else -> IconButton(onClick = onDownload) {
+                Icon(
+                    imageVector = Icons.Outlined.CloudDownload,
+                    contentDescription = "Скачать книгу офлайн",
                     tint = colors.textMuted,
                     modifier = Modifier.size(18.dp)
                 )

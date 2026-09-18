@@ -3,6 +3,7 @@ package com.wordwaverise.wordwaveriseapp.presentation.reader
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wordwaverise.wordwaveriseapp.data.local.entity.OfflineBookEntity
 import com.wordwaverise.wordwaveriseapp.data.remote.dto.reader.BookDto
 import com.wordwaverise.wordwaveriseapp.data.repository.BookRepository
 import com.wordwaverise.wordwaveriseapp.util.Resource
@@ -37,7 +38,14 @@ data class BooksState(
     /** Книга, для которой открыт диалог переименования. */
     val renameTarget: BookDto? = null,
     val renameTitle: String = "",
-    val isRenaming: Boolean = false
+    val isRenaming: Boolean = false,
+    /**
+     * Офлайн-прогресс по книгам, где он есть — отсутствие ключа значит «не скачивалась».
+     *
+     * Только Android: у книги нет собственного офлайн-состояния на сервере, оно целиком
+     * локальное, поэтому это карта, а не поле [BookDto].
+     */
+    val offline: Map<Int, OfflineBookEntity> = emptyMap()
 )
 
 @HiltViewModel
@@ -50,6 +58,32 @@ class BooksViewModel @Inject constructor(
 
     init {
         refresh()
+        viewModelScope.launch {
+            repository.offlineBooks().collect { rows ->
+                _state.value = _state.value.copy(offline = rows.associateBy { it.bookId })
+            }
+        }
+    }
+
+    /**
+     * Скачивает книгу целиком для чтения без сети: текст сразу, подсказки — по мере прогрева.
+     *
+     * Ошибка (в том числе дневной лимит или переполненная полка) идёт как обычное сообщение —
+     * возврата к предыдущему состоянию тут нет, `offline`-запись просто не появляется/остаётся
+     * `FAILED`, и кнопка снова доступна для повтора.
+     */
+    fun downloadOffline(bookId: Int) {
+        viewModelScope.launch {
+            when (val result = repository.downloadForOffline(bookId)) {
+                is Resource.Success -> Unit
+                else -> _state.value = _state.value.copy(error = result.message ?: "Не удалось скачать книгу")
+            }
+        }
+    }
+
+    /** Освобождает место: текст и подсказки уходят из Room, сама книга остаётся на сервере. */
+    fun removeOffline(bookId: Int) {
+        viewModelScope.launch { repository.removeOfflineData(bookId) }
     }
 
     fun refresh() {

@@ -172,8 +172,11 @@ data class ReaderState(
 /**
  * Чтение одной книги.
  *
- * Блоки приезжают окнами и никуда не кэшируются: тап по слову всё равно требует сети, поэтому
- * офлайновая книга — это книга, в которой не работает главное.
+ * Блоки приезжают окнами и по умолчанию никуда не кэшируются — кроме книг, которые читатель
+ * явно скачал для офлайна ([BooksViewModel.downloadOffline]): тогда и текст, и подсказка на тап
+ * читаются из Room, как только сеть пропадает. [BookRepository.blocks] и
+ * [BookRepository.contextHint] сами решают, сетью отвечать или локальной копией — здесь этого
+ * различия не видно.
  */
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
@@ -493,8 +496,11 @@ class ReaderViewModel @Inject constructor(
         )
         analysisJob = viewModelScope.launch {
             // ⚠️ Предложение, а не абзац: это ключ серверного кэша разбора, и второй читатель
-            // той же строки не платит ничего.
-            val result = search.contextHint(sentence.text, target.tokenIndex, target.tokenEnd)
+            // той же строки не платит ничего. Через `books`, а не `search`, — только у первого
+            // есть офлайн-копия, адресованная местом в книге, а не текстом предложения.
+            val result = books.contextHint(
+                bookId, target.blockOrdinal, target.sentenceIndex, sentence.text, target.tokenIndex, target.tokenEnd
+            )
             _state.value = _state.value.copy(
                 // Пустой ответ при успехе — это «модель не ответила», а не ошибка.
                 hint = (result as? Resource.Success)?.data,

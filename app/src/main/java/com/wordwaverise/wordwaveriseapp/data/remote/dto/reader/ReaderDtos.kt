@@ -192,3 +192,67 @@ data class ReadingPositionResponse(
     val data: ReadingPositionDto? = null,
     val message: String? = null
 )
+
+// ── Офлайн (только Android) ──────────────────────────────────────────────
+
+/**
+ * Прогресс прогрева книги на сервере — зеркало `models/reader/ReaderDtos.kt`.
+ *
+ * [downloadsToday]/[downloadsPerDay] — про читателя, не про книгу: джоб прогрева ничего не
+ * знает о том, кто его попросил, и может уже быть тёплым от чужого скачивания той же книги.
+ */
+@Serializable
+data class OfflineStatusDto(
+    val bookId: Int = 0,
+    val running: Boolean = false,
+    val totalTokens: Int = 0,
+    val processedTokens: Int = 0,
+    val failed: Int = 0,
+    val startedAt: Long? = null,
+    val finishedAt: Long? = null,
+    val downloadsToday: Int = 0,
+    val downloadsPerDay: Int = 0
+)
+
+/** Одна готовая офлайн-подсказка — те же поля, что [com.wordwaverise.wordwaveriseapp.data.remote.dto.lexical.ContextHintDto]. */
+@Serializable
+data class OfflineHintDto(
+    val blockOrdinal: Int = 0,
+    val sentenceIndex: Int = 0,
+    val tokenIndex: Int = 0,
+    val lemma: String? = null,
+    val pos: String? = null,
+    val translationRu: String? = null,
+    val senseId: String? = null,
+    val senseMatched: Boolean = false,
+    val senseDefinitionEn: String? = null,
+    val phonetic: String? = null,
+    val audioUrl: String? = null,
+    val translationsRu: List<String> = emptyList(),
+    val cefr: String? = null,
+    val register: String? = null,
+    val countability: String? = null,
+    val entryAvailable: Boolean = false
+)
+
+@Serializable
+data class OfflineBundlePageDto(
+    val bookId: Int = 0,
+    val from: Int = 0,
+    val hints: List<OfflineHintDto> = emptyList(),
+    val nextOrdinal: Int? = null
+)
+
+@Serializable
+data class OfflineStatusResponse(
+    val status: String = "",
+    val data: OfflineStatusDto? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class OfflineBundleResponse(
+    val status: String = "",
+    val data: OfflineBundlePageDto? = null,
+    val message: String? = null
+)
