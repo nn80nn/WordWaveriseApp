@@ -22,23 +22,35 @@ android {
         applicationId = "com.wordwaverise.wordwaveriseapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 25
-        versionName = "1.14.0"
+        versionCode = 26
+        versionName = "1.14.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // BuildConfig fields
         buildConfigField("String", "BASE_URL", "\"https://backend.wordwaverise.com/\"")
+        // backend.wordwaverise.com is mid-migration and can go unreachable without notice.
+        // wordwaverise.remess.org is a standing alias at the same backend, spared from the
+        // migration — NetworkModule fails over to it when the primary is unreachable.
+        buildConfigField("String", "FALLBACK_BASE_URL", "\"https://wordwaverise.remess.org/\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${localProperties.getProperty("GOOGLE_CLIENT_ID", "")}\"")
 
     }
 
+    // A release keystore is a developer/CI secret, not something every checkout has. Falling
+    // back to debug signing when it's absent keeps `assembleRelease`/`bundleRelease` buildable
+    // without one; a checkout that does have local.properties configured signs exactly as before.
+    val hasReleaseKeystore = localProperties.getProperty("KEYSTORE_PATH")
+        ?.let { rootProject.file(it).exists() } == true
+
     signingConfigs {
-        create("release") {
-            storeFile = rootProject.file(localProperties["KEYSTORE_PATH"] as String)
-            storePassword = localProperties["KEYSTORE_PASSWORD"] as String
-            keyAlias = localProperties["KEY_ALIAS"] as String
-            keyPassword = localProperties["KEY_PASSWORD"] as String
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(localProperties.getProperty("KEYSTORE_PATH"))
+                storePassword = localProperties.getProperty("KEYSTORE_PASSWORD")
+                keyAlias = localProperties.getProperty("KEY_ALIAS")
+                keyPassword = localProperties.getProperty("KEY_PASSWORD")
+            }
         }
     }
 
@@ -50,7 +62,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {

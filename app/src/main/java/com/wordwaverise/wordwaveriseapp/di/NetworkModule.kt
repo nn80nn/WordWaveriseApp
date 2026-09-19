@@ -8,6 +8,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import com.wordwaverise.wordwaveriseapp.BuildConfig
 import com.wordwaverise.wordwaveriseapp.data.remote.ApiService
+import com.wordwaverise.wordwaveriseapp.data.remote.FailoverInterceptor
 import com.wordwaverise.wordwaveriseapp.data.remote.UnauthorizedInterceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -46,11 +47,25 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideFailoverInterceptor(): FailoverInterceptor {
+        return FailoverInterceptor(
+            primaryBaseUrl = BuildConfig.BASE_URL,
+            fallbackBaseUrl = BuildConfig.FALLBACK_BASE_URL
+        )
+    }
+
+    @Provides
+    @Singleton
     fun provideOkHttpClient(
+        failoverInterceptor: FailoverInterceptor,
         loggingInterceptor: HttpLoggingInterceptor,
         unauthorizedInterceptor: UnauthorizedInterceptor
     ): OkHttpClient {
         return OkHttpClient.Builder()
+            // First in the chain: it needs to see the raw connection failure/5xx from the
+            // primary host and retry the whole call against the fallback before the other
+            // interceptors (auth, logging) ever see a failed response.
+            .addInterceptor(failoverInterceptor)
             .addInterceptor(unauthorizedInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
